@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "description": "GYNX.GG Discord community, support, status, security and analytics platform",
+  "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "packageManager": "pnpm@9.15.9",
   "engines": {

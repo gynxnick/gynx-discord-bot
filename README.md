@@ -1,5 +1,7 @@
 # GYNX.GG Discord Bot
 
+> **Source-available, not open source.** This code is published for transparency and security review only. Running, hosting, copying, modifying or redistributing it requires written permission from GYNX.GG. See [LICENSE](LICENSE). Report vulnerabilities privately: see [SECURITY.md](SECURITY.md).
+
 The community, status, security and analytics platform for the **GYNX.GG** Discord server: a Discord bot, a background worker, and a staff web dashboard, sharing one typed service layer and PostgreSQL database.
 
 > **Out of scope by design:** game-server panel functions, server control, billing and payments, and **support ticketing**. Support runs on GYNX's external support system; the bot links to it (`supportUrl`) wherever a member needs a human.
@@ -86,4 +88,4 @@ tests             Integration tests and helpers
 
 ## License
 
-Proprietary. © GYNX.GG. See [LICENSE](LICENSE).
+GYNX.GG Source-Available License: you may read the code; you may not use it. See [LICENSE](LICENSE).

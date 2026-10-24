@@ -1,5 +1,51 @@
+GYNX.GG Source-Available License
+Version 1.0, 2026
+
 Copyright (c) 2026 GYNX.GG. All rights reserved.
 
-This software and associated documentation files are proprietary and confidential.
-No part of this repository may be copied, modified, distributed, or used without
-prior written permission from GYNX.GG.
+This repository ("the Software") is published so that it can be read. It is
+NOT open source. Making the source code visible does not grant any right to
+use it.
+
+1. Permitted
+   You may view and read the Software's source code, for example to review
+   how it works or to report a security vulnerability to GYNX.GG.
+
+2. Not permitted
+   Without prior written permission from GYNX.GG, you may not, in whole or
+   in part:
+   a. run, execute, install, deploy or host the Software, or operate any
+      Discord bot, dashboard or service built from it;
+   b. copy, reproduce or redistribute the Software, outside the viewing and
+      forking that the hosting platform's terms of service require;
+   c. modify the Software or create derivative works based on it;
+   d. sell, sublicense, rent or lease the Software, or provide it as a
+      service to anyone;
+   e. use the Software, or data derived from it, to train or improve
+      machine-learning models; or
+   f. use the names, logos or trademarks of GYNX.GG.
+
+3. GYNX.GG use
+   Only GYNX.GG, and parties GYNX.GG has explicitly authorised in writing,
+   may run, deploy, modify or distribute the Software.
+
+4. Contributions
+   GYNX.GG does not accept unsolicited contributions. If you submit any
+   contribution anyway (for example a pull request or patch), you grant
+   GYNX.GG a perpetual, worldwide, irrevocable, royalty-free license to use,
+   modify and distribute it for any purpose, and you confirm you have the
+   right to grant that license.
+
+5. Termination
+   Any use of the Software that is not permitted by this license ends all
+   rights under it immediately. GYNX.GG may pursue any remedy available
+   under applicable law.
+
+6. No warranty
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+   GYNX.GG BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR ITS USE.
+
+Permission requests: open an issue on this repository.
