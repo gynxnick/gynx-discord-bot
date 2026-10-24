@@ -5,7 +5,11 @@ import { containsSecret, redactObject, redactSecrets } from './redact';
 // source (secret scanners, including GitHub push protection, would flag it).
 const join = (...parts: string[]) => parts.join('');
 const FAKE = {
-  discord: [Buffer.from('123456789012345678').toString('base64'), 'GabcDE', 'abcdefghijklmnopqrstuvwxyz0123456789'].join('.'),
+  discord: [
+    Buffer.from('123456789012345678').toString('base64'),
+    'GabcDE',
+    'abcdefghijklmnopqrstuvwxyz0123456789',
+  ].join('.'),
   github: join('gh', 'p_', 'abcdefghijklmnopqrstuvwxyz0123456789AB'),
   aws: join('AK', 'IA', 'ABCDEFGHIJKLMNOP'),
   privateKey: join('-----BEGIN RSA ', 'PRIVATE KEY-----\nMIIEow\n-----END RSA ', 'PRIVATE KEY-----'),
