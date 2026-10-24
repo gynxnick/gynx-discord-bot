@@ -2,11 +2,13 @@ import { claimJobs, completeJob, enqueueJob, failJob } from '@gynx/services';
 import { isAppError } from '@gynx/shared';
 import type { JobHandler, PeriodicTask, WorkerCtx, WorkerModule } from './types';
 
-const PERIODIC_TYPE = 'periodic';
+/** Each periodic task has its own job type so workers only claim tasks they know. */
+const periodicType = (name: string) => `periodic:${name}`;
 
 /**
  * Single loop driving both one-off jobs and periodic tasks via the ScheduledJob table.
- * Periodic tasks are enqueued as `periodic:<name>:<bucket>` (bucket = floor(now / interval)),
+ * Periodic tasks are enqueued with type `periodic:<name>` and dedupeKey `periodic:<name>:<bucket>`
+ * (bucket = floor(now / interval)),
  * so every worker instance may enqueue them but the unique dedupeKey + SKIP LOCKED claim
  * guarantee exactly one execution per interval.
  */
@@ -32,6 +34,11 @@ export class JobRunner {
         this.periodic.set(t.name, t);
       }
     }
+  }
+
+  /** Job types this runner may claim: its handlers plus its periodic tasks. */
+  private get claimableTypes(): string[] {
+    return [...this.handlers.keys(), ...[...this.periodic.keys()].map(periodicType)];
   }
 
   get jobTypes(): string[] {
@@ -66,7 +73,7 @@ export class JobRunner {
       const interval = typeof t.intervalMs === 'function' ? t.intervalMs(this.w) : t.intervalMs;
       const bucket = Math.floor(now.getTime() / interval);
       await enqueueJob(db, {
-        type: PERIODIC_TYPE,
+        type: periodicType(t.name),
         dedupeKey: `periodic:${t.name}:${bucket}`,
         runAt: new Date(bucket * interval),
         payload: { task: t.name },
@@ -74,12 +81,12 @@ export class JobRunner {
       });
     }
 
-    const jobs = await claimJobs(db, this.w.workerId, now, 10);
+    const jobs = await claimJobs(db, this.w.workerId, now, 10, undefined, this.claimableTypes);
     for (const job of jobs) {
       const log = this.w.log.child({ jobId: job.id, type: job.type, attempt: job.attempts });
       try {
-        if (job.type === PERIODIC_TYPE) {
-          const name = (job.payload as { task?: string }).task ?? '';
+        if (job.type.startsWith('periodic:')) {
+          const name = job.type.slice('periodic:'.length);
           const task = this.periodic.get(name);
           if (!task) throw new Error(`unknown periodic task ${name}`);
           await task.run(this.w, now);

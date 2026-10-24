@@ -9,3 +9,4 @@ export * from './permissions';
 export * from './redis-rate-limit';
 export * from './links';
 export * from './health';
+export * from './integrations';

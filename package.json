@@ -25,7 +25,8 @@
     "db:migrate:dev": "pnpm --filter @gynx/database migrate:dev",
     "db:seed": "pnpm --filter @gynx/database seed",
     "commands:register": "pnpm --filter @gynx/bot commands:register",
-    "audit:deps": "pnpm audit --prod"
+    "audit:deps": "pnpm audit --prod",
+    "docs:permissions": "tsx scripts/gen-permissions-doc.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

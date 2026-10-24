@@ -44,6 +44,8 @@ export default async function setup(project: TestProject): Promise<() => Promise
       password: 'gynx-test-only',
       port: PORT,
       persistent: false,
+      // Match production: UTF-8 regardless of the host OS code page.
+      initdbFlags: ['--encoding=UTF8', '--locale=C'],
       onLog: () => {},
       onError: () => {},
     });

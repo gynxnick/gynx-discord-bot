@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import { inject } from 'vitest';
 import { createLogger } from '@gynx/config';
 import { createDb, ensureGuild, type PrismaClient } from '@gynx/database';
@@ -19,10 +20,13 @@ export function testDb(): PrismaClient {
 }
 
 let seq = 0;
-/** Snowflake-shaped unique id. */
+/**
+ * Snowflake-shaped id, unique across parallel test workers:
+ * 1 + 13-digit ms timestamp + 4 random digits + 2-digit per-worker sequence (20 digits).
+ */
 export function snowflake(): string {
-  seq += 1;
-  return `1${Date.now()}${String(seq).padStart(5, '0')}`.slice(0, 19);
+  seq = (seq + 1) % 100;
+  return `1${Date.now()}${String(randomInt(10_000)).padStart(4, '0')}${String(seq).padStart(2, '0')}`;
 }
 
 /** A fresh, isolated guild per test so tests never share state. */
@@ -129,4 +133,11 @@ export function ctxAs(
     source: 'bot',
   };
   return makeCtx(opts.deps ?? testDeps(), guildId, actor, 'test');
+}
+
+/** Run `tick` until no more jobs are claimed (each tick claims at most 10). */
+export async function drainJobs(runner: { tick(now?: Date): Promise<number> }, now?: Date, maxTicks = 50): Promise<void> {
+  for (let i = 0; i < maxTicks; i++) {
+    if ((await runner.tick(now)) === 0) return;
+  }
 }

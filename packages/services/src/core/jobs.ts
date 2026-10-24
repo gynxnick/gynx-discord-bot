@@ -69,8 +69,15 @@ export async function claimJobs(
   now: Date,
   limit = 10,
   staleAfterMs = 10 * 60_000,
+  /**
+   * Only claim these job types (the ones this worker has handlers for). Prevents an
+   * older worker from dead-lettering job types introduced by a newer release during
+   * a rolling deploy.
+   */
+  types?: readonly string[],
 ): Promise<ScheduledJob[]> {
   const staleBefore = new Date(now.getTime() - staleAfterMs);
+  const typeFilter = types ? Prisma.sql`AND "type" = ANY(${[...types]}::text[])` : Prisma.empty;
   return db.$queryRaw<ScheduledJob[]>`
     UPDATE "ScheduledJob" SET "status" = 'RUNNING', "lockedAt" = ${utc(now)}, "lockedBy" = ${workerId},
       "attempts" = "attempts" + 1, "updatedAt" = ${utc(now)}
@@ -78,6 +85,7 @@ export async function claimJobs(
       SELECT "id" FROM "ScheduledJob"
       WHERE (("status" IN ('PENDING', 'FAILED') AND "runAt" <= ${utc(now)})
           OR ("status" = 'RUNNING' AND "lockedAt" < ${utc(staleBefore)}))
+        ${typeFilter}
       ORDER BY "runAt" ASC
       LIMIT ${limit}
       FOR UPDATE SKIP LOCKED

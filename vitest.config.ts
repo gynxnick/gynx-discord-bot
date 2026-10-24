@@ -19,7 +19,10 @@ export default defineConfig({
           globalSetup: ['tests/integration/global-setup.ts'],
           testTimeout: 30_000,
           hookTimeout: 120_000,
+          // Files share one database: run them one at a time in a single process.
           fileParallelism: false,
+          pool: 'forks',
+          poolOptions: { forks: { singleFork: true } },
         },
       },
     ],
