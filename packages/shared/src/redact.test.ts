@@ -1,14 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import { containsSecret, redactObject, redactSecrets } from './redact';
 
+// Fake credentials are assembled at runtime so no token-shaped literal exists in the
+// source (secret scanners, including GitHub push protection, would flag it).
+const join = (...parts: string[]) => parts.join('');
+const FAKE = {
+  discord: [Buffer.from('123456789012345678').toString('base64'), 'GabcDE', 'abcdefghijklmnopqrstuvwxyz0123456789'].join('.'),
+  github: join('gh', 'p_', 'abcdefghijklmnopqrstuvwxyz0123456789AB'),
+  aws: join('AK', 'IA', 'ABCDEFGHIJKLMNOP'),
+  privateKey: join('-----BEGIN RSA ', 'PRIVATE KEY-----\nMIIEow\n-----END RSA ', 'PRIVATE KEY-----'),
+  jwt: [
+    Buffer.from('{"alg":"HS256"}').toString('base64url'),
+    Buffer.from('{"sub":"1234567890"}').toString('base64url'),
+    'not-a-real-signature-0123456789',
+  ].join('.'),
+};
+
 describe('redactSecrets', () => {
   it.each([
-    ['discord bot token', ['MTIzNDU2Nzg5MDEyMzQ1Njc4', 'GabcDE', 'abcdefghijklmnopqrstuvwxyz0123456789'].join('.')],
+    ['discord bot token', FAKE.discord],
     ['bearer header', 'Authorization: Bearer abc.def.ghijklmnop'],
-    ['github token', 'ghp_abcdefghijklmnopqrstuvwxyz0123456789AB'],
-    ['aws key', 'AKIAABCDEFGHIJKLMNOP'],
-    ['private key', '-----BEGIN RSA PRIVATE KEY-----\nMIIEow\n-----END RSA PRIVATE KEY-----'],
-    ['jwt', 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U'],
+    ['github token', FAKE.github],
+    ['aws key', FAKE.aws],
+    ['private key', FAKE.privateKey],
+    ['jwt', FAKE.jwt],
   ])('removes %s', (_name, secret) => {
     const out = redactSecrets(`before ${secret} after`);
     expect(out).not.toContain(secret);
