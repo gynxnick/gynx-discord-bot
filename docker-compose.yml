@@ -1,6 +1,6 @@
-# Local development stack.
-#   docker compose up -d postgres redis      # just the dependencies (run apps with pnpm dev:*)
-#   docker compose --profile apps up --build # everything in containers
+# Local development dependencies only. Run the apps with `pnpm dev:bot`, `pnpm dev:worker`
+# and `pnpm dev:dashboard`. For production see infrastructure/deployment/ (VPS installer).
+#   docker compose up -d
 # Credentials below are for LOCAL DEVELOPMENT ONLY.
 
 services:
@@ -25,61 +25,6 @@ services:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       retries: 10
-
-  migrate:
-    profiles: ['apps']
-    build: { context: ., dockerfile: infrastructure/docker/migrate.Dockerfile }
-    environment:
-      DATABASE_URL: postgresql://gynx:gynx-dev-only@postgres:5432/gynx
-    depends_on:
-      postgres: { condition: service_healthy }
-
-  bot:
-    profiles: ['apps']
-    build: { context: ., dockerfile: infrastructure/docker/node.Dockerfile, args: { APP: bot } }
-    env_file: .env
-    environment: &internal
-      DATABASE_URL: postgresql://gynx:gynx-dev-only@postgres:5432/gynx
-      REDIS_URL: redis://redis:6379
-    depends_on: &deps
-      migrate: { condition: service_completed_successfully }
-      redis: { condition: service_healthy }
-    restart: unless-stopped
-    healthcheck:
-      test:
-        [
-          'CMD',
-          'node',
-          '-e',
-          "fetch('http://localhost:8081/livez').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
-        ]
-      interval: 30s
-
-  worker:
-    profiles: ['apps']
-    build: { context: ., dockerfile: infrastructure/docker/node.Dockerfile, args: { APP: worker } }
-    env_file: .env
-    environment: *internal
-    depends_on: *deps
-    restart: unless-stopped
-    healthcheck:
-      test:
-        [
-          'CMD',
-          'node',
-          '-e',
-          "fetch('http://localhost:8082/livez').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
-        ]
-      interval: 30s
-
-  dashboard:
-    profiles: ['apps']
-    build: { context: ., dockerfile: infrastructure/docker/dashboard.Dockerfile }
-    env_file: .env
-    environment: *internal
-    ports: ['127.0.0.1:3000:3000']
-    depends_on: *deps
-    restart: unless-stopped
 
 volumes:
   pgdata:

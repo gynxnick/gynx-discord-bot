@@ -25,16 +25,44 @@ pnpm commands:register
 pnpm dev:bot & pnpm dev:worker & pnpm dev:dashboard
 ```
 
-## Production topology
+## Single-VPS install (recommended)
 
-Deploy **four** containers from this repo (any container platform; no cloud-specific assumptions):
+For one dedicated server (Ubuntu 22.04/24.04 or Debian 12, 2 GB RAM, 20 GB disk), the installer sets up everything: Docker, PostgreSQL, Redis, the bot, the worker, the dashboard, and HTTPS through Caddy with automatic Let's Encrypt certificates.
 
-| Service   | Image                                      | Replicas             | Notes                                                                                           |
-| --------- | ------------------------------------------ | -------------------- | ----------------------------------------------------------------------------------------------- |
-| migrate   | `infrastructure/docker/migrate.Dockerfile` | one-shot per release | `prisma migrate deploy`; must succeed before the others roll out                                |
-| bot       | `node.Dockerfile --build-arg APP=bot`      | **exactly 1**        | One gateway connection per token (no sharding needed at this guild size). Health `:8081/readyz` |
-| worker    | `node.Dockerfile --build-arg APP=worker`   | 1–N                  | Safe to scale: jobs are claimed with `SKIP LOCKED`. Health `:8082/readyz`                       |
-| dashboard | `dashboard.Dockerfile`                     | 1–N                  | Stateless (sessions in Postgres). Behind HTTPS. Health `/api/health/ready`                      |
+1. Point a DNS **A record** for the dashboard (e.g. `dash.gynx.gg`) at the server.
+2. Put the code on the server, e.g. `git clone <your private repo> /opt/gynx` (or copy it: on Windows, `git archive --format=tar.gz -o gynx.tar.gz HEAD`, then `scp` it over and extract into `/opt/gynx`).
+3. Run it:
+   ```bash
+   cd /opt/gynx
+   sudo ./infrastructure/deployment/install.sh
+   ```
+   It asks for the Discord application ID, bot token, OAuth client ID/secret, server ID, dashboard domain and a Let's Encrypt email. It generates the database password, session secret and encryption key, and stores everything in `/etc/gynx/gynx.env` (root-only). Re-running it keeps existing secrets.
+4. Follow the printed steps: add the OAuth redirect, enable the two privileged intents, and invite the bot using the printed link (exact permissions, no Administrator).
+
+It also enables the `ufw` firewall (SSH, 80, 443 only; pass `--no-firewall` to skip), adds a 2 GB swap file on servers under 3 GB RAM, installs nightly database backups to `/var/backups/gynx` (kept 14 days), and installs the `gynx` command:
+
+| Command                        | What it does                                                        |
+| ------------------------------ | ------------------------------------------------------------------- |
+| `gynx status`                  | Service health and the dashboard URL                                |
+| `gynx logs [bot\|worker\|...]` | Follow logs                                                         |
+| `gynx update`                  | `git pull`, backup, rebuild, migrate, restart, re-register commands |
+| `gynx backup` / `gynx restore` | Database dump / restore (restore takes a safety backup first)       |
+| `gynx config` → `gynx restart` | Edit settings in `/etc/gynx/gynx.env` and apply them                |
+| `gynx register-commands`       | Re-register slash commands                                          |
+| `gynx psql`                    | Database shell                                                      |
+
+Copy backups off the server regularly (e.g. `rsync` from `/var/backups/gynx`); a backup on the same disk doesn't protect against losing the server.
+
+## Production topology (other platforms)
+
+All processes run from **one image**, `infrastructure/docker/app.Dockerfile`, with different commands (see `infrastructure/deployment/docker-compose.prod.yml` for the exact ones):
+
+| Service   | Command                                          | Replicas             | Notes                                                                                           |
+| --------- | ------------------------------------------------ | -------------------- | ----------------------------------------------------------------------------------------------- |
+| migrate   | `prisma migrate deploy` (in `packages/database`) | one-shot per release | Must succeed before the others roll out                                                         |
+| bot       | `node apps/bot/dist/index.js`                    | **exactly 1**        | One gateway connection per token (no sharding needed at this guild size). Health `:8081/readyz` |
+| worker    | `node apps/worker/dist/index.js`                 | 1–N                  | Safe to scale: jobs are claimed with `SKIP LOCKED`. Health `:8082/readyz`                       |
+| dashboard | `next start -p 3000` (in `apps/dashboard`)       | 1–N                  | Stateless (sessions in Postgres). Behind HTTPS. Health `/api/health/ready`                      |
 
 Dependencies:
 
@@ -66,7 +94,7 @@ Dependencies:
 ## Release procedure
 
 1. CI green on `main` (lint, format, typecheck, tests, build, audit).
-2. Build and tag the images (`git rev-parse --short HEAD`).
+2. Build and tag the image (`git rev-parse --short HEAD`). On the single-VPS install, `gynx update` does steps 2–5.
 3. Run **migrate** against production and wait for success.
 4. Roll out worker → dashboard → bot (bot last, so commands only change once services are ready).
 5. If commands changed, run `pnpm commands:register` with production credentials.

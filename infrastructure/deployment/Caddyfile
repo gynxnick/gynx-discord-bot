@@ -1,0 +1,14 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$DASHBOARD_DOMAIN} {
+	encode zstd gzip
+	# Caddy replaces any client-supplied X-Forwarded-For, so the dashboard's
+	# per-IP rate limits can't be spoofed.
+	reverse_proxy dashboard:3000
+	log {
+		output stdout
+		format json
+	}
+}

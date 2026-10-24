@@ -43,6 +43,26 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
+  image:
+    # Builds the production image and validates the VPS compose file, so the
+    # first real deploy isn't the first time the image is built.
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f infrastructure/docker/app.Dockerfile -t gynx-app:ci .
+      - name: Smoke-test the built bundles start and validate config
+        run: |
+          docker run --rm gynx-app:ci node apps/bot/dist/index.js 2>&1 | grep -q 'Invalid configuration'
+          docker run --rm gynx-app:ci node apps/worker/dist/index.js 2>&1 | grep -q 'Invalid configuration'
+          docker run --rm -w /app/packages/database gynx-app:ci ./node_modules/.bin/prisma --version
+      - name: Validate production compose file
+        run: |
+          sudo mkdir -p /etc/gynx
+          printf 'POSTGRES_PASSWORD=x\nDASHBOARD_DOMAIN=example.com\nACME_EMAIL=a@example.com\n' | sudo tee /etc/gynx/gynx.env >/dev/null
+          docker compose -f infrastructure/deployment/docker-compose.prod.yml --env-file /etc/gynx/gynx.env config --quiet
+      - run: sudo apt-get install -y shellcheck && shellcheck -S warning infrastructure/deployment/*.sh
+
   audit:
     runs-on: ubuntu-latest
     steps:

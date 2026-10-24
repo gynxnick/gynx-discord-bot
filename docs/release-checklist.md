@@ -2,6 +2,10 @@
 
 ## Before the first production release
 
+### Single VPS
+
+The installer covers most of this list: see [deployment.md → Single-VPS install](deployment.md#single-vps-install-recommended).
+
 ### Accounts and infrastructure (cannot be done from the repo)
 
 - [ ] Create a **GitHub repository** (private) and push: `git remote add origin <url> && git push -u origin main`. CI (`.github/workflows/ci.yml`) runs on push and pull requests.
@@ -66,7 +70,7 @@ These are deliberate scope decisions or platform constraints, not defects.
 
 **Tooling**
 
-- On Windows, the dashboard's standalone output is skipped unless `DASHBOARD_STANDALONE=1` (symlink permissions). Linux/Docker builds always produce it.
+- The production image has not yet been built and run on a real Linux server from this repository's CI. The first `install.sh` run on the VPS is that test; watch `gynx logs` during it.
 - Prisma is pinned to 6.x. Moving to Prisma 7 requires `prisma.config.ts` and driver adapters (planned upgrade, not urgent).
 - The "one pending appeal per action" rule is enforced with a transaction-scoped advisory lock, not a partial unique index (Prisma can't express partial indexes without migration drift).
 

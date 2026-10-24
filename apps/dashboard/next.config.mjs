@@ -22,9 +22,10 @@ if (
 
 const isProd = process.env.NODE_ENV === 'production';
 
-// Standalone output copies pnpm symlinks, which Windows only allows with Developer Mode/admin.
-// Production images are built on Linux (Docker); on Windows hosts opt in with DASHBOARD_STANDALONE=1.
-const standalone = process.platform !== 'win32' || process.env.DASHBOARD_STANDALONE === '1';
+// The production image (infrastructure/docker/app.Dockerfile) runs `next start` with the full
+// workspace installed, so the standalone bundle is opt-in (e.g. for hosts that need a single
+// server.js). On Windows it also needs Developer Mode/admin to copy pnpm symlinks.
+const standalone = process.env.DASHBOARD_STANDALONE === '1';
 
 /**
  * Static security headers. The Content-Security-Policy (with a per-request

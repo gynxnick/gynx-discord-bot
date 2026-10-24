@@ -56,7 +56,7 @@ tests/integration          DB-backed tests + helpers
 
 ## Windows notes
 
-- `next build` creates the standalone server bundle (`output: 'standalone'`) only on Linux/macOS or when `DASHBOARD_STANDALONE=1` is set. On Windows, copying pnpm's symlinks needs Developer Mode or an admin shell. Docker builds (Linux) always produce it.
+- The Next.js standalone bundle (`output: 'standalone'`) is opt-in with `DASHBOARD_STANDALONE=1`; the production image uses `next start` instead. On Windows the standalone build needs Developer Mode or an admin shell (pnpm symlinks).
 - The integration-test Postgres is initialised as UTF-8 regardless of the host code page.
 
 ## Testing notes
