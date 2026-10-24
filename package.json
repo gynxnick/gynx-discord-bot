@@ -12,7 +12,7 @@
     "dev:bot": "pnpm --filter @gynx/bot dev",
     "dev:worker": "pnpm --filter @gynx/worker dev",
     "dev:dashboard": "pnpm --filter @gynx/dashboard dev",
-    "build": "pnpm db:generate && pnpm -r --filter ./apps/* build",
+    "build": "pnpm db:generate && pnpm -r --filter \"./apps/*\" build",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -57,6 +57,15 @@
       "@embedded-postgres/windows-x64",
       "@embedded-postgres/linux-x64",
       "msgpackr-extract"
-    ]
+    ],
+    "overrides": {
+      "postcss@<8.5.23": "^8.5.23"
+    },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-ggr8-5vv4-36mx",
+        "GHSA-mrhx-c7xc-m3w5"
+      ]
+    }
   }
 }

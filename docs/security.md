@@ -70,4 +70,13 @@ The bot rejects interactions from any guild other than `DISCORD_GUILD_ID`, and f
 
 ### Dependency hygiene
 
-`pnpm audit --prod` runs in CI (fails on high severity). Dependencies are pinned through `pnpm-lock.yaml`. Upgrade intentionally, not with floating `latest`.
+`pnpm audit --prod --audit-level high` runs in CI and fails the build on new high-severity advisories. Dependencies are pinned through `pnpm-lock.yaml`. Upgrade intentionally, not with floating `latest`.
+
+**Overrides** (`package.json` → `pnpm.overrides`): `postcss` is forced to `^8.5.23` because Next.js 15 pins a vulnerable 8.4.x. It only processes our own stylesheets at build time.
+
+**Accepted advisories** (`pnpm.auditConfig.ignoreGhsas`), reviewed 2026-10-24. Revisit whenever Prisma or Zod is upgraded:
+
+| Advisory            | Package                                                 | Why it is not exploitable here                                                                                                                                                                           | Exit plan                                                                 |
+| ------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| GHSA-ggr8-5vv4-36mx | `deepmerge-ts` < 8 (via the Prisma CLI's config loader) | Only merges Prisma's own static configuration; no untrusted input ever reaches it                                                                                                                        | Removed when upgrading to a Prisma release that depends on deepmerge-ts 8 |
+| GHSA-mrhx-c7xc-m3w5 | `zod` < 4.6.6                                           | Memory exhaustion needs a huge array in validated input. Dashboard API bodies are capped at 64 KB (`MAX_BODY_BYTES`), array schemas on user input carry `.max()`, and Discord bounds all bot input sizes | Migrate to Zod 4 (API changes across all schemas)                         |

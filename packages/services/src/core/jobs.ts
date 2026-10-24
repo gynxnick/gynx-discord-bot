@@ -1,4 +1,4 @@
-import { Prisma, type Db, type PrismaClient, type ScheduledJob } from '@gynx/database';
+import { Prisma, isUniqueViolation, type Db, type PrismaClient, type ScheduledJob } from '@gynx/database';
 
 /**
  * Durable job queue on PostgreSQL.
@@ -19,6 +19,17 @@ export interface EnqueueInput {
 }
 
 export async function enqueueJob(db: Db, input: EnqueueInput): Promise<ScheduledJob> {
+  try {
+    return await upsertJob(db, input);
+  } catch (e) {
+    // Prisma's upsert is select-then-insert here, so two workers enqueueing the same
+    // logical job at the same instant race on the unique dedupeKey. The job exists: done.
+    if (!isUniqueViolation(e)) throw e;
+    return db.scheduledJob.findUniqueOrThrow({ where: { dedupeKey: input.dedupeKey } });
+  }
+}
+
+function upsertJob(db: Db, input: EnqueueInput): Promise<ScheduledJob> {
   return db.scheduledJob.upsert({
     where: { dedupeKey: input.dedupeKey },
     create: {
