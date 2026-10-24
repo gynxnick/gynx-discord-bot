@@ -46,7 +46,13 @@ services:
       redis: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
-      test: ['CMD', 'node', '-e', "fetch('http://localhost:8081/livez').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:8081/livez').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 30s
 
   worker:
@@ -57,7 +63,13 @@ services:
     depends_on: *deps
     restart: unless-stopped
     healthcheck:
-      test: ['CMD', 'node', '-e', "fetch('http://localhost:8082/livez').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:8082/livez').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 30s
 
   dashboard:

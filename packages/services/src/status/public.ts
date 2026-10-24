@@ -1,5 +1,14 @@
 import { z } from 'zod';
-import type { Db, Incident, IncidentSeverity, IncidentStatus, IncidentUpdate, MaintenanceStatus, MonitoredService, ServiceState } from '@gynx/database';
+import type {
+  Db,
+  Incident,
+  IncidentSeverity,
+  IncidentStatus,
+  IncidentUpdate,
+  MaintenanceStatus,
+  MonitoredService,
+  ServiceState,
+} from '@gynx/database';
 import { cursorArgs, notFound, paginationSchema, toPage, type Page } from '@gynx/shared';
 import { STATE_RANK } from './state-machine';
 
@@ -61,7 +70,10 @@ export interface PublicStatus {
   generatedAt: Date;
 }
 
-type ServiceLike = Pick<MonitoredService, 'slug' | 'name' | 'region' | 'description' | 'state' | 'lastCheckedAt' | 'lastStateChangeAt'>;
+type ServiceLike = Pick<
+  MonitoredService,
+  'slug' | 'name' | 'region' | 'description' | 'state' | 'lastCheckedAt' | 'lastStateChangeAt'
+>;
 type RefLike = Pick<MonitoredService, 'slug' | 'name' | 'public'>;
 
 export function toPublicService(s: ServiceLike): PublicService {
@@ -76,9 +88,12 @@ export function toPublicService(s: ServiceLike): PublicService {
   };
 }
 
-const publicRefs = (services: RefLike[]) => services.filter((s) => s.public).map((s) => ({ slug: s.slug, name: s.name }));
+const publicRefs = (services: RefLike[]) =>
+  services.filter((s) => s.public).map((s) => ({ slug: s.slug, name: s.name }));
 
-export function toPublicIncident(i: Incident & { services: RefLike[]; updates?: IncidentUpdate[] }): PublicIncident {
+export function toPublicIncident(
+  i: Incident & { services: RefLike[]; updates?: IncidentUpdate[] },
+): PublicIncident {
   return {
     id: i.id,
     ref: i.ref,
@@ -105,7 +120,15 @@ export function toPublicMaintenance(m: {
   endsAt: Date;
   services: RefLike[];
 }): PublicMaintenance {
-  return { id: m.id, title: m.title, description: m.description, status: m.status, startsAt: m.startsAt, endsAt: m.endsAt, services: publicRefs(m.services) };
+  return {
+    id: m.id,
+    title: m.title,
+    description: m.description,
+    status: m.status,
+    startsAt: m.startsAt,
+    endsAt: m.endsAt,
+    services: publicRefs(m.services),
+  };
 }
 
 /** Worst state wins; UNKNOWN only when nothing is known. */
@@ -113,7 +136,10 @@ export function overallState(states: ServiceState[]): OverallState {
   if (states.length === 0) return 'NO_SERVICES';
   const known = states.filter((s) => s !== 'UNKNOWN');
   if (known.length === 0) return 'UNKNOWN';
-  return known.reduce((worst, s) => (STATE_RANK[s] > STATE_RANK[worst] ? s : worst), 'OPERATIONAL' as ServiceState);
+  return known.reduce(
+    (worst, s) => (STATE_RANK[s] > STATE_RANK[worst] ? s : worst),
+    'OPERATIONAL' as ServiceState,
+  );
 }
 
 const refSelect = { select: { slug: true, name: true, public: true } } as const;
@@ -128,14 +154,21 @@ export async function listPublicServices(db: Db, guildId: string): Promise<Publi
 }
 
 /** Autocomplete helper over public services. */
-export async function searchPublicServices(db: Db, guildId: string, query: string, limit = 25): Promise<Array<{ slug: string; name: string }>> {
+export async function searchPublicServices(
+  db: Db,
+  guildId: string,
+  query: string,
+  limit = 25,
+): Promise<Array<{ slug: string; name: string }>> {
   const q = query.trim().slice(0, 50);
   const rows = await db.monitoredService.findMany({
     where: {
       guildId,
       public: true,
       enabled: true,
-      ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { slug: { contains: q.toLowerCase() } }] } : {}),
+      ...(q
+        ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { slug: { contains: q.toLowerCase() } }] }
+        : {}),
     },
     select: { slug: true, name: true },
     orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
@@ -160,12 +193,20 @@ export const incidentHistorySchema = paginationSchema.extend({
 });
 
 /** Public, paginated incident history (newest first). */
-export async function getIncidentHistory(db: Db, guildId: string, raw: z.input<typeof incidentHistorySchema> = {}): Promise<Page<PublicIncident>> {
+export async function getIncidentHistory(
+  db: Db,
+  guildId: string,
+  raw: z.input<typeof incidentHistorySchema> = {},
+): Promise<Page<PublicIncident>> {
   const q = incidentHistorySchema.parse(raw);
   const rows = await db.incident.findMany({
     where: {
       guildId,
-      ...(q.status === 'resolved' ? { status: 'RESOLVED' as const } : q.status === 'active' ? { status: { in: ACTIVE } } : {}),
+      ...(q.status === 'resolved'
+        ? { status: 'RESOLVED' as const }
+        : q.status === 'active'
+          ? { status: { in: ACTIVE } }
+          : {}),
     },
     include: { services: refSelect, updates: { orderBy: { createdAt: 'desc' }, take: 1 } },
     orderBy: [{ startedAt: 'desc' }, { id: 'desc' }],
@@ -185,7 +226,12 @@ export async function getPublicIncident(db: Db, guildId: string, ref: string): P
   return toPublicIncident(i);
 }
 
-export async function listUpcomingMaintenance(db: Db, guildId: string, now: Date, limit = 5): Promise<PublicMaintenance[]> {
+export async function listUpcomingMaintenance(
+  db: Db,
+  guildId: string,
+  now: Date,
+  limit = 5,
+): Promise<PublicMaintenance[]> {
   const rows = await db.maintenanceWindow.findMany({
     where: { guildId, status: { in: ['SCHEDULED', 'IN_PROGRESS'] }, endsAt: { gt: now } },
     include: { services: refSelect },
@@ -196,13 +242,23 @@ export async function listUpcomingMaintenance(db: Db, guildId: string, now: Date
 }
 
 /** Everything a member may see on the status page. */
-export async function getPublicStatus(db: Db, guildId: string, now: Date = new Date()): Promise<PublicStatus> {
+export async function getPublicStatus(
+  db: Db,
+  guildId: string,
+  now: Date = new Date(),
+): Promise<PublicStatus> {
   const [services, activeIncidents, upcomingMaintenance] = await Promise.all([
     listPublicServices(db, guildId),
     listActiveIncidents(db, guildId),
     listUpcomingMaintenance(db, guildId, now),
   ]);
-  return { overall: overallState(services.map((s) => s.state)), services, activeIncidents, upcomingMaintenance, generatedAt: now };
+  return {
+    overall: overallState(services.map((s) => s.state)),
+    services,
+    activeIncidents,
+    upcomingMaintenance,
+    generatedAt: now,
+  };
 }
 
 // ── Uptime ────────────────────────────────────────────────────────────────────
@@ -222,7 +278,10 @@ export interface UptimeRow {
 }
 
 /** uptime % = ok checks / total checks, floored to 2 decimals so 99.996% never shows as 100%. */
-export function computeUptime(okChecks: number, totalChecks: number): { uptimePct: number | null; label: string } {
+export function computeUptime(
+  okChecks: number,
+  totalChecks: number,
+): { uptimePct: number | null; label: string } {
   if (totalChecks <= 0) return { uptimePct: null, label: 'no data' };
   const pct = Math.floor((Math.min(okChecks, totalChecks) / totalChecks) * 10_000) / 100;
   return { uptimePct: pct, label: `${pct.toFixed(2)}%` };
@@ -233,12 +292,20 @@ export const uptimeQuerySchema = z.object({
   days: z.coerce
     .number()
     .int()
-    .refine((d): d is UptimePeriod => (UPTIME_PERIODS as readonly number[]).includes(d), 'Period must be 1, 7, 30 or 90 days.')
+    .refine(
+      (d): d is UptimePeriod => (UPTIME_PERIODS as readonly number[]).includes(d),
+      'Period must be 1, 7, 30 or 90 days.',
+    )
     .default(30),
 });
 
 /** Uptime per public service over the period, computed from stored HealthCheck rows. */
-export async function getUptime(db: Db, guildId: string, raw: z.input<typeof uptimeQuerySchema> = {}, now: Date = new Date()): Promise<UptimeRow[]> {
+export async function getUptime(
+  db: Db,
+  guildId: string,
+  raw: z.input<typeof uptimeQuerySchema> = {},
+  now: Date = new Date(),
+): Promise<UptimeRow[]> {
   const q = uptimeQuerySchema.parse(raw);
   const days = q.days as UptimePeriod;
   const services = await db.monitoredService.findMany({
@@ -263,6 +330,13 @@ export async function getUptime(db: Db, guildId: string, raw: z.input<typeof upt
       total += g._count._all;
       if (g.ok) ok += g._count._all;
     }
-    return { slug: s.slug, name: s.name, days, totalChecks: total, okChecks: ok, ...computeUptime(ok, total) };
+    return {
+      slug: s.slug,
+      name: s.name,
+      days,
+      totalChecks: total,
+      okChecks: ok,
+      ...computeUptime(ok, total),
+    };
   });
 }

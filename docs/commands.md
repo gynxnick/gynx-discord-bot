@@ -11,7 +11,6 @@ All commands are guild-only and work only in the configured GYNX.GG server. Repl
 About the GYNX.GG bot  
 _any member · limit 10 per 60s · module `core`_
 
-
 ## Community
 
 ### `/faq`
@@ -34,18 +33,15 @@ _any member · limit 15 per 60s · module `community`_
 Overview of everything the GYNX.GG bot can do  
 _any member · limit 10 per 60s · module `core`_
 
-
 ### `/roles`
 
 Pick your game and notification roles  
 _any member · limit 10 per 60s · module `community`_
 
-
 ### `/rules`
 
 Read the server rules  
 _any member · limit 10 per 60s · module `community`_
-
 
 ## Moderation
 
@@ -123,12 +119,10 @@ _any member · limit 3 per 3600s · module `security`_
 Show active and recently resolved incidents  
 _any member · limit 10 per 60s · module `status`_
 
-
 ### `/status`
 
 Show the current status of GYNX.GG services  
 _any member · limit 10 per 60s · module `status`_
-
 
 ### `/subscribe-status`
 
@@ -295,7 +289,6 @@ _requires `polls.manage` · module `engagement`_
 
 Suggest an idea to the GYNX.GG team  
 _any member · limit 3 per 3600s · module `engagement`_
-
 
 ## Marketing
 

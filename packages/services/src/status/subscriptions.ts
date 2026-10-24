@@ -30,18 +30,36 @@ export async function subscribe(ctx: Ctx, raw: SubscribeInput): Promise<StatusSu
   const input = subscribeSchema.parse(raw);
   await requireRate(ctx, 'status.subscribe', 10, 3600);
   if (input.service !== ALL_SERVICES) {
-    const svc = await ctx.db.monitoredService.findFirst({ where: { guildId: ctx.guildId, slug: input.service, public: true }, select: { id: true } });
+    const svc = await ctx.db.monitoredService.findFirst({
+      where: { guildId: ctx.guildId, slug: input.service, public: true },
+      select: { id: true },
+    });
     if (!svc) throw notFound('Service');
   }
-  const key = { guildId_userId_serviceSlug: { guildId: ctx.guildId, userId: ctx.actor.userId, serviceSlug: input.service } };
+  const key = {
+    guildId_userId_serviceSlug: {
+      guildId: ctx.guildId,
+      userId: ctx.actor.userId,
+      serviceSlug: input.service,
+    },
+  };
   const existing = await ctx.db.statusSubscription.findUnique({ where: key });
   if (!existing) {
-    const count = await ctx.db.statusSubscription.count({ where: { guildId: ctx.guildId, userId: ctx.actor.userId } });
-    if (count >= MAX_SUBSCRIPTIONS_PER_MEMBER) throw conflict('You have reached the maximum number of status subscriptions.');
+    const count = await ctx.db.statusSubscription.count({
+      where: { guildId: ctx.guildId, userId: ctx.actor.userId },
+    });
+    if (count >= MAX_SUBSCRIPTIONS_PER_MEMBER)
+      throw conflict('You have reached the maximum number of status subscriptions.');
   }
   return ctx.db.statusSubscription.upsert({
     where: key,
-    create: { guildId: ctx.guildId, userId: ctx.actor.userId, serviceSlug: input.service, minSeverity: input.minSeverity, maintenance: input.maintenance },
+    create: {
+      guildId: ctx.guildId,
+      userId: ctx.actor.userId,
+      serviceSlug: input.service,
+      minSeverity: input.minSeverity,
+      maintenance: input.maintenance,
+    },
     update: { minSeverity: input.minSeverity, maintenance: input.maintenance },
   });
 }
@@ -61,7 +79,10 @@ export async function unsubscribe(ctx: Ctx, service: string): Promise<number> {
 
 export async function listMySubscriptions(ctx: Ctx): Promise<StatusSubscription[]> {
   await requireModule(ctx, 'status');
-  return ctx.db.statusSubscription.findMany({ where: { guildId: ctx.guildId, userId: ctx.actor.userId }, orderBy: { serviceSlug: 'asc' } });
+  return ctx.db.statusSubscription.findMany({
+    where: { guildId: ctx.guildId, userId: ctx.actor.userId },
+    orderBy: { serviceSlug: 'asc' },
+  });
 }
 
 /**

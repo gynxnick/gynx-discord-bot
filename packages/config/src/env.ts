@@ -1,8 +1,6 @@
 import { z } from 'zod';
 
-const bool = z
-  .enum(['true', 'false', '1', '0'])
-  .transform((v) => v === 'true' || v === '1');
+const bool = z.enum(['true', 'false', '1', '0']).transform((v) => v === 'true' || v === '1');
 
 const weekday = z.enum(['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']);
 
@@ -12,8 +10,15 @@ const snowflake = z.string().regex(/^\d{17,20}$/, 'must be a Discord snowflake I
 const baseSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
-  DATABASE_URL: z.string().url().refine((v) => v.startsWith('postgres'), 'must be a PostgreSQL URL'),
-  REDIS_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)),
+  DATABASE_URL: z
+    .string()
+    .url()
+    .refine((v) => v.startsWith('postgres'), 'must be a PostgreSQL URL'),
+  REDIS_URL: z
+    .string()
+    .url()
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
   DISCORD_GUILD_ID: snowflake,
   DEFAULT_TIMEZONE: z.string().default('UTC'),
   ENCRYPTION_KEY: z
@@ -69,13 +74,20 @@ export class ConfigError extends Error {
  * Parse and validate environment variables. Throws ConfigError listing every
  * problem (never the values) so misconfiguration fails fast and clearly.
  */
-export function loadEnv<S extends z.ZodTypeAny>(schema: S, source: NodeJS.ProcessEnv = process.env): z.infer<S> {
+export function loadEnv<S extends z.ZodTypeAny>(
+  schema: S,
+  source: NodeJS.ProcessEnv = process.env,
+): z.infer<S> {
   const result = schema.safeParse(source);
   if (!result.success) {
     throw new ConfigError(result.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`));
   }
   const env = result.data as Record<string, unknown>;
-  if (env.NODE_ENV === 'production' && typeof env.DASHBOARD_URL === 'string' && !env.DASHBOARD_URL.startsWith('https://')) {
+  if (
+    env.NODE_ENV === 'production' &&
+    typeof env.DASHBOARD_URL === 'string' &&
+    !env.DASHBOARD_URL.startsWith('https://')
+  ) {
     throw new ConfigError(['DASHBOARD_URL: must use https:// in production']);
   }
   return result.data;

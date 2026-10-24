@@ -37,6 +37,10 @@ export const rustAdapter: GameAdapter = {
   query: (address, port, opts) =>
     queryViaA2S(address, port, opts, (info, base) => {
       const kw = parseRustKeywords(info.keywords);
-      return { ...base, playersOnline: kw.current ?? base.playersOnline, playersMax: kw.max ?? base.playersMax };
+      return {
+        ...base,
+        playersOnline: kw.current ?? base.playersOnline,
+        playersMax: kw.max ?? base.playersMax,
+      };
     }),
 };

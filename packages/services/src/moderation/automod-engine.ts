@@ -64,7 +64,10 @@ const RECENT_JOIN_MS = DAY_MS;
 
 // Zero-width space/joiners, word joiner, BOM, soft hyphen (built from code points to keep the source ASCII).
 const COMBINING_MARKS = new RegExp(`[${String.fromCharCode(0x300)}-${String.fromCharCode(0x36f)}]`, 'g');
-const ZERO_WIDTH = new RegExp(`[${String.fromCharCode(0x200b)}-${String.fromCharCode(0x200d)}${String.fromCharCode(0x2060, 0xfeff, 0xad)}]`, 'g');
+const ZERO_WIDTH = new RegExp(
+  `[${String.fromCharCode(0x200b)}-${String.fromCharCode(0x200d)}${String.fromCharCode(0x2060, 0xfeff, 0xad)}]`,
+  'g',
+);
 
 /** Normalised form used for duplicate detection (falls back to trimmed lowercase for emoji-only text). */
 export function normaliseMessage(content: string): string {
@@ -83,7 +86,16 @@ export function deobfuscate(content: string): string {
     .replace(/\[\s*\/\s*\]/g, '/');
 }
 
-const LEET: Record<string, string> = { '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '@': 'a', $: 's' };
+const LEET: Record<string, string> = {
+  '0': 'o',
+  '1': 'i',
+  '3': 'e',
+  '4': 'a',
+  '5': 's',
+  '7': 't',
+  '@': 'a',
+  $: 's',
+};
 
 /** Phrase-matching normalisation: case, diacritics, basic leetspeak, punctuation → single spaces, padded. */
 export function normaliseForPhrases(input: string): string {
@@ -104,7 +116,8 @@ export function normaliseForPhrases(input: string): string {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SCHEME_URL = /\bhttps?:\/\/([^\s/?#<>"'`|\\]+)/giu;
-const BARE_HOST = /(?<![\p{L}\p{N}_@.-])((?:[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?\.)+(?:xn--[a-z0-9-]{2,59}|\p{L}{2,63}))\.*(?![\p{L}\p{N}_-])/giu;
+const BARE_HOST =
+  /(?<![\p{L}\p{N}_@.-])((?:[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?\.)+(?:xn--[a-z0-9-]{2,59}|\p{L}{2,63}))\.*(?![\p{L}\p{N}_-])/giu;
 
 function cleanHost(raw: string): string | null {
   let h = raw;
@@ -173,8 +186,31 @@ const HOST_SCAM_WORDS = ['nitro', 'gift', 'free', 'promo', 'airdrop', 'giveaway'
 
 /** Map common Unicode confusables (Cyrillic/Greek) to Latin. */
 const CONFUSABLES: Record<string, string> = {
-  а: 'a', е: 'e', о: 'o', р: 'p', с: 'c', у: 'y', х: 'x', і: 'i', ј: 'j', ԁ: 'd', ѕ: 's', ɡ: 'g', ı: 'i', ⅼ: 'l',
-  ο: 'o', ρ: 'p', α: 'a', ν: 'v', м: 'm', т: 't', к: 'k', ӏ: 'l', ԛ: 'q', ԝ: 'w', ɑ: 'a',
+  а: 'a',
+  е: 'e',
+  о: 'o',
+  р: 'p',
+  с: 'c',
+  у: 'y',
+  х: 'x',
+  і: 'i',
+  ј: 'j',
+  ԁ: 'd',
+  ѕ: 's',
+  ɡ: 'g',
+  ı: 'i',
+  ⅼ: 'l',
+  ο: 'o',
+  ρ: 'p',
+  α: 'a',
+  ν: 'v',
+  м: 'm',
+  т: 't',
+  к: 'k',
+  ӏ: 'l',
+  ԛ: 'q',
+  ԝ: 'w',
+  ɑ: 'a',
 };
 
 /** Visual skeleton: confusables → Latin, digits → letters, rn→m, cl→d, vv→w, l→i, separators removed. */
@@ -197,8 +233,10 @@ export function skeleton(label: string): string {
 
 const BRAND_SKELETONS = BRANDS.map((b) => ({ brand: b, skel: skeleton(b) }));
 
-const GIFT_WORDING = /\b(?:free\s+(?:discord\s+)?nitro|nitro\s+(?:for\s+free|gift|giveaway|generator)|(?:discord|steam|nitro)\s+gift|gift\s+(?:card|nitro)|free\s+steam|free\s+skins?|steam\s+(?:giveaway|airdrop))\b/;
-const CLAIM_WORDING = /\b(?:claim|redeem|grab)\b.{0,40}\b(?:nitro|gift|reward|skins?|prize)\b|\b(?:first|only)\s+\d+\s+(?:users|people|members)\b|\b(?:expires?|limited)\s+(?:soon|today|time)\b/;
+const GIFT_WORDING =
+  /\b(?:free\s+(?:discord\s+)?nitro|nitro\s+(?:for\s+free|gift|giveaway|generator)|(?:discord|steam|nitro)\s+gift|gift\s+(?:card|nitro)|free\s+steam|free\s+skins?|steam\s+(?:giveaway|airdrop))\b/;
+const CLAIM_WORDING =
+  /\b(?:claim|redeem|grab)\b.{0,40}\b(?:nitro|gift|reward|skins?|prize)\b|\b(?:first|only)\s+\d+\s+(?:users|people|members)\b|\b(?:expires?|limited)\s+(?:soon|today|time)\b/;
 
 export interface PhishingAssessment {
   strong: string[];
@@ -256,14 +294,23 @@ export function assessPhishing(content: string, hosts: readonly string[]): Phish
 // Evaluation
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function isNewcomer(cfg: Pick<AutomodEngineConfig, 'newAccountDays'>, msg: Pick<AutomodMessage, 'accountCreatedAt' | 'memberJoinedAt' | 'timestamp'>): boolean {
+export function isNewcomer(
+  cfg: Pick<AutomodEngineConfig, 'newAccountDays'>,
+  msg: Pick<AutomodMessage, 'accountCreatedAt' | 'memberJoinedAt' | 'timestamp'>,
+): boolean {
   const now = msg.timestamp.getTime();
-  if (cfg.newAccountDays > 0 && now - msg.accountCreatedAt.getTime() < cfg.newAccountDays * DAY_MS) return true;
+  if (cfg.newAccountDays > 0 && now - msg.accountCreatedAt.getTime() < cfg.newAccountDays * DAY_MS)
+    return true;
   return msg.memberJoinedAt !== null && now - msg.memberJoinedAt.getTime() < RECENT_JOIN_MS;
 }
 
-export function isExempt(cfg: Pick<AutomodEngineConfig, 'exemptChannelIds' | 'exemptRoleIds'>, msg: Pick<AutomodMessage, 'channelId' | 'roleIds'>): boolean {
-  return cfg.exemptChannelIds.includes(msg.channelId) || msg.roleIds.some((r) => cfg.exemptRoleIds.includes(r));
+export function isExempt(
+  cfg: Pick<AutomodEngineConfig, 'exemptChannelIds' | 'exemptRoleIds'>,
+  msg: Pick<AutomodMessage, 'channelId' | 'roleIds'>,
+): boolean {
+  return (
+    cfg.exemptChannelIds.includes(msg.channelId) || msg.roleIds.some((r) => cfg.exemptRoleIds.includes(r))
+  );
 }
 
 const countMassMentions = (content: string) => (content.match(/@(?:everyone|here)\b/gi) ?? []).length;
@@ -273,7 +320,11 @@ const countMassMentions = (content: string) => (content.match(/@(?:everyone|here
  * is returned: PHISHING, BLOCKED_DOMAIN, INVITE, MENTIONS, BLOCKED_PHRASE, DUPLICATE, BURST.
  * `history` = the author's recent messages, excluding `msg` itself.
  */
-export function evaluateMessage(cfg: AutomodEngineConfig, msg: AutomodMessage, history: readonly HistoryEntry[]): AutomodHit | null {
+export function evaluateMessage(
+  cfg: AutomodEngineConfig,
+  msg: AutomodMessage,
+  history: readonly HistoryEntry[],
+): AutomodHit | null {
   if (!cfg.enabled || isExempt(cfg, msg)) return null;
   const newcomer = isNewcomer(cfg, msg);
   const hosts = extractHosts(msg.content);
@@ -281,15 +332,26 @@ export function evaluateMessage(cfg: AutomodEngineConfig, msg: AutomodMessage, h
   if (cfg.phishingDetection && hosts.length > 0) {
     const p = assessPhishing(msg.content, hosts);
     if (p.strong.length > 0 || p.weak.length >= (newcomer ? 1 : 2)) {
-      return { rule: 'PHISHING', severity: 'high', reason: 'Message contains a suspected scam / phishing link.' };
+      return {
+        rule: 'PHISHING',
+        severity: 'high',
+        reason: 'Message contains a suspected scam / phishing link.',
+      };
     }
   }
 
   if (cfg.blockedDomains.length > 0) {
     const blocked = hosts.find(
-      (h) => cfg.blockedDomains.some((d) => hostMatches(h, d)) && !cfg.allowedDomains.some((d) => hostMatches(h, d)),
+      (h) =>
+        cfg.blockedDomains.some((d) => hostMatches(h, d)) &&
+        !cfg.allowedDomains.some((d) => hostMatches(h, d)),
     );
-    if (blocked) return { rule: 'BLOCKED_DOMAIN', severity: 'medium', reason: `Links to ${blocked} are not allowed here.` };
+    if (blocked)
+      return {
+        rule: 'BLOCKED_DOMAIN',
+        severity: 'medium',
+        reason: `Links to ${blocked} are not allowed here.`,
+      };
   }
 
   if (cfg.blockInvites || newcomer) {
@@ -298,7 +360,10 @@ export function evaluateMessage(cfg: AutomodEngineConfig, msg: AutomodMessage, h
       return {
         rule: 'INVITE',
         severity: 'medium',
-        reason: newcomer && !cfg.blockInvites ? 'New accounts cannot post server invites yet.' : 'Server invites are not allowed here.',
+        reason:
+          newcomer && !cfg.blockInvites
+            ? 'New accounts cannot post server invites yet.'
+            : 'Server invites are not allowed here.',
       };
     }
   }
@@ -314,23 +379,38 @@ export function evaluateMessage(cfg: AutomodEngineConfig, msg: AutomodMessage, h
       const np = normaliseForPhrases(p).trim();
       return np.length > 0 && text.includes(` ${np} `);
     });
-    if (hit) return { rule: 'BLOCKED_PHRASE', severity: 'medium', reason: 'Message contains a blocked word or phrase.' };
+    if (hit)
+      return {
+        rule: 'BLOCKED_PHRASE',
+        severity: 'medium',
+        reason: 'Message contains a blocked word or phrase.',
+      };
   }
 
   const now = msg.timestamp.getTime();
   const norm = normaliseMessage(msg.content);
   if (norm) {
     const since = now - cfg.duplicateWindowSeconds * 1000;
-    const dupes = history.filter((h) => h.timestamp.getTime() >= since && normaliseMessage(h.content) === norm).length + 1;
+    const dupes =
+      history.filter((h) => h.timestamp.getTime() >= since && normaliseMessage(h.content) === norm).length +
+      1;
     if (dupes >= cfg.duplicateThreshold) {
-      return { rule: 'DUPLICATE', severity: 'low', reason: `Same message sent ${dupes} times in a short period.` };
+      return {
+        rule: 'DUPLICATE',
+        severity: 'low',
+        reason: `Same message sent ${dupes} times in a short period.`,
+      };
     }
   }
 
   const burstSince = now - cfg.burstWindowSeconds * 1000;
   const burst = history.filter((h) => h.timestamp.getTime() >= burstSince).length + 1;
   if (burst >= cfg.burstThreshold) {
-    return { rule: 'BURST', severity: 'low', reason: `Sending messages too quickly (${burst} in ${cfg.burstWindowSeconds}s).` };
+    return {
+      rule: 'BURST',
+      severity: 'low',
+      reason: `Sending messages too quickly (${burst} in ${cfg.burstWindowSeconds}s).`,
+    };
   }
   return null;
 }
@@ -421,7 +501,8 @@ export function decideAutomodAction(
   strikes: number,
   cfg: Pick<AutomodConfig, 'warnAtStrikes' | 'timeoutAtStrikes' | 'timeoutMinutes'>,
 ): AutomodDecision {
-  if (strikes >= cfg.timeoutAtStrikes) return { action: 'TIMEOUT', strikes, durationMs: cfg.timeoutMinutes * 60_000 };
+  if (strikes >= cfg.timeoutAtStrikes)
+    return { action: 'TIMEOUT', strikes, durationMs: cfg.timeoutMinutes * 60_000 };
   if (strikes >= cfg.warnAtStrikes) return { action: 'WARN', strikes, durationMs: null };
   return { action: 'DELETE', strikes, durationMs: null };
 }
@@ -445,10 +526,18 @@ export function suggestEscalation(
   cfg: Pick<AutomodConfig, 'warnAtStrikes' | 'timeoutAtStrikes' | 'timeoutMinutes'>,
 ): EscalationSuggestion {
   if (activeWarnings >= cfg.timeoutAtStrikes * 2) {
-    return { action: 'BAN_REVIEW', durationMs: null, summary: `${activeWarnings} active warnings — consider a ban (senior moderator review).` };
+    return {
+      action: 'BAN_REVIEW',
+      durationMs: null,
+      summary: `${activeWarnings} active warnings — consider a ban (senior moderator review).`,
+    };
   }
   if (activeWarnings >= cfg.timeoutAtStrikes) {
-    return { action: 'KICK', durationMs: 24 * 3_600_000, summary: `${activeWarnings} active warnings — consider a 24h timeout or a kick.` };
+    return {
+      action: 'KICK',
+      durationMs: 24 * 3_600_000,
+      summary: `${activeWarnings} active warnings — consider a 24h timeout or a kick.`,
+    };
   }
   if (activeWarnings >= cfg.warnAtStrikes) {
     return {
@@ -457,5 +546,9 @@ export function suggestEscalation(
       summary: `${activeWarnings} active warnings — consider a ${cfg.timeoutMinutes}-minute timeout.`,
     };
   }
-  return { action: 'WARN', durationMs: null, summary: `${activeWarnings} active warning(s) — a warning is proportionate.` };
+  return {
+    action: 'WARN',
+    durationMs: null,
+    summary: `${activeWarnings} active warning(s) — a warning is proportionate.`,
+  };
 }

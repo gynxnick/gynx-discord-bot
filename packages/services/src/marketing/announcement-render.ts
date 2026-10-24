@@ -64,10 +64,16 @@ export function mentionPayload(mode: MentionMode, roleId?: string | null): Menti
   }
 }
 
-export type RenderableAnnouncement = Pick<Announcement, 'type' | 'title' | 'body' | 'imageUrl' | 'color' | 'mention' | 'mentionRoleId'>;
+export type RenderableAnnouncement = Pick<
+  Announcement,
+  'type' | 'title' | 'body' | 'imageUrl' | 'color' | 'mention' | 'mentionRoleId'
+>;
 
 /** Discord message body for an announcement: one branded embed + optional mention prefix. */
-export function renderAnnouncement(a: RenderableAnnouncement, opts: { footer?: string; now?: Date } = {}): MessageBody {
+export function renderAnnouncement(
+  a: RenderableAnnouncement,
+  opts: { footer?: string; now?: Date } = {},
+): MessageBody {
   const mentions = mentionPayload(a.mention, a.mentionRoleId);
   const embed = brandEmbed({
     title: a.title,
@@ -85,7 +91,11 @@ export function renderAnnouncement(a: RenderableAnnouncement, opts: { footer?: s
 }
 
 /** Human warning for the second confirmation step (null when nobody is pinged). */
-export function mentionWarning(mode: MentionMode, roleId: string | null, counts: { memberCount?: number | null; roleMemberCount?: number | null } = {}): string | null {
+export function mentionWarning(
+  mode: MentionMode,
+  roleId: string | null,
+  counts: { memberCount?: number | null; roleMemberCount?: number | null } = {},
+): string | null {
   const n = (v: number | null | undefined) => (typeof v === 'number' ? v.toLocaleString('en-US') : null);
   switch (mode) {
     case 'EVERYONE':
@@ -110,11 +120,13 @@ export function mentionWarning(mode: MentionMode, roleId: string | null, counts:
  * Rejects impossible dates (e.g. 2026-02-30) and non-existent DST gap times.
  */
 export function parseScheduleInput(input: string, tz: string): Date {
-  if (!isValidTimeZone(tz)) throw validation(`Unknown time zone "${tz}". Use an IANA name like Europe/London.`);
+  if (!isValidTimeZone(tz))
+    throw validation(`Unknown time zone "${tz}". Use an IANA name like Europe/London.`);
   const m = /^\s*(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})\s*$/.exec(input);
   if (!m) throw validation('Use the format YYYY-MM-DD HH:MM, e.g. 2026-11-05 18:30.');
   const [year, month, day, hour, minute] = m.slice(1).map(Number) as [number, number, number, number, number];
-  if (month < 1 || month > 12 || hour > 23 || minute > 59) throw validation('That date or time is not valid.');
+  if (month < 1 || month > 12 || hour > 23 || minute > 59)
+    throw validation('That date or time is not valid.');
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   if (day < 1 || day > daysInMonth) throw validation('That date does not exist.');
   const utc = zonedToUtc(year, month, day, hour, minute, tz);
@@ -131,7 +143,9 @@ export function parseScheduleInput(input: string, tz: string): Date {
     .formatToParts(utc)
     .reduce<Record<string, string>>((acc, p) => ({ ...acc, [p.type]: p.value }), {});
   if (Number(back.hour) !== hour || Number(back.minute) !== minute || Number(back.day) !== day) {
-    throw validation('That time does not exist in this time zone (daylight-saving change). Pick another time.');
+    throw validation(
+      'That time does not exist in this time zone (daylight-saving change). Pick another time.',
+    );
   }
   return utc;
 }

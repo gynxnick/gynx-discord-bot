@@ -1,7 +1,14 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import type { WorkerEnv } from '@gynx/config';
 import { status, type MessageBody } from '@gynx/services';
-import { ctxAs, freshGuild, silentLog, snowflake, testDb, testDeps } from '../../../../tests/integration/helpers';
+import {
+  ctxAs,
+  freshGuild,
+  silentLog,
+  snowflake,
+  testDb,
+  testDeps,
+} from '../../../../tests/integration/helpers';
 import { JobRunner } from '../framework/runner';
 import type { WorkerCtx } from '../framework/types';
 import { createStatusJobs, statusJobs } from './status';
@@ -11,21 +18,38 @@ const FAIL: status.CheckResult = { ok: false, degraded: false, latencyMs: null, 
 
 let workerSeq = 0;
 
-async function setup(opts: { dmChunkSize?: number; sendDm?: (userId: string, body: MessageBody) => Promise<{ id: string } | null>; adapter?: status.CheckAdapter } = {}) {
+async function setup(
+  opts: {
+    dmChunkSize?: number;
+    sendDm?: (userId: string, body: MessageBody) => Promise<{ id: string } | null>;
+    adapter?: status.CheckAdapter;
+  } = {},
+) {
   const db = testDb();
   const guildId = await freshGuild();
   const statusChannelId = snowflake();
   const incidentChannelId = snowflake();
   const roleId = snowflake();
-  await db.guildConfig.update({ where: { guildId }, data: { statusChannelId, incidentChannelId, statusAlertRoleId: roleId } });
+  await db.guildConfig.update({
+    where: { guildId },
+    data: { statusChannelId, incidentChannelId, statusAlertRoleId: roleId },
+  });
 
   const clock = { now: new Date(Math.floor(Date.now() / 60_000) * 60_000 + 5_000) };
   const deps = testDeps({ now: () => clock.now });
   if (opts.sendDm) deps.discord.sendDm = opts.sendDm;
   const results = new Map<string, status.CheckResult>();
-  const adapter: status.CheckAdapter = opts.adapter ?? { kind: 'HTTP', check: async (svc) => results.get(svc.id) ?? OK };
+  const adapter: status.CheckAdapter = opts.adapter ?? {
+    kind: 'HTTP',
+    check: async (svc) => results.get(svc.id) ?? OK,
+  };
   const mod = createStatusJobs({ adapters: { HTTP: adapter }, dmChunkSize: opts.dmChunkSize });
-  const w: WorkerCtx = { deps, env: { DISCORD_GUILD_ID: guildId, STATUS_CHECK_INTERVAL_SECONDS: 60 } as WorkerEnv, log: silentLog, workerId: `test-${++workerSeq}` };
+  const w: WorkerCtx = {
+    deps,
+    env: { DISCORD_GUILD_ID: guildId, STATUS_CHECK_INTERVAL_SECONDS: 60 } as WorkerEnv,
+    log: silentLog,
+    workerId: `test-${++workerSeq}`,
+  };
   const checks = mod.periodic!.find((p) => p.name === 'status.checks')!;
 
   /**
@@ -34,13 +58,19 @@ async function setup(opts: { dmChunkSize?: number; sendDm?: (userId: string, bod
    */
   const drain = async () => {
     for (let i = 0; i < 30; i++) {
-      const jobs = await db.scheduledJob.findMany({ where: { guildId, status: 'PENDING', runAt: { lte: clock.now } }, orderBy: [{ runAt: 'asc' }, { createdAt: 'asc' }] });
+      const jobs = await db.scheduledJob.findMany({
+        where: { guildId, status: 'PENDING', runAt: { lte: clock.now } },
+        orderBy: [{ runAt: 'asc' }, { createdAt: 'asc' }],
+      });
       if (jobs.length === 0) return;
       for (const job of jobs) {
         const handler = mod.handlers![job.type];
         if (!handler) throw new Error(`no handler for ${job.type}`);
         await handler(job, w);
-        await db.scheduledJob.update({ where: { id: job.id }, data: { status: 'DONE', completedAt: clock.now } });
+        await db.scheduledJob.update({
+          where: { id: job.id },
+          data: { status: 'DONE', completedAt: clock.now },
+        });
       }
     }
   };
@@ -55,8 +85,25 @@ async function setup(opts: { dmChunkSize?: number; sendDm?: (userId: string, bod
   };
   const staff = ctxAs(guildId, 'all', { deps });
   const sentTo = (channelId: string) => deps.discord.sent.filter((m) => m.channelId === channelId);
-  const alertsIn = () => sentTo(statusChannelId).filter((m) => JSON.stringify(m.body).includes('Automatic status alert'));
-  return { db, guildId, statusChannelId, incidentChannelId, roleId, clock, deps, results, drain, step, staff, sentTo, alertsIn, mod, w };
+  const alertsIn = () =>
+    sentTo(statusChannelId).filter((m) => JSON.stringify(m.body).includes('Automatic status alert'));
+  return {
+    db,
+    guildId,
+    statusChannelId,
+    incidentChannelId,
+    roleId,
+    clock,
+    deps,
+    results,
+    drain,
+    step,
+    staff,
+    sentTo,
+    alertsIn,
+    mod,
+    w,
+  };
 }
 
 describe('status worker: monitoring, alerts and automatic incidents', () => {
@@ -66,10 +113,18 @@ describe('status worker: monitoring, alerts and automatic incidents', () => {
 
   it('3 failures → one OUTAGE alert + one auto incident; no duplicates; 2 successes → recovery alert + MONITORING', async () => {
     const t = await setup();
-    const svc = await status.createService(t.staff, { name: 'Game Panel', slug: 'panel', region: 'EU-West', kind: 'HTTP', target: 'https://panel-internal.example.com/health' });
+    const svc = await status.createService(t.staff, {
+      name: 'Game Panel',
+      slug: 'panel',
+      region: 'EU-West',
+      kind: 'HTTP',
+      target: 'https://panel-internal.example.com/health',
+    });
 
     await t.step(); // healthy first check: OPERATIONAL, silently
-    expect((await t.db.monitoredService.findUniqueOrThrow({ where: { id: svc.id } })).state).toBe('OPERATIONAL');
+    expect((await t.db.monitoredService.findUniqueOrThrow({ where: { id: svc.id } })).state).toBe(
+      'OPERATIONAL',
+    );
     expect(t.alertsIn()).toHaveLength(0);
 
     t.results.set(svc.id, FAIL);
@@ -83,9 +138,18 @@ describe('status worker: monitoring, alerts and automatic incidents', () => {
     expect(alerts[0]!.body.content).toBe(`<@&${t.roleId}>`);
     expect(alerts[0]!.body.allowed_mentions).toEqual({ parse: [], roles: [t.roleId] });
 
-    const incidents = await t.db.incident.findMany({ where: { guildId: t.guildId }, include: { services: true } });
+    const incidents = await t.db.incident.findMany({
+      where: { guildId: t.guildId },
+      include: { services: true },
+    });
     expect(incidents).toHaveLength(1);
-    expect(incidents[0]).toMatchObject({ autoCreated: true, createdById: 'system', severity: 'MAJOR', status: 'INVESTIGATING', ref: 'INC-0001' });
+    expect(incidents[0]).toMatchObject({
+      autoCreated: true,
+      createdById: 'system',
+      severity: 'MAJOR',
+      status: 'INVESTIGATING',
+      ref: 'INC-0001',
+    });
     expect(incidents[0]!.description).toContain('Game Panel');
     expect(incidents[0]!.services.map((s) => s.id)).toEqual([svc.id]);
     expect(t.sentTo(t.incidentChannelId)).toHaveLength(1);
@@ -107,7 +171,10 @@ describe('status worker: monitoring, alerts and automatic incidents', () => {
     expect(after[1]!.body.allowed_mentions).toBeUndefined();
     expect(JSON.stringify(after[1]!.body)).toContain('Recovered');
 
-    const inc = await t.db.incident.findUniqueOrThrow({ where: { id: incidents[0]!.id }, include: { updates: true } });
+    const inc = await t.db.incident.findUniqueOrThrow({
+      where: { id: incidents[0]!.id },
+      include: { updates: true },
+    });
     expect(inc.status).toBe('MONITORING'); // staff resolve manually
     expect(inc.updates).toHaveLength(2);
     expect(inc.updates.every((u) => u.notifiedAt)).toBe(true);
@@ -121,7 +188,11 @@ describe('status worker: monitoring, alerts and automatic incidents', () => {
     const checks = await t.db.healthCheck.findMany({ where: { serviceId: svc.id } });
     expect(checks).toHaveLength(10);
     expect(checks.filter((c) => !c.ok).every((c) => c.errorClass === 'CONN_REFUSED')).toBe(true);
-    const everything = JSON.stringify([t.deps.discord.sent, t.deps.discord.edits, await status.getPublicStatus(t.db, t.guildId, t.clock.now)]);
+    const everything = JSON.stringify([
+      t.deps.discord.sent,
+      t.deps.discord.edits,
+      await status.getPublicStatus(t.db, t.guildId, t.clock.now),
+    ]);
     expect(everything).not.toContain('panel-internal');
     expect(everything).not.toContain('CONN_REFUSED');
 
@@ -140,9 +211,23 @@ describe('status worker: monitoring, alerts and automatic incidents', () => {
         },
       },
     });
-    const a = await status.createService(t.staff, { name: 'API', slug: 'api', target: 'https://api.example.com' });
-    const b = await status.createService(t.staff, { name: 'Web', slug: 'web', target: 'https://web.example.com' });
-    const hidden = await status.createService(t.staff, { name: 'Internal DB', slug: 'db', target: 'https://db.example.com', public: false, failureThreshold: 1 });
+    const a = await status.createService(t.staff, {
+      name: 'API',
+      slug: 'api',
+      target: 'https://api.example.com',
+    });
+    const b = await status.createService(t.staff, {
+      name: 'Web',
+      slug: 'web',
+      target: 'https://web.example.com',
+    });
+    const hidden = await status.createService(t.staff, {
+      name: 'Internal DB',
+      slug: 'db',
+      target: 'https://db.example.com',
+      public: false,
+      failureThreshold: 1,
+    });
     ids.a = a.id;
     ids.hidden = hidden.id;
     await t.step();
@@ -168,11 +253,22 @@ describe('status worker: monitoring, alerts and automatic incidents', () => {
         return { id: snowflake() };
       },
     });
-    await status.createService(t.staff, { name: 'Panel', slug: 'panel', target: 'https://panel.example.com' });
+    await status.createService(t.staff, {
+      name: 'Panel',
+      slug: 'panel',
+      target: 'https://panel.example.com',
+    });
     await status.createService(t.staff, { name: 'Web', slug: 'web', target: 'https://web.example.com' });
 
     const users = Array.from({ length: 6 }, () => snowflake()).sort();
-    const [uAll, uPanelMajor, uWeb, uPanelCritical, uAllDup, uFail] = users as [string, string, string, string, string, string];
+    const [uAll, uPanelMajor, uWeb, uPanelCritical, uAllDup, uFail] = users as [
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+    ];
     const as = (userId: string) => ctxAs(t.guildId, [], { deps: t.deps, userId });
     await status.subscribe(as(uAll), { service: 'all' });
     await status.subscribe(as(uPanelMajor), { service: 'panel', minSeverity: 'MAJOR' });
@@ -183,30 +279,53 @@ describe('status worker: monitoring, alerts and automatic incidents', () => {
     await status.subscribe(as(uFail), { service: 'all' });
     failing.add(uFail);
 
-    const incident = await status.createIncident(t.staff, { title: 'Panel login errors', description: 'Some users cannot log in.', severity: 'MAJOR', serviceSlugs: ['panel'] });
+    const incident = await status.createIncident(t.staff, {
+      title: 'Panel login errors',
+      description: 'Some users cannot log in.',
+      severity: 'MAJOR',
+      serviceSlugs: ['panel'],
+    });
     await t.drain();
 
     expect(dms.sort()).toEqual([uAll, uPanelMajor, uAllDup].sort());
-    const chunks = await t.db.scheduledJob.findMany({ where: { type: 'status.subscribers.notify', dedupeKey: { startsWith: 'status.subscribers.notify:incident:' }, guildId: t.guildId } });
+    const chunks = await t.db.scheduledJob.findMany({
+      where: {
+        type: 'status.subscribers.notify',
+        dedupeKey: { startsWith: 'status.subscribers.notify:incident:' },
+        guildId: t.guildId,
+      },
+    });
     expect(chunks.length).toBeGreaterThanOrEqual(2); // 4 recipients (incl. failing) / chunk of 2
     expect(chunks.every((j) => j.status === 'DONE')).toBe(true);
 
     // Re-running the notify job is a no-op (idempotent).
     const before = dms.length;
-    await t.db.scheduledJob.updateMany({ where: { dedupeKey: { startsWith: 'status.incident.notify:' }, guildId: t.guildId }, data: { status: 'PENDING', runAt: t.clock.now } });
+    await t.db.scheduledJob.updateMany({
+      where: { dedupeKey: { startsWith: 'status.incident.notify:' }, guildId: t.guildId },
+      data: { status: 'PENDING', runAt: t.clock.now },
+    });
     await t.drain();
     expect(dms.length).toBe(before);
     expect(t.sentTo(t.incidentChannelId)).toHaveLength(1);
 
     // A MINOR incident on web reaches web + all subscribers, not the panel MAJOR subscriber.
     dms.length = 0;
-    await status.createIncident(t.staff, { title: 'Website slow', description: 'Pages load slowly.', severity: 'MINOR', serviceSlugs: ['web'] });
+    await status.createIncident(t.staff, {
+      title: 'Website slow',
+      description: 'Pages load slowly.',
+      severity: 'MINOR',
+      serviceSlugs: ['web'],
+    });
     await t.drain();
     expect(dms.sort()).toEqual([uAll, uWeb, uAllDup].sort());
 
     // Resolve the first incident → message edited, update line, DMs again.
     dms.length = 0;
-    await status.addIncidentUpdate(t.staff, incident.id, { status: 'RESOLVED', message: 'Fixed.', resolutionSummary: 'A bad deploy was rolled back.' });
+    await status.addIncidentUpdate(t.staff, incident.id, {
+      status: 'RESOLVED',
+      message: 'Fixed.',
+      resolutionSummary: 'A bad deploy was rolled back.',
+    });
     await t.drain();
     expect(t.deps.discord.edits).toHaveLength(1);
     expect(dms.sort()).toEqual([uAll, uPanelMajor, uAllDup].sort());
@@ -216,30 +335,55 @@ describe('status worker: monitoring, alerts and automatic incidents', () => {
 describe('status worker: maintenance windows', () => {
   it('announce → start (MAINTENANCE, no alerts) → end (UNKNOWN → real state on next check)', async () => {
     const t = await setup();
-    const svc = await status.createService(t.staff, { name: 'Panel', slug: 'panel', target: 'https://panel.example.com', failureThreshold: 1 });
+    const svc = await status.createService(t.staff, {
+      name: 'Panel',
+      slug: 'panel',
+      target: 'https://panel.example.com',
+      failureThreshold: 1,
+    });
     const subYes = snowflake();
     const subNo = snowflake();
-    await status.subscribe(ctxAs(t.guildId, [], { deps: t.deps, userId: subYes }), { service: 'panel', maintenance: true });
-    await status.subscribe(ctxAs(t.guildId, [], { deps: t.deps, userId: subNo }), { service: 'panel', maintenance: false });
+    await status.subscribe(ctxAs(t.guildId, [], { deps: t.deps, userId: subYes }), {
+      service: 'panel',
+      maintenance: true,
+    });
+    await status.subscribe(ctxAs(t.guildId, [], { deps: t.deps, userId: subNo }), {
+      service: 'panel',
+      maintenance: false,
+    });
     await t.step();
 
     const startsAt = new Date(t.clock.now.getTime() + 150_000);
     const endsAt = new Date(t.clock.now.getTime() + 330_000);
-    const win = await status.createMaintenance(t.staff, { title: 'Node upgrade', description: 'Kernel updates.', startsAt, endsAt, serviceSlugs: ['panel'] });
+    const win = await status.createMaintenance(t.staff, {
+      title: 'Node upgrade',
+      description: 'Kernel updates.',
+      startsAt,
+      endsAt,
+      serviceSlugs: ['panel'],
+    });
     await t.drain();
-    expect(t.sentTo(t.statusChannelId).filter((m) => JSON.stringify(m.body).includes('Scheduled maintenance'))).toHaveLength(1);
-    expect((await t.db.maintenanceWindow.findUniqueOrThrow({ where: { id: win.id } })).announcedAt).toBeTruthy();
+    expect(
+      t.sentTo(t.statusChannelId).filter((m) => JSON.stringify(m.body).includes('Scheduled maintenance')),
+    ).toHaveLength(1);
+    expect(
+      (await t.db.maintenanceWindow.findUniqueOrThrow({ where: { id: win.id } })).announcedAt,
+    ).toBeTruthy();
     expect(t.deps.discord.dms.map((d) => d.userId)).toEqual([subYes]);
 
     await t.step(3); // past startsAt
     let w = await t.db.maintenanceWindow.findUniqueOrThrow({ where: { id: win.id } });
     expect(w.status).toBe('IN_PROGRESS');
     expect(w.startNotifiedAt).toBeTruthy();
-    expect((await t.db.monitoredService.findUniqueOrThrow({ where: { id: svc.id } })).state).toBe('MAINTENANCE');
+    expect((await t.db.monitoredService.findUniqueOrThrow({ where: { id: svc.id } })).state).toBe(
+      'MAINTENANCE',
+    );
 
     t.results.set(svc.id, FAIL);
     await t.step(2); // failures during maintenance: suppressed
-    expect((await t.db.monitoredService.findUniqueOrThrow({ where: { id: svc.id } })).state).toBe('MAINTENANCE');
+    expect((await t.db.monitoredService.findUniqueOrThrow({ where: { id: svc.id } })).state).toBe(
+      'MAINTENANCE',
+    );
     expect(t.alertsIn()).toHaveLength(0);
     expect(await t.db.incident.count({ where: { guildId: t.guildId } })).toBe(0);
 
@@ -247,38 +391,64 @@ describe('status worker: maintenance windows', () => {
     await t.step(2); // past endsAt
     w = await t.db.maintenanceWindow.findUniqueOrThrow({ where: { id: win.id } });
     expect(w.status).toBe('COMPLETED');
-    expect(t.sentTo(t.statusChannelId).filter((m) => JSON.stringify(m.body).includes('Maintenance completed'))).toHaveLength(1);
+    expect(
+      t.sentTo(t.statusChannelId).filter((m) => JSON.stringify(m.body).includes('Maintenance completed')),
+    ).toHaveLength(1);
     await t.step();
-    expect((await t.db.monitoredService.findUniqueOrThrow({ where: { id: svc.id } })).state).toBe('OPERATIONAL');
+    expect((await t.db.monitoredService.findUniqueOrThrow({ where: { id: svc.id } })).state).toBe(
+      'OPERATIONAL',
+    );
     expect(t.alertsIn()).toHaveLength(0);
   });
 
   it('cancellation cancels pending jobs; rescheduling moves them', async () => {
     const t = await setup();
-    const svc = await status.createService(t.staff, { name: 'Panel', slug: 'panel', target: 'https://panel.example.com' });
+    const svc = await status.createService(t.staff, {
+      name: 'Panel',
+      slug: 'panel',
+      target: 'https://panel.example.com',
+    });
     const at = (ms: number) => new Date(t.clock.now.getTime() + ms);
 
     // Reschedule before it starts.
-    const w1 = await status.createMaintenance(t.staff, { title: 'DB migration', description: 'Short downtime.', startsAt: at(600_000), endsAt: at(1_200_000), serviceSlugs: ['panel'] });
+    const w1 = await status.createMaintenance(t.staff, {
+      title: 'DB migration',
+      description: 'Short downtime.',
+      startsAt: at(600_000),
+      endsAt: at(1_200_000),
+      serviceSlugs: ['panel'],
+    });
     await t.drain(); // announce
     await status.updateMaintenance(t.staff, w1.id, { startsAt: at(1_800_000), endsAt: at(2_400_000) });
-    const startJob = await t.db.scheduledJob.findUniqueOrThrow({ where: { dedupeKey: `status.maintenance.start:${w1.id}` } });
+    const startJob = await t.db.scheduledJob.findUniqueOrThrow({
+      where: { dedupeKey: `status.maintenance.start:${w1.id}` },
+    });
     expect(startJob.runAt.getTime()).toBe(at(1_800_000).getTime());
     await t.drain();
-    expect(t.sentTo(t.statusChannelId).filter((m) => JSON.stringify(m.body).includes('rescheduled'))).toHaveLength(1);
+    expect(
+      t.sentTo(t.statusChannelId).filter((m) => JSON.stringify(m.body).includes('rescheduled')),
+    ).toHaveLength(1);
 
     // Cancel: all pending jobs cancelled, a cancellation notice is posted (it was announced).
     await status.cancelMaintenance(t.staff, w1.id);
-    const jobs = await t.db.scheduledJob.findMany({ where: { dedupeKey: { in: [`status.maintenance.start:${w1.id}`, `status.maintenance.end:${w1.id}`] } } });
+    const jobs = await t.db.scheduledJob.findMany({
+      where: { dedupeKey: { in: [`status.maintenance.start:${w1.id}`, `status.maintenance.end:${w1.id}`] } },
+    });
     expect(jobs.map((j) => j.status)).toEqual(['CANCELLED', 'CANCELLED']);
     await t.drain();
-    expect(t.sentTo(t.statusChannelId).filter((m) => JSON.stringify(m.body).includes('Maintenance cancelled'))).toHaveLength(1);
+    expect(
+      t.sentTo(t.statusChannelId).filter((m) => JSON.stringify(m.body).includes('Maintenance cancelled')),
+    ).toHaveLength(1);
 
     // Time passes beyond the original window: nothing starts.
     t.clock.now = at(3_000_000);
     await t.drain();
-    expect((await t.db.monitoredService.findUniqueOrThrow({ where: { id: svc.id } })).state).not.toBe('MAINTENANCE');
-    expect(t.sentTo(t.statusChannelId).filter((m) => JSON.stringify(m.body).includes('Maintenance started'))).toHaveLength(0);
+    expect((await t.db.monitoredService.findUniqueOrThrow({ where: { id: svc.id } })).state).not.toBe(
+      'MAINTENANCE',
+    );
+    expect(
+      t.sentTo(t.statusChannelId).filter((m) => JSON.stringify(m.body).includes('Maintenance started')),
+    ).toHaveLength(0);
     await expect(status.cancelMaintenance(t.staff, w1.id)).rejects.toMatchObject({ code: 'INVALID_STATE' });
   });
 });
@@ -305,7 +475,11 @@ describe('status worker: registration', () => {
 
   it('retention deletes health checks older than healthCheckRetentionDays', async () => {
     const t = await setup();
-    const svc = await status.createService(t.staff, { name: 'Panel', slug: 'panel', target: 'https://panel.example.com' });
+    const svc = await status.createService(t.staff, {
+      name: 'Panel',
+      slug: 'panel',
+      target: 'https://panel.example.com',
+    });
     await t.db.guildConfig.update({ where: { guildId: t.guildId }, data: { healthCheckRetentionDays: 7 } });
     const now = t.clock.now.getTime();
     await t.db.healthCheck.createMany({

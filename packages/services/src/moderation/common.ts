@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { nextSequence, type Db, type ModerationAction, type ModerationStatus, type ModerationType } from '@gynx/database';
+import {
+  nextSequence,
+  type Db,
+  type ModerationAction,
+  type ModerationStatus,
+  type ModerationType,
+} from '@gynx/database';
 import { formatRef, truncate, validation } from '@gynx/shared';
 import { enqueueJob } from '../core/jobs';
 
@@ -11,6 +17,7 @@ export const AUTOMOD_MODERATOR_ID = 'automod';
 export const SYSTEM_MODERATOR_ID = 'system';
 
 /** Manual warnings stop counting towards escalation after this many days (GuildConfig has no field for it yet). */
+/** Fallback when AutomodConfig.warningExpiryDays is unavailable. */
 export const WARNING_EXPIRY_DAYS = 90;
 
 export const TIMEOUT_MIN_MS = 60_000;
@@ -24,7 +31,9 @@ export function parseInput<S extends z.ZodTypeAny>(schema: S, raw: unknown): z.o
   if (!r.success) {
     const issue = r.error.issues[0];
     const path = issue?.path.length ? `${issue.path.join('.')}: ` : '';
-    throw validation(`${path}${issue?.message ?? 'Invalid input.'}`, { issues: r.error.issues.map((i) => ({ path: i.path, code: i.code })) });
+    throw validation(`${path}${issue?.message ?? 'Invalid input.'}`, {
+      issues: r.error.issues.map((i) => ({ path: i.path, code: i.code })),
+    });
   }
   return r.data;
 }

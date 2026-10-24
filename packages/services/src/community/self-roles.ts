@@ -18,7 +18,10 @@ const emojiSchema = z
   .string()
   .trim()
   .max(64)
-  .refine((e) => /^<a?:\w{2,32}:\d{17,20}>$/.test(e) || /^\p{Extended_Pictographic}/u.test(e), 'Use a unicode emoji or a custom emoji like <:name:id>');
+  .refine(
+    (e) => /^<a?:\w{2,32}:\d{17,20}>$/.test(e) || /^\p{Extended_Pictographic}/u.test(e),
+    'Use a unicode emoji or a custom emoji like <:name:id>',
+  );
 
 export const selfRoleCreateSchema = z.object({
   roleId: snowflakeSchema,
@@ -43,12 +46,18 @@ export async function protectedRoleIds(db: Db, guildId: string): Promise<Set<str
     db.welcomeConfig.findUnique({ where: { guildId }, select: { verifiedRoleId: true } }),
   ]);
   const ids = new Set(grants.map((g) => g.subjectId));
-  for (const id of [cfg.partnerRoleId, cfg.escalationRoleId, cfg.staffPingRoleId, welcome?.verifiedRoleId]) if (id) ids.add(id);
+  for (const id of [cfg.partnerRoleId, cfg.escalationRoleId, cfg.staffPingRoleId, welcome?.verifiedRoleId])
+    if (id) ids.add(id);
   return ids;
 }
 
 /** Full safety check for a role about to be offered or handed out. Throws VALIDATION/FORBIDDEN. */
-export async function assertRoleAssignable(ctx: Ctx, roleId: string, live: LiveRoleContext, kind: 'validation' | 'forbidden' = 'validation'): Promise<void> {
+export async function assertRoleAssignable(
+  ctx: Ctx,
+  roleId: string,
+  live: LiveRoleContext,
+  kind: 'validation' | 'forbidden' = 'validation',
+): Promise<void> {
   if (live.role.id !== roleId) throw validation('Role details do not match the selected role.');
   const result = assessRoleSafety({
     guildId: ctx.guildId,
@@ -57,14 +66,23 @@ export async function assertRoleAssignable(ctx: Ctx, roleId: string, live: LiveR
     protectedRoleIds: await protectedRoleIds(ctx.db, ctx.guildId),
   });
   if (!result.ok) {
-    await audit(ctx, { action: 'community.selfrole.unsafe', result: 'DENIED', targetType: 'Role', targetId: roleId, metadata: { reason: result.reason } });
+    await audit(ctx, {
+      action: 'community.selfrole.unsafe',
+      result: 'DENIED',
+      targetType: 'Role',
+      targetId: roleId,
+      metadata: { reason: result.reason },
+    });
     throw kind === 'forbidden' ? forbidden(result.message) : validation(result.message);
   }
 }
 
 export async function listSelfRoles(ctx: Ctx): Promise<SelfAssignableRole[]> {
   await requirePermission(ctx, 'community.manage');
-  return ctx.db.selfAssignableRole.findMany({ where: { guildId: ctx.guildId }, orderBy: [{ group: 'asc' }, { sortOrder: 'asc' }, { label: 'asc' }] });
+  return ctx.db.selfAssignableRole.findMany({
+    where: { guildId: ctx.guildId },
+    orderBy: [{ group: 'asc' }, { sortOrder: 'asc' }, { label: 'asc' }],
+  });
 }
 
 /** Member-facing: enabled roles only. */
@@ -76,16 +94,34 @@ export async function listEnabledSelfRoles(ctx: Ctx): Promise<SelfAssignableRole
   });
 }
 
-export async function createSelfRole(ctx: Ctx, raw: z.input<typeof selfRoleCreateSchema>, live: LiveRoleContext): Promise<SelfAssignableRole> {
+export async function createSelfRole(
+  ctx: Ctx,
+  raw: z.input<typeof selfRoleCreateSchema>,
+  live: LiveRoleContext,
+): Promise<SelfAssignableRole> {
   await requirePermission(ctx, 'community.manage', 'community.selfrole.create');
   const input = selfRoleCreateSchema.parse(raw);
   await assertRoleAssignable(ctx, input.roleId, live);
   try {
     return await ctx.db.$transaction(async (tx) => {
       const row = await tx.selfAssignableRole.create({
-        data: { ...input, description: input.description ?? null, emoji: input.emoji ?? null, guildId: ctx.guildId },
+        data: {
+          ...input,
+          description: input.description ?? null,
+          emoji: input.emoji ?? null,
+          guildId: ctx.guildId,
+        },
       });
-      await audit(ctx, { action: 'community.selfrole.create', targetType: 'Role', targetId: input.roleId, metadata: { label: input.label, group: input.group } }, tx);
+      await audit(
+        ctx,
+        {
+          action: 'community.selfrole.create',
+          targetType: 'Role',
+          targetId: input.roleId,
+          metadata: { label: input.label, group: input.group },
+        },
+        tx,
+      );
       return row;
     });
   } catch (e) {
@@ -111,7 +147,16 @@ export async function updateSelfRole(
   }
   return ctx.db.$transaction(async (tx) => {
     const updated = await tx.selfAssignableRole.update({ where: { id }, data: input });
-    await audit(ctx, { action: 'community.selfrole.update', targetType: 'Role', targetId: row.roleId, metadata: { fields: Object.keys(input) } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'community.selfrole.update',
+        targetType: 'Role',
+        targetId: row.roleId,
+        metadata: { fields: Object.keys(input) },
+      },
+      tx,
+    );
     return updated;
   });
 }
@@ -122,7 +167,16 @@ export async function deleteSelfRole(ctx: Ctx, id: string): Promise<void> {
   if (!row) throw notFound('Self-assignable role');
   await ctx.db.$transaction(async (tx) => {
     await tx.selfAssignableRole.delete({ where: { id } });
-    await audit(ctx, { action: 'community.selfrole.delete', targetType: 'Role', targetId: row.roleId, metadata: { label: row.label } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'community.selfrole.delete',
+        targetType: 'Role',
+        targetId: row.roleId,
+        metadata: { label: row.label },
+      },
+      tx,
+    );
   });
 }
 
@@ -143,7 +197,9 @@ export async function toggleSelfRole(ctx: Ctx, roleId: string, live: LiveRoleCon
   await requireModule(ctx, 'community');
   const id = snowflakeSchema.parse(roleId);
   await requireRate(ctx, 'community.selfrole.toggle', 20, 60);
-  const entry = await ctx.db.selfAssignableRole.findUnique({ where: { guildId_roleId: { guildId: ctx.guildId, roleId: id } } });
+  const entry = await ctx.db.selfAssignableRole.findUnique({
+    where: { guildId_roleId: { guildId: ctx.guildId, roleId: id } },
+  });
   if (!entry || !entry.enabled) throw forbidden('That role is not self-assignable.');
   await assertRoleAssignable(ctx, id, live, 'forbidden');
   return { roleId: id, label: entry.label, action: ctx.actor.roleIds.includes(id) ? 'remove' : 'add' };

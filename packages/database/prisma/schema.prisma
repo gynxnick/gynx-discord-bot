@@ -641,6 +641,8 @@ model AutomodConfig {
   warnAtStrikes         Int      @default(2)
   timeoutAtStrikes      Int      @default(4)
   timeoutMinutes        Int      @default(30)
+  /// Warnings become inactive after this many days
+  warningExpiryDays     Int      @default(90)
   updatedAt             DateTime @updatedAt
 }
 
@@ -1089,6 +1091,8 @@ model GiveawayDraw {
   algorithm    String
   reason       String?
   drawnById    String
+  /// Set when winners were announced (claimed before sending: at-most-once)
+  announcedAt  DateTime?
   createdAt    DateTime @default(now())
 
   @@unique([giveawayId, seq])
@@ -1282,6 +1286,8 @@ model PartnerApplication {
   decisionNote  String?
   internalNotes String?         @db.Text
   roleGranted   Boolean         @default(false)
+  /// Set once the applicant has been told the decision (DM sent at most once)
+  decisionNotifiedAt DateTime?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   campaigns     PartnerCampaign[]

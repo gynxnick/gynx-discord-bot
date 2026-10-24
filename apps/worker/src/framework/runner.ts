@@ -53,7 +53,10 @@ export class JobRunner {
     this.running = true;
     const loop = async () => {
       if (!this.running) return;
-      this.inFlight = this.tick().then(() => undefined, (err: unknown) => this.w.log.error({ err }, 'runner tick failed'));
+      this.inFlight = this.tick().then(
+        () => undefined,
+        (err: unknown) => this.w.log.error({ err }, 'runner tick failed'),
+      );
       await this.inFlight;
       if (this.running) this.timer = setTimeout(loop, this.pollMs);
     };
@@ -99,7 +102,13 @@ export class JobRunner {
         log.debug('job done');
       } catch (err) {
         const retryable = isAppError(err) ? err.retryable : !String(err).includes('no handler');
-        const outcome = await failJob(db, job, err instanceof Error ? err.message : String(err), this.w.deps.now(), retryable);
+        const outcome = await failJob(
+          db,
+          job,
+          err instanceof Error ? err.message : String(err),
+          this.w.deps.now(),
+          retryable,
+        );
         if (outcome === 'dead') log.error({ err }, 'job dead-lettered');
         else log.warn({ err }, 'job failed, will retry');
       }

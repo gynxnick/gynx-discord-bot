@@ -20,7 +20,8 @@ export class InteractionRouter {
     for (const m of modules) {
       for (const c of m.commands ?? []) {
         if (this.commands.has(c.data.name)) throw new Error(`Duplicate command: ${c.data.name}`);
-        if (!COMMAND_POLICIES[c.data.name]) throw new Error(`Command /${c.data.name} has no COMMAND_POLICIES entry`);
+        if (!COMMAND_POLICIES[c.data.name])
+          throw new Error(`Command /${c.data.name} has no COMMAND_POLICIES entry`);
         this.commands.set(c.data.name, c);
       }
       for (const h of m.components ?? []) {
@@ -40,7 +41,12 @@ export class InteractionRouter {
 
     // Only the configured guild; no DMs. Keeps dev/prod isolated and prevents use elsewhere.
     if (!i.inCachedGuild() || i.guildId !== this.rt.env.DISCORD_GUILD_ID) {
-      if (i.isRepliable()) await replyError(i, new AppError('FORBIDDEN', 'This bot only works inside the GYNX.GG server.'), correlationId);
+      if (i.isRepliable())
+        await replyError(
+          i,
+          new AppError('FORBIDDEN', 'This bot only works inside the GYNX.GG server.'),
+          correlationId,
+        );
       return;
     }
 
@@ -79,7 +85,8 @@ export class InteractionRouter {
         await handler.handle(i as never, args, h);
       }
     } catch (err) {
-      if (isAppError(err) && err.code !== 'INTERNAL') log.info({ code: err.code, msg: err.message }, 'interaction rejected');
+      if (isAppError(err) && err.code !== 'INTERNAL')
+        log.info({ code: err.code, msg: err.message }, 'interaction rejected');
       else log.error({ err }, 'interaction failed');
       if (i.isRepliable()) await replyError(i, err, correlationId);
     }
@@ -89,14 +96,23 @@ export class InteractionRouter {
   private async enforcePolicy(ctx: Ctx, name: string, module: SlashCommand['module']): Promise<void> {
     const policy = COMMAND_POLICIES[name];
     if (!policy) throw forbidden(); // fail closed
-    if (module !== 'core' && !(await isModuleEnabled(ctx.db, ctx.guildId, module))) throw moduleDisabled(module);
+    if (module !== 'core' && !(await isModuleEnabled(ctx.db, ctx.guildId, module)))
+      throw moduleDisabled(module);
     if (policy.rateLimit) {
       const [limit, window] = policy.rateLimit;
-      const r = await ctx.rateLimiter.consume(`${ctx.guildId}:${ctx.actor.userId}:cmd:${name}`, limit, window);
+      const r = await ctx.rateLimiter.consume(
+        `${ctx.guildId}:${ctx.actor.userId}:cmd:${name}`,
+        limit,
+        window,
+      );
       if (!r.allowed) throw rateLimited(r.retryAfterSeconds);
     }
     if (policy.permission && !ctx.actor.permissions.has(policy.permission)) {
-      await audit(ctx, { action: `command.${name}`, result: 'DENIED', metadata: { required: policy.permission } });
+      await audit(ctx, {
+        action: `command.${name}`,
+        result: 'DENIED',
+        metadata: { required: policy.permission },
+      });
       throw forbidden();
     }
   }

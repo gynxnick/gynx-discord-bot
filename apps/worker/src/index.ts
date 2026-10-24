@@ -2,7 +2,12 @@ import { hostname } from 'node:os';
 import { Redis } from 'ioredis';
 import { createLogger, loadEnv, workerEnvSchema } from '@gynx/config';
 import { disconnectDb, ensureGuild, getDb } from '@gynx/database';
-import { RedisRateLimiter, createRestDiscordPort, defaultRateLimiter, startHealthServer } from '@gynx/services';
+import {
+  RedisRateLimiter,
+  createRestDiscordPort,
+  defaultRateLimiter,
+  startHealthServer,
+} from '@gynx/services';
 import { JobRunner } from './framework/runner';
 import type { WorkerCtx } from './framework/types';
 import { workerModules } from './jobs';
@@ -35,7 +40,10 @@ async function main(): Promise<void> {
 
   const runner = new JobRunner(w, workerModules);
   runner.start();
-  log.info({ jobTypes: runner.jobTypes, periodic: runner.periodicNames, workerId: w.workerId }, 'worker started');
+  log.info(
+    { jobTypes: runner.jobTypes, periodic: runner.periodicNames, workerId: w.workerId },
+    'worker started',
+  );
 
   let lastTickOk = Date.now();
   const health = startHealthServer(

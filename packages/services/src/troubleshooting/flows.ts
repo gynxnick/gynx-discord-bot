@@ -38,10 +38,14 @@ export const flowUpdateSchema = flowInputSchema.partial();
 /** Validate structure and that every referenced article exists in this guild. */
 async function checkDefinition(db: Db, guildId: string, raw: unknown): Promise<FlowDefinition> {
   const v = validateFlowDefinition(raw);
-  if (!v.ok || !v.definition) throw validation(`The flow is invalid: ${v.errors.slice(0, 5).join(' ')}`, { errors: v.errors });
+  if (!v.ok || !v.definition)
+    throw validation(`The flow is invalid: ${v.errors.slice(0, 5).join(' ')}`, { errors: v.errors });
   const slugs = referencedArticleSlugs(v.definition);
   if (slugs.length) {
-    const found = await db.knowledgeArticle.findMany({ where: { guildId, slug: { in: slugs } }, select: { slug: true } });
+    const found = await db.knowledgeArticle.findMany({
+      where: { guildId, slug: { in: slugs } },
+      select: { slug: true },
+    });
     const missing = slugs.filter((s) => !found.some((f) => f.slug === s));
     if (missing.length) throw validation(`The flow links unknown articles: ${missing.join(', ')}`);
   }
@@ -65,7 +69,16 @@ export async function createFlow(ctx: Ctx, raw: FlowInput): Promise<Troubleshoot
           published: input.published,
         },
       });
-      await audit(ctx, { action: 'troubleshooting.flow.create', targetType: 'TroubleshootingFlow', targetId: f.id, metadata: { slug: f.slug, nodes: Object.keys(definition.nodes).length } }, tx);
+      await audit(
+        ctx,
+        {
+          action: 'troubleshooting.flow.create',
+          targetType: 'TroubleshootingFlow',
+          targetId: f.id,
+          metadata: { slug: f.slug, nodes: Object.keys(definition.nodes).length },
+        },
+        tx,
+      );
       return f;
     });
   } catch (e) {
@@ -74,12 +87,17 @@ export async function createFlow(ctx: Ctx, raw: FlowInput): Promise<Troubleshoot
   }
 }
 
-export async function updateFlow(ctx: Ctx, id: string, raw: z.input<typeof flowUpdateSchema>): Promise<TroubleshootingFlow> {
+export async function updateFlow(
+  ctx: Ctx,
+  id: string,
+  raw: z.input<typeof flowUpdateSchema>,
+): Promise<TroubleshootingFlow> {
   await requirePermission(ctx, 'troubleshooting.manage', 'troubleshooting.flow.update');
   const input = flowUpdateSchema.parse(raw);
   const existing = await ctx.db.troubleshootingFlow.findFirst({ where: { id, guildId: ctx.guildId } });
   if (!existing) throw notFound('Flow');
-  const definition = input.definition !== undefined ? await checkDefinition(ctx.db, ctx.guildId, input.definition) : undefined;
+  const definition =
+    input.definition !== undefined ? await checkDefinition(ctx.db, ctx.guildId, input.definition) : undefined;
   try {
     return await ctx.db.$transaction(async (tx) => {
       const f = await tx.troubleshootingFlow.update({
@@ -90,10 +108,21 @@ export async function updateFlow(ctx: Ctx, id: string, raw: z.input<typeof flowU
           game: input.game === undefined ? undefined : (input.game ?? null),
           description: input.description,
           published: input.published,
-          ...(definition ? { definition: definition as Prisma.InputJsonValue, version: { increment: 1 } } : {}),
+          ...(definition
+            ? { definition: definition as Prisma.InputJsonValue, version: { increment: 1 } }
+            : {}),
         },
       });
-      await audit(ctx, { action: 'troubleshooting.flow.update', targetType: 'TroubleshootingFlow', targetId: f.id, metadata: { slug: f.slug, version: f.version, fields: Object.keys(input) } }, tx);
+      await audit(
+        ctx,
+        {
+          action: 'troubleshooting.flow.update',
+          targetType: 'TroubleshootingFlow',
+          targetId: f.id,
+          metadata: { slug: f.slug, version: f.version, fields: Object.keys(input) },
+        },
+        tx,
+      );
       return f;
     });
   } catch (e) {
@@ -108,17 +137,33 @@ export async function deleteFlow(ctx: Ctx, id: string): Promise<void> {
   if (!f) throw notFound('Flow');
   await ctx.db.$transaction(async (tx) => {
     await tx.troubleshootingFlow.delete({ where: { id: f.id } });
-    await audit(ctx, { action: 'troubleshooting.flow.delete', targetType: 'TroubleshootingFlow', targetId: f.id, metadata: { slug: f.slug } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'troubleshooting.flow.delete',
+        targetType: 'TroubleshootingFlow',
+        targetId: f.id,
+        metadata: { slug: f.slug },
+      },
+      tx,
+    );
   });
 }
 
 /** Published flows for members; managers may include drafts. */
-export async function listFlows(ctx: Ctx, opts: { game?: string; includeDrafts?: boolean } = {}): Promise<TroubleshootingFlow[]> {
+export async function listFlows(
+  ctx: Ctx,
+  opts: { game?: string; includeDrafts?: boolean } = {},
+): Promise<TroubleshootingFlow[]> {
   await requireModule(ctx, 'troubleshooting');
   const game = opts.game ? gameKeySchema.parse(opts.game) : undefined;
   const drafts = opts.includeDrafts && can(ctx, 'troubleshooting.manage');
   return ctx.db.troubleshootingFlow.findMany({
-    where: { guildId: ctx.guildId, ...(drafts ? {} : { published: true }), ...(game ? { OR: [{ game }, { game: null }] } : {}) },
+    where: {
+      guildId: ctx.guildId,
+      ...(drafts ? {} : { published: true }),
+      ...(game ? { OR: [{ game }, { game: null }] } : {}),
+    },
     orderBy: [{ game: 'asc' }, { title: 'asc' }],
     take: 25,
   });
@@ -145,9 +190,29 @@ export interface ArticleRef {
 }
 
 export type StepView =
-  | { kind: 'node'; sessionId: string; flowTitle: string; nodeId: string; prompt: string; options: Array<{ index: number; label: string }>; hint: ArticleRef | null }
-  | { kind: 'resolved'; sessionId: string; flowTitle: string; article: ArticleRef | null; supportUrl: string | null }
-  | { kind: 'escalated'; sessionId: string; flowTitle: string; article: ArticleRef | null; supportUrl: string | null };
+  | {
+      kind: 'node';
+      sessionId: string;
+      flowTitle: string;
+      nodeId: string;
+      prompt: string;
+      options: Array<{ index: number; label: string }>;
+      hint: ArticleRef | null;
+    }
+  | {
+      kind: 'resolved';
+      sessionId: string;
+      flowTitle: string;
+      article: ArticleRef | null;
+      supportUrl: string | null;
+    }
+  | {
+      kind: 'escalated';
+      sessionId: string;
+      flowTitle: string;
+      article: ArticleRef | null;
+      supportUrl: string | null;
+    };
 
 const toRef = (a: KnowledgeArticle | null): ArticleRef | null =>
   a && a.published ? { slug: a.slug, title: a.title, summary: a.summary, url: a.url } : null;
@@ -159,11 +224,18 @@ async function articleRef(ctx: Ctx, slug: string | undefined): Promise<ArticleRe
 
 function parseStored(flow: TroubleshootingFlow): FlowDefinition {
   const r = flowDefinitionSchema.safeParse(flow.definition);
-  if (!r.success) throw invalidState('This troubleshooting flow is misconfigured. Please contact the support team.');
+  if (!r.success)
+    throw invalidState('This troubleshooting flow is misconfigured. Please contact the support team.');
   return r.data;
 }
 
-const nodeView = (session: Pick<TroubleshootingSession, 'id'>, flow: TroubleshootingFlow, nodeId: string, node: FlowNode, hint: ArticleRef | null): StepView => ({
+const nodeView = (
+  session: Pick<TroubleshootingSession, 'id'>,
+  flow: TroubleshootingFlow,
+  nodeId: string,
+  node: FlowNode,
+  hint: ArticleRef | null,
+): StepView => ({
   kind: 'node',
   sessionId: session.id,
   flowTitle: flow.title,
@@ -177,11 +249,14 @@ export async function startSession(ctx: Ctx, flowSlug: string): Promise<StepView
   await requireModule(ctx, 'troubleshooting');
   const slug = slugSchema.parse(flowSlug);
   await requireRate(ctx, 'troubleshooting.session', 10, 60);
-  const flow = await ctx.db.troubleshootingFlow.findFirst({ where: { guildId: ctx.guildId, slug, published: true } });
+  const flow = await ctx.db.troubleshootingFlow.findFirst({
+    where: { guildId: ctx.guildId, slug, published: true },
+  });
   if (!flow) throw notFound('Troubleshooting flow');
   const def = parseStored(flow);
   const start = def.nodes[def.start];
-  if (!start) throw invalidState('This troubleshooting flow is misconfigured. Please contact the support team.');
+  if (!start)
+    throw invalidState('This troubleshooting flow is misconfigured. Please contact the support team.');
 
   const session = await ctx.db.$transaction(async (tx) => {
     // One active session per member per flow: restarting abandons the old one.
@@ -190,7 +265,13 @@ export async function startSession(ctx: Ctx, flowSlug: string): Promise<StepView
       data: { outcome: 'ABANDONED' },
     });
     return tx.troubleshootingSession.create({
-      data: { guildId: ctx.guildId, userId: ctx.actor.userId, flowId: flow.id, currentNode: def.start, path: [] },
+      data: {
+        guildId: ctx.guildId,
+        userId: ctx.actor.userId,
+        flowId: flow.id,
+        currentNode: def.start,
+        path: [],
+      },
     });
   });
   return nodeView(session, flow, def.start, start, null);
@@ -199,11 +280,22 @@ export async function startSession(ctx: Ctx, flowSlug: string): Promise<StepView
 async function loadOwnSession(ctx: Ctx, sessionId: string) {
   await requireModule(ctx, 'troubleshooting');
   const id = z.string().min(1).max(40).parse(sessionId);
-  const s = await ctx.db.troubleshootingSession.findFirst({ where: { id, guildId: ctx.guildId }, include: { flow: true } });
+  const s = await ctx.db.troubleshootingSession.findFirst({
+    where: { id, guildId: ctx.guildId },
+    include: { flow: true },
+  });
   if (!s) throw notFound('Troubleshooting session');
   if (s.userId !== ctx.actor.userId) {
-    await audit(ctx, { action: 'troubleshooting.session.advance', result: 'DENIED', targetType: 'TroubleshootingSession', targetId: s.id, metadata: { reason: 'not-owner' } });
-    throw forbidden('Only the member who started this troubleshooting session can continue it. Run /troubleshoot to start your own.');
+    await audit(ctx, {
+      action: 'troubleshooting.session.advance',
+      result: 'DENIED',
+      targetType: 'TroubleshootingSession',
+      targetId: s.id,
+      metadata: { reason: 'not-owner' },
+    });
+    throw forbidden(
+      'Only the member who started this troubleshooting session can continue it. Run /troubleshoot to start your own.',
+    );
   }
   return s;
 }
@@ -212,11 +304,18 @@ async function loadOwnSession(ctx: Ctx, sessionId: string) {
  * Advance a session by picking an option on the current node. Only the owner
  * may advance. `expectedNode` (from the button) rejects stale clicks.
  */
-export async function chooseOption(ctx: Ctx, sessionId: string, optionIndex: number, expectedNode?: string): Promise<StepView> {
+export async function chooseOption(
+  ctx: Ctx,
+  sessionId: string,
+  optionIndex: number,
+  expectedNode?: string,
+): Promise<StepView> {
   const idx = z.number().int().min(0).max(4).parse(optionIndex);
   const s = await loadOwnSession(ctx, sessionId);
-  if (s.outcome !== 'IN_PROGRESS') throw invalidState('This troubleshooting session has ended. Run /troubleshoot to start again.');
-  if (expectedNode !== undefined && expectedNode !== s.currentNode) throw invalidState('That step is no longer current — use the latest message.');
+  if (s.outcome !== 'IN_PROGRESS')
+    throw invalidState('This troubleshooting session has ended. Run /troubleshoot to start again.');
+  if (expectedNode !== undefined && expectedNode !== s.currentNode)
+    throw invalidState('That step is no longer current — use the latest message.');
 
   const def = parseStored(s.flow);
   const node = def.nodes[s.currentNode];
@@ -239,7 +338,13 @@ export async function chooseOption(ctx: Ctx, sessionId: string, optionIndex: num
   const article = await articleRef(ctx, option.articleSlug);
   if (nextNodeId) return nodeView(s, s.flow, nextNodeId, def.nodes[nextNodeId]!, article);
   const supportUrl = supportUrlOf(await getGuildConfig(ctx.db, ctx.guildId));
-  return { kind: outcome === 'ESCALATED' ? 'escalated' : 'resolved', sessionId: s.id, flowTitle: s.flow.title, article, supportUrl };
+  return {
+    kind: outcome === 'ESCALATED' ? 'escalated' : 'resolved',
+    sessionId: s.id,
+    flowTitle: s.flow.title,
+    article,
+    supportUrl,
+  };
 }
 
 /**
@@ -249,7 +354,8 @@ export async function chooseOption(ctx: Ctx, sessionId: string, optionIndex: num
  */
 export async function escalateSession(ctx: Ctx, sessionId: string): Promise<{ supportUrl: string | null }> {
   const s = await loadOwnSession(ctx, sessionId);
-  if (s.outcome === 'ABANDONED') throw invalidState('This troubleshooting session has expired. Run /troubleshoot to start again.');
+  if (s.outcome === 'ABANDONED')
+    throw invalidState('This troubleshooting session has expired. Run /troubleshoot to start again.');
   if (s.outcome !== 'ESCALATED') {
     await ctx.db.troubleshootingSession.update({ where: { id: s.id }, data: { outcome: 'ESCALATED' } });
   }

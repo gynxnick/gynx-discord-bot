@@ -11,7 +11,9 @@ const data = new SlashCommandBuilder()
     s
       .setName('create')
       .setDescription('Get your personal invite link (staff: create a campaign invite)')
-      .addStringOption((o) => o.setName('campaign').setDescription('Campaign name (staff only)').setMaxLength(64)),
+      .addStringOption((o) =>
+        o.setName('campaign').setDescription('Campaign name (staff only)').setMaxLength(64),
+      ),
   )
   .addSubcommand((s) => s.setName('stats').setDescription('Your referral counts'))
   .addSubcommand((s) =>
@@ -19,16 +21,39 @@ const data = new SlashCommandBuilder()
       .setName('leaderboard')
       .setDescription('Top referrers (confirmed, valid referrals only)')
       .addStringOption((o) =>
-        o.setName('period').setDescription('Time period').addChoices({ name: 'Last 7 days', value: '7' }, { name: 'Last 30 days', value: '30' }, { name: 'All time', value: 'all' }),
+        o
+          .setName('period')
+          .setDescription('Time period')
+          .addChoices(
+            { name: 'Last 7 days', value: '7' },
+            { name: 'Last 30 days', value: '30' },
+            { name: 'All time', value: 'all' },
+          ),
       ),
   )
   .addSubcommand((s) =>
     s
       .setName('review')
       .setDescription('Staff: review flagged referrals')
-      .addStringOption((o) => o.setName('id').setDescription('Referral id (leave empty to list flagged referrals)').setMaxLength(64))
-      .addStringOption((o) => o.setName('decision').setDescription('Outcome').addChoices({ name: 'Valid', value: 'VALID' }, { name: 'Invalid', value: 'INVALID' }, { name: 'Disputed', value: 'DISPUTED' }))
-      .addStringOption((o) => o.setName('note').setDescription('Review note (required with a decision)').setMaxLength(500)),
+      .addStringOption((o) =>
+        o
+          .setName('id')
+          .setDescription('Referral id (leave empty to list flagged referrals)')
+          .setMaxLength(64),
+      )
+      .addStringOption((o) =>
+        o
+          .setName('decision')
+          .setDescription('Outcome')
+          .addChoices(
+            { name: 'Valid', value: 'VALID' },
+            { name: 'Invalid', value: 'INVALID' },
+            { name: 'Disputed', value: 'DISPUTED' },
+          ),
+      )
+      .addStringOption((o) =>
+        o.setName('note').setDescription('Review note (required with a decision)').setMaxLength(500),
+      ),
   );
 
 export const referralCommand: SlashCommand = {
@@ -40,11 +65,18 @@ export const referralCommand: SlashCommand = {
     if (sub === 'create') {
       await i.deferReply({ flags: 64 });
       const channelId = i.guild?.rulesChannelId ?? i.guild?.systemChannelId ?? i.channelId;
-      const { invite, created } = await marketing.createReferralInvite(h.ctx, { channelId, campaign: i.options.getString('campaign') ?? undefined });
+      const { invite, created } = await marketing.createReferralInvite(h.ctx, {
+        channelId,
+        campaign: i.options.getString('campaign') ?? undefined,
+      });
       await respond(i, {
         embeds: [
           brandEmbed({
-            title: invite.campaign ? `Campaign invite · ${truncate(invite.campaign, 80)}` : created ? 'Your personal invite' : 'Your personal invite (existing)',
+            title: invite.campaign
+              ? `Campaign invite · ${truncate(invite.campaign, 80)}`
+              : created
+                ? 'Your personal invite'
+                : 'Your personal invite (existing)',
             description: `https://discord.gg/${invite.code}\n\nWhen someone joins with this link we credit you only if we can confirm it was your invite. Joins from new accounts, rejoins or bursts are reviewed by staff first.`,
             footer: 'Referrals are for community growth only — there are no rewards or payouts.',
           }),
@@ -64,7 +96,14 @@ export const referralCommand: SlashCommand = {
               { name: 'Last 30 days', value: String(s.validLast30Days), inline: true },
               { name: 'Under review', value: String(s.underReview), inline: true },
               { name: 'Not counted', value: String(s.invalid), inline: true },
-              { name: 'Your invites', value: s.invites.length ? s.invites.map((inv) => `discord.gg/${inv.code}${inv.campaign ? ` (${inv.campaign})` : ''}`).join('\n') : 'None yet — use `/referral create`.' },
+              {
+                name: 'Your invites',
+                value: s.invites.length
+                  ? s.invites
+                      .map((inv) => `discord.gg/${inv.code}${inv.campaign ? ` (${inv.campaign})` : ''}`)
+                      .join('\n')
+                  : 'None yet — use `/referral create`.',
+              },
             ],
             footer: 'Only joins we can attribute with certainty are counted.',
           }),
@@ -82,7 +121,9 @@ export const referralCommand: SlashCommand = {
         embeds: [
           brandEmbed({
             title: `Referral leaderboard · ${label}`,
-            description: rows.length ? rows.map((r) => `**${r.rank}.** <@${r.referrerId}> — ${r.referrals}`).join('\n') : 'No confirmed referrals in this period yet.',
+            description: rows.length
+              ? rows.map((r) => `**${r.rank}.** <@${r.referrerId}> — ${r.referrals}`).join('\n')
+              : 'No confirmed referrals in this period yet.',
             footer: 'Confirmed and reviewed referrals only.',
           }),
         ],
@@ -94,8 +135,15 @@ export const referralCommand: SlashCommand = {
       const id = i.options.getString('id');
       if (!id) {
         const page = await marketing.listAttributions(h.ctx, { status: 'FLAGGED', limit: 15 });
-        const lines = page.items.map((r) => `\`${r.id}\` · <@${r.joinedUserId}> via <@${r.referrerId ?? '0'}> · ${discordTimestamp(r.joinedAt, 'R')}\n> ${truncate(r.flagReason ?? 'flagged', 150)}`);
-        await respond(i, { embeds: [brandEmbed({ title: 'Flagged referrals', description: lines.join('\n') || 'Nothing to review.' })] });
+        const lines = page.items.map(
+          (r) =>
+            `\`${r.id}\` · <@${r.joinedUserId}> via <@${r.referrerId ?? '0'}> · ${discordTimestamp(r.joinedAt, 'R')}\n> ${truncate(r.flagReason ?? 'flagged', 150)}`,
+        );
+        await respond(i, {
+          embeds: [
+            brandEmbed({ title: 'Flagged referrals', description: lines.join('\n') || 'Nothing to review.' }),
+          ],
+        });
         return;
       }
       const decision = i.options.getString('decision') as 'VALID' | 'INVALID' | 'DISPUTED' | null;

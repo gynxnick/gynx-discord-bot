@@ -16,7 +16,10 @@ export const minecraftAdapter: GameAdapter = {
   ],
   docsLinks: [
     { label: 'Minecraft Help Center', url: 'https://help.minecraft.net' },
-    { label: 'Setting up a Java server (wiki)', url: 'https://minecraft.wiki/w/Tutorial:Setting_up_a_Java_Edition_server' },
+    {
+      label: 'Setting up a Java server (wiki)',
+      url: 'https://minecraft.wiki/w/Tutorial:Setting_up_a_Java_Edition_server',
+    },
     { label: 'server.properties reference', url: 'https://minecraft.wiki/w/Server.properties' },
   ],
   notes: [
@@ -26,7 +29,11 @@ export const minecraftAdapter: GameAdapter = {
   ],
   queryPorts: (port) => [port ?? 25565],
   async query(address, port, opts) {
-    const s = await minecraftPing(address, port, { hostname: opts.hostname, family: opts.family, timeoutMs: opts.timeoutMs });
+    const s = await minecraftPing(address, port, {
+      hostname: opts.hostname,
+      family: opts.family,
+      timeoutMs: opts.timeoutMs,
+    });
     return {
       available: true,
       name: null,

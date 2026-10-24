@@ -28,10 +28,17 @@ describe('poll vote validation', () => {
   });
 
   it('validates poll creation input', () => {
-    const base = { question: 'Best map?', options: ['A', 'B'], durationMs: 3_600_000, channelId: '123456789012345678' };
+    const base = {
+      question: 'Best map?',
+      options: ['A', 'B'],
+      durationMs: 3_600_000,
+      channelId: '123456789012345678',
+    };
     expect(createPollSchema.safeParse(base).success).toBe(true);
     expect(createPollSchema.safeParse({ ...base, options: ['A'] }).success).toBe(false);
-    expect(createPollSchema.safeParse({ ...base, options: Array.from({ length: 11 }, (_, i) => `o${i}`) }).success).toBe(false);
+    expect(
+      createPollSchema.safeParse({ ...base, options: Array.from({ length: 11 }, (_, i) => `o${i}`) }).success,
+    ).toBe(false);
     expect(createPollSchema.safeParse({ ...base, options: ['A', 'a'] }).success).toBe(false);
     expect(createPollSchema.safeParse({ ...base, multipleChoice: true, maxChoices: 3 }).success).toBe(false);
     expect(createPollSchema.safeParse({ ...base, maxChoices: 2 }).success).toBe(false); // single-choice
@@ -50,9 +57,15 @@ describe('event capacity / waitlist', () => {
   });
 
   it('parses wall-clock times in the given zone', () => {
-    expect(parseEventTime('2026-07-01 18:00', 'Europe/London').toISOString()).toBe('2026-07-01T17:00:00.000Z'); // BST
-    expect(parseEventTime('2026-12-01 18:00', 'Europe/London').toISOString()).toBe('2026-12-01T18:00:00.000Z');
-    expect(parseEventTime('2026-12-01 18:00', 'America/New_York').toISOString()).toBe('2026-12-01T23:00:00.000Z');
+    expect(parseEventTime('2026-07-01 18:00', 'Europe/London').toISOString()).toBe(
+      '2026-07-01T17:00:00.000Z',
+    ); // BST
+    expect(parseEventTime('2026-12-01 18:00', 'Europe/London').toISOString()).toBe(
+      '2026-12-01T18:00:00.000Z',
+    );
+    expect(parseEventTime('2026-12-01 18:00', 'America/New_York').toISOString()).toBe(
+      '2026-12-01T23:00:00.000Z',
+    );
     expect(() => parseEventTime('2026-02-31 10:00', 'UTC')).toThrow(/does not exist/);
     expect(() => parseEventTime('tomorrow', 'UTC')).toThrow(/format/);
     expect(() => parseEventTime('2026-12-01 18:00', 'Mars/Olympus')).toThrow(/time zone/);
@@ -61,18 +74,36 @@ describe('event capacity / waitlist', () => {
 
 describe('suggestion duplicate detection', () => {
   const existing = [
-    { id: '1', ref: 'S-0001', title: 'Add a Valheim server location in Singapore', body: 'Players in Asia get high ping on the European Valheim servers.' },
-    { id: '2', ref: 'S-0002', title: 'Dark mode for the website', body: 'The current bright theme is hard on the eyes at night.' },
+    {
+      id: '1',
+      ref: 'S-0001',
+      title: 'Add a Valheim server location in Singapore',
+      body: 'Players in Asia get high ping on the European Valheim servers.',
+    },
+    {
+      id: '2',
+      ref: 'S-0002',
+      title: 'Dark mode for the website',
+      body: 'The current bright theme is hard on the eyes at night.',
+    },
   ];
 
   it('flags near-identical suggestions at or above the threshold', () => {
-    const hit = findSimilarSuggestion(existing, { title: 'Add Valheim server location in Singapore', body: 'Asia players get high ping on European Valheim servers.' });
+    const hit = findSimilarSuggestion(existing, {
+      title: 'Add Valheim server location in Singapore',
+      body: 'Asia players get high ping on European Valheim servers.',
+    });
     expect(hit?.match.ref).toBe('S-0001');
     expect(hit!.score).toBeGreaterThanOrEqual(SUGGESTION_SIMILARITY_THRESHOLD);
   });
 
   it('does not flag unrelated suggestions', () => {
-    expect(findSimilarSuggestion(existing, { title: 'Discord giveaway for Minecraft', body: 'Run a monthly community giveaway with free cosmetic ranks for members.' })).toBeNull();
+    expect(
+      findSimilarSuggestion(existing, {
+        title: 'Discord giveaway for Minecraft',
+        body: 'Run a monthly community giveaway with free cosmetic ranks for members.',
+      }),
+    ).toBeNull();
   });
 
   it('threshold is inclusive and configurable', () => {
@@ -131,10 +162,16 @@ describe('giveaway draw', () => {
   it('eligibility checks roles, account age and membership age', () => {
     const now = new Date('2026-10-01T00:00:00Z');
     const g = { requiredRoleIds: ['111'], minAccountAgeDays: 30, minMemberDays: 7 };
-    const ok = { roleIds: ['111'], accountCreatedAt: new Date('2025-01-01'), joinedAt: new Date('2026-09-01') };
+    const ok = {
+      roleIds: ['111'],
+      accountCreatedAt: new Date('2025-01-01'),
+      joinedAt: new Date('2026-09-01'),
+    };
     expect(checkGiveawayEligibility(g, ok, now).eligible).toBe(true);
     expect(checkGiveawayEligibility(g, { ...ok, roleIds: [] }, now).reasons).toHaveLength(1);
-    expect(checkGiveawayEligibility(g, { ...ok, accountCreatedAt: new Date('2026-09-25') }, now).eligible).toBe(false);
+    expect(
+      checkGiveawayEligibility(g, { ...ok, accountCreatedAt: new Date('2026-09-25') }, now).eligible,
+    ).toBe(false);
     expect(checkGiveawayEligibility(g, { ...ok, joinedAt: null }, now).eligible).toBe(false);
   });
 });

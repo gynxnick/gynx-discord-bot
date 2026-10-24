@@ -1,7 +1,14 @@
 import type { APIEmbed } from 'discord-api-types/v10';
 import { formatDuration, formatInZone, truncate } from '@gynx/shared';
 import { brandEmbed } from '../core/render';
-import type { CommunitySection, InfrastructureSection, MarketingSection, ModerationSection, OutstandingSection, ReferralSection } from './collect';
+import type {
+  CommunitySection,
+  InfrastructureSection,
+  MarketingSection,
+  ModerationSection,
+  OutstandingSection,
+  ReferralSection,
+} from './collect';
 import { compare, fmtNum, type Metric } from './metrics';
 import { ACTIVITY_NOTE, SUPPORT_NOTE, humanise, type ReportData } from './report';
 
@@ -17,15 +24,27 @@ export function short(m: Metric<number>, suffix = ''): string {
 }
 
 const rec = (m: Metric<Record<string, number>>) =>
-  !m.available ? 'n/a' : Object.entries(m.value).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${humanise(k)} ${v}`).join(', ') || 'none';
+  !m.available
+    ? 'n/a'
+    : Object.entries(m.value)
+        .sort((a, b) => b[1] - a[1])
+        .map(([k, v]) => `${humanise(k)} ${v}`)
+        .join(', ') || 'none';
 
 const unavailableNote = (ms: Array<Metric<unknown>>) => {
-  const reasons = [...new Set(ms.filter((m): m is { available: false; reason: string } => !m.available).map((m) => m.reason))];
+  const reasons = [
+    ...new Set(
+      ms.filter((m): m is { available: false; reason: string } => !m.available).map((m) => m.reason),
+    ),
+  ];
   return reasons.length ? `\n_Not available — ${reasons.join('; ')}_` : '';
 };
 
 export function communityFields(c: CommunitySection): Field[] {
-  const top = c.topChannels.available && c.topChannels.value.length ? c.topChannels.value.map((t) => `<#${t.channelId}> ${fmtNum(t.messages)}`).join('\n') : 'n/a';
+  const top =
+    c.topChannels.available && c.topChannels.value.length
+      ? c.topChannels.value.map((t) => `<#${t.channelId}> ${fmtNum(t.messages)}`).join('\n')
+      : 'n/a';
   return [
     {
       name: 'Community growth',
@@ -46,8 +65,16 @@ export function communityFields(c: CommunitySection): Field[] {
 
 export function moderationFields(m: ModerationSection): Field[] {
   return [
-    { name: 'Moderation', value: `Actions: ${short(m.actions)}\n${rec(m.actionsByType)}` + unavailableNote([m.actions]) },
-    { name: 'Automod', value: `Detections: ${short(m.automodDetections)} · False positives: ${short(m.automodFalsePositives)}\n${rec(m.automodByRule)}` + unavailableNote([m.automodDetections]) },
+    {
+      name: 'Moderation',
+      value: `Actions: ${short(m.actions)}\n${rec(m.actionsByType)}` + unavailableNote([m.actions]),
+    },
+    {
+      name: 'Automod',
+      value:
+        `Detections: ${short(m.automodDetections)} · False positives: ${short(m.automodFalsePositives)}\n${rec(m.automodByRule)}` +
+        unavailableNote([m.automodDetections]),
+    },
     {
       name: 'Abuse reports',
       value:
@@ -58,7 +85,12 @@ export function moderationFields(m: ModerationSection): Field[] {
 }
 
 export function infrastructureFields(i: InfrastructureSection): Field[] {
-  const uptime = i.uptime.length ? i.uptime.slice(0, 10).map((s) => `${truncate(s.name, 40)}: ${s.uptimePct === null ? 'no data' : `${s.uptimePct}%`}`).join('\n') : 'No public monitored services';
+  const uptime = i.uptime.length
+    ? i.uptime
+        .slice(0, 10)
+        .map((s) => `${truncate(s.name, 40)}: ${s.uptimePct === null ? 'no data' : `${s.uptimePct}%`}`)
+        .join('\n')
+    : 'No public monitored services';
   return [
     {
       name: 'Incidents',
@@ -81,7 +113,10 @@ export function marketingFields(k: MarketingSection, r?: ReferralSection): Field
       name: 'Engagement',
       value: `RSVPs ${short(k.eventRsvps)} · Giveaway entries ${short(k.giveawayEntries)}\nPoll ballots ${short(k.pollBallots)} · Suggestions ${short(k.suggestionsCreated)}`,
     },
-    { name: 'Partner applications', value: `${short(k.partnerApplications)}\n${rec(k.partnerApplicationsByStatus)}` },
+    {
+      name: 'Partner applications',
+      value: `${short(k.partnerApplications)}\n${rec(k.partnerApplicationsByStatus)}`,
+    },
   ];
   if (r) {
     fields.push({
@@ -97,7 +132,14 @@ export function marketingFields(k: MarketingSection, r?: ReferralSection): Field
 export function outstandingField(o: OutstandingSection): Field {
   const items = [
     `Open reports > 72h: **${o.staleAbuseReports}**`,
-    `Active incidents: **${o.activeIncidents.length}**${o.activeIncidents.length ? ` (${o.activeIncidents.slice(0, 3).map((a) => a.ref).join(', ')})` : ''}`,
+    `Active incidents: **${o.activeIncidents.length}**${
+      o.activeIncidents.length
+        ? ` (${o.activeIncidents
+            .slice(0, 3)
+            .map((a) => a.ref)
+            .join(', ')})`
+        : ''
+    }`,
     `Dead-letter jobs: **${o.deadJobs}**`,
     `Flagged referrals: **${o.flaggedReferrals}**`,
     `Partner apps pending > 7d: **${o.stalePartnerApplications}**`,
@@ -120,7 +162,10 @@ export function reportEmbeds(d: ReportData, opts: ReportEmbedOptions = {}): APIE
   return [
     brandEmbed({
       title: `${opts.title ?? 'Weekly CEO report'} · ${range}`,
-      url: opts.dashboardUrl && opts.reportId ? `${opts.dashboardUrl}/analytics/reports/${opts.reportId}` : undefined,
+      url:
+        opts.dashboardUrl && opts.reportId
+          ? `${opts.dashboardUrl}/analytics/reports/${opts.reportId}`
+          : undefined,
       description: d.summary.map((b) => `• ${b}`).join('\n'),
       fields: [
         {
@@ -146,7 +191,10 @@ export function reportEmbeds(d: ReportData, opts: ReportEmbedOptions = {}): APIE
         outstandingField(d.outstanding),
         { name: 'Support', value: SUPPORT_NOTE },
       ],
-      footer: truncate(`Full report attached (Markdown) · ${ACTIVITY_NOTE.split(' — ')[0]} · ${opts.footer ?? 'GYNX.GG'}`, 2048),
+      footer: truncate(
+        `Full report attached (Markdown) · ${ACTIVITY_NOTE.split(' — ')[0]} · ${opts.footer ?? 'GYNX.GG'}`,
+        2048,
+      ),
       timestamp: new Date(d.generatedAt),
     }),
   ];

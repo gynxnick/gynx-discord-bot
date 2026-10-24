@@ -17,7 +17,10 @@ export const gmodAdapter: GameAdapter = {
   ],
   docsLinks: [
     { label: "Garry's Mod wiki", url: 'https://wiki.facepunch.com/gmod/' },
-    { label: 'Workshop for dedicated servers', url: 'https://wiki.facepunch.com/gmod/Workshop_for_Dedicated_Servers' },
+    {
+      label: 'Workshop for dedicated servers',
+      url: 'https://wiki.facepunch.com/gmod/Workshop_for_Dedicated_Servers',
+    },
   ],
   notes: [
     'Missing textures (purple/black checkers) or ERROR models usually mean missing Workshop content or mounted games (e.g. CS:S).',

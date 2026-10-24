@@ -12,8 +12,7 @@
  */
 
 export type Metric<T> =
-  | { available: true; value: T; previous?: T; note?: string }
-  | { available: false; reason: string };
+  { available: true; value: T; previous?: T; note?: string } | { available: false; reason: string };
 
 export const available = <T>(value: T, note?: string): Metric<T> =>
   note === undefined ? { available: true, value } : { available: true, value, note };
@@ -43,7 +42,8 @@ export interface Comparison {
 
 /** Null-safe comparison against the previous period. */
 export function compare(current: number | null | undefined, previous: number | null | undefined): Comparison {
-  if (current === null || current === undefined || previous === null || previous === undefined) return { delta: null, pct: null };
+  if (current === null || current === undefined || previous === null || previous === undefined)
+    return { delta: null, pct: null };
   const delta = current - previous;
   const pct = previous === 0 ? null : Math.round((delta / Math.abs(previous)) * 1000) / 10;
   return { delta, pct };
@@ -57,7 +57,9 @@ export function formatComparison(c: Comparison): string {
 }
 
 export function fmtNum(n: number): string {
-  return Number.isInteger(n) ? n.toLocaleString('en-US') : n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  return Number.isInteger(n)
+    ? n.toLocaleString('en-US')
+    : n.toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
 /** Render a scalar metric for humans; unavailable → "Not available — <reason>". */
@@ -123,7 +125,10 @@ export function memberFlow(events: ReadonlyArray<{ type: 'JOIN' | 'LEAVE'; count
  * Active members: distinct users whose summed message count across the period's
  * days is ≥ `minMessages` (GuildConfig.activeMemberMinMessages, clamped to ≥ 1).
  */
-export function countActiveMembers(perUser: ReadonlyArray<{ userId: string; messages: number }>, minMessages: number): number {
+export function countActiveMembers(
+  perUser: ReadonlyArray<{ userId: string; messages: number }>,
+  minMessages: number,
+): number {
   const threshold = Math.max(1, minMessages);
   const totals = new Map<string, number>();
   for (const r of perUser) totals.set(r.userId, (totals.get(r.userId) ?? 0) + r.messages);
@@ -136,7 +141,10 @@ export function countActiveMembers(perUser: ReadonlyArray<{ userId: string; mess
  * DAU = average number of distinct posting users per day across the period's days
  * (observed message activity). Days with no rows count as 0.
  */
-export function averageDaily(distinctUsersByDate: ReadonlyMap<string, number>, periodKeys: readonly string[]): number {
+export function averageDaily(
+  distinctUsersByDate: ReadonlyMap<string, number>,
+  periodKeys: readonly string[],
+): number {
   if (periodKeys.length === 0) return 0;
   let sum = 0;
   for (const k of periodKeys) sum += distinctUsersByDate.get(k) ?? 0;
@@ -144,7 +152,10 @@ export function averageDaily(distinctUsersByDate: ReadonlyMap<string, number>, p
 }
 
 /** Top-N entries of a count map, descending, ties broken by key for stability. */
-export function topN(counts: ReadonlyMap<string, number> | Record<string, number>, n: number): Array<{ id: string; count: number }> {
+export function topN(
+  counts: ReadonlyMap<string, number> | Record<string, number>,
+  n: number,
+): Array<{ id: string; count: number }> {
   const entries = counts instanceof Map ? [...counts.entries()] : Object.entries(counts);
   return entries
     .map(([id, count]) => ({ id, count }))
@@ -164,7 +175,11 @@ export function uptimePercent(okChecks: number, totalChecks: number): number | n
  * Total incident time inside the period: each incident contributes the overlap of
  * [startedAt, resolvedAt ?? asOf) with [period.start, min(period.end, asOf)).
  */
-export function incidentDurationMs(incidents: ReadonlyArray<{ startedAt: Date; resolvedAt: Date | null }>, period: Period, asOf: Date): number {
+export function incidentDurationMs(
+  incidents: ReadonlyArray<{ startedAt: Date; resolvedAt: Date | null }>,
+  period: Period,
+  asOf: Date,
+): number {
   const windowEnd = Math.min(period.end.getTime(), asOf.getTime());
   let total = 0;
   for (const i of incidents) {

@@ -3,7 +3,14 @@ import { inject } from 'vitest';
 import { createLogger } from '@gynx/config';
 import { createDb, ensureGuild, type PrismaClient } from '@gynx/database';
 import { ALL_PERMISSIONS, type PermissionKey } from '@gynx/permissions';
-import { makeCtx, type Actor, type Ctx, type DiscordPort, type MessageBody, type ServiceDeps } from '@gynx/services';
+import {
+  makeCtx,
+  type Actor,
+  type Ctx,
+  type DiscordPort,
+  type MessageBody,
+  type ServiceDeps,
+} from '@gynx/services';
 import { MemoryRateLimiter } from '@gynx/shared';
 
 declare module 'vitest' {
@@ -136,7 +143,11 @@ export function ctxAs(
 }
 
 /** Run `tick` until no more jobs are claimed (each tick claims at most 10). */
-export async function drainJobs(runner: { tick(now?: Date): Promise<number> }, now?: Date, maxTicks = 50): Promise<void> {
+export async function drainJobs(
+  runner: { tick(now?: Date): Promise<number> },
+  now?: Date,
+  maxTicks = 50,
+): Promise<void> {
   for (let i = 0; i < maxTicks; i++) {
     if ((await runner.tick(now)) === 0) return;
   }

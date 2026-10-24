@@ -15,11 +15,27 @@ export function gameInfoEmbed(g: GameAdapter): APIEmbed {
     fields: [
       { name: 'Developer', value: g.developer, inline: true },
       { name: 'Default port', value: `${g.defaultPort}/${g.protocol}`, inline: true },
-      { name: 'Live query', value: g.queryProtocol === 'minecraft-slp' ? 'Server List Ping' : g.queryProtocol === 'a2s' ? 'Steam A2S' : 'Not available', inline: true },
-      { name: 'Typical ports', value: g.typicalPorts.map((p) => `\`${p.port}/${p.proto}\` ${p.purpose}`).join('\n') },
+      {
+        name: 'Live query',
+        value:
+          g.queryProtocol === 'minecraft-slp'
+            ? 'Server List Ping'
+            : g.queryProtocol === 'a2s'
+              ? 'Steam A2S'
+              : 'Not available',
+        inline: true,
+      },
+      {
+        name: 'Typical ports',
+        value: g.typicalPorts.map((p) => `\`${p.port}/${p.proto}\` ${p.purpose}`).join('\n'),
+      },
       {
         name: 'Links',
-        value: [`[Official site](${g.officialSite})`, ...(g.steamAppId ? [`[Steam store](${steamStoreUrl(g.steamAppId)})`] : []), ...g.docsLinks.map((d) => `[${d.label}](${d.url})`)].join('\n'),
+        value: [
+          `[Official site](${g.officialSite})`,
+          ...(g.steamAppId ? [`[Steam store](${steamStoreUrl(g.steamAppId)})`] : []),
+          ...g.docsLinks.map((d) => `[${d.label}](${d.url})`),
+        ].join('\n'),
       },
     ],
     footer: INFO_ONLY,
@@ -27,12 +43,21 @@ export function gameInfoEmbed(g: GameAdapter): APIEmbed {
 }
 
 export function versionEmbed(g: GameAdapter, v: VersionInfo): APIEmbed {
-  if (!v.available) return brandEmbed({ title: `${g.name} · latest version`, description: v.message, color: EMBED_COLORS.neutral });
+  if (!v.available)
+    return brandEmbed({
+      title: `${g.name} · latest version`,
+      description: v.message,
+      color: EMBED_COLORS.neutral,
+    });
   if (v.kind === 'minecraft') {
     return brandEmbed({
       title: `${g.name} · latest version`,
       fields: [
-        { name: 'Latest release', value: `\`${v.release}\`${v.releaseTime ? ` · ${discordTimestamp(v.releaseTime, 'D')}` : ''}`, inline: true },
+        {
+          name: 'Latest release',
+          value: `\`${v.release}\`${v.releaseTime ? ` · ${discordTimestamp(v.releaseTime, 'D')}` : ''}`,
+          inline: true,
+        },
         { name: 'Latest snapshot', value: v.snapshot ? `\`${v.snapshot}\`` : 'n/a', inline: true },
       ],
       footer: 'Source: Mojang version manifest · cached up to 10 minutes',
@@ -75,15 +100,24 @@ export function serverStatusEmbed(r: ServerQueryResult): APIEmbed {
       footer: `${INFO_ONLY} Queried from the bot's network.`,
     });
   }
-  const players = i.playersOnline !== null ? `${i.playersOnline}${i.playersMax !== null ? ` / ${i.playersMax}` : ''}` : 'unknown';
+  const players =
+    i.playersOnline !== null
+      ? `${i.playersOnline}${i.playersMax !== null ? ` / ${i.playersMax}` : ''}`
+      : 'unknown';
   return brandEmbed({
     title: `${r.gameName} · ${r.hostname}`,
-    description: i.motd ? truncate(neutraliseMentions(i.motd), 500) : i.name ? truncate(neutraliseMentions(i.name), 200) : undefined,
+    description: i.motd
+      ? truncate(neutraliseMentions(i.motd), 500)
+      : i.name
+        ? truncate(neutraliseMentions(i.name), 200)
+        : undefined,
     color: EMBED_COLORS.success,
     fields: [
       { name: 'Players', value: players, inline: true },
       { name: 'Version', value: i.version ? `\`${truncate(i.version, 60)}\`` : 'unknown', inline: true },
-      ...(i.protocol !== null && r.gameId === 'minecraft' ? [{ name: 'Protocol', value: String(i.protocol), inline: true }] : []),
+      ...(i.protocol !== null && r.gameId === 'minecraft'
+        ? [{ name: 'Protocol', value: String(i.protocol), inline: true }]
+        : []),
       ...(i.map ? [{ name: 'Map', value: truncate(neutraliseMentions(i.map), 100), inline: true }] : []),
       ...(i.latencyMs !== null ? [{ name: 'Response time', value: `${i.latencyMs} ms`, inline: true }] : []),
       { name: 'Query port', value: String(i.queryPort), inline: true },
@@ -102,7 +136,12 @@ const PORT_LABEL: Record<PortCheckOutcome['result'], string> = {
 export function portCheckEmbed(o: PortCheckOutcome): APIEmbed {
   return brandEmbed({
     title: `Port check · ${o.hostname}:${o.port}`,
-    color: o.result === 'open' ? EMBED_COLORS.success : o.result === 'closed' ? EMBED_COLORS.danger : EMBED_COLORS.warning,
+    color:
+      o.result === 'open'
+        ? EMBED_COLORS.success
+        : o.result === 'closed'
+          ? EMBED_COLORS.danger
+          : EMBED_COLORS.warning,
     description:
       `**${PORT_LABEL[o.result]}**${o.latencyMs !== null ? ` · ${o.latencyMs} ms` : ''}\n\n` +
       'This tests TCP reachability from the bot’s network only — results from your own network may differ. ' +

@@ -12,7 +12,10 @@ export type WorkerUnban = (w: WorkerCtx, guildId: string, userId: string, reason
 let rest: { token: string; client: REST } | undefined;
 export const restUnban: WorkerUnban = async (w, guildId, userId, reason) => {
   if (!rest || rest.token !== w.env.DISCORD_BOT_TOKEN) {
-    rest = { token: w.env.DISCORD_BOT_TOKEN, client: new REST({ version: '10', timeout: 15_000, retries: 3 }).setToken(w.env.DISCORD_BOT_TOKEN) };
+    rest = {
+      token: w.env.DISCORD_BOT_TOKEN,
+      client: new REST({ version: '10', timeout: 15_000, retries: 3 }).setToken(w.env.DISCORD_BOT_TOKEN),
+    };
   }
   try {
     await rest.client.delete(Routes.guildBan(guildId, userId), { reason });
@@ -32,11 +35,16 @@ export function createModerationJobs(opts: { unban?: WorkerUnban } = {}): Worker
        * guarantees one job per action; no extra state is stored.
        */
       async 'moderation.modlog'(job, w) {
-        const a = await w.deps.db.moderationAction.findUnique({ where: { id: payload(job.payload).actionId ?? '' } });
+        const a = await w.deps.db.moderationAction.findUnique({
+          where: { id: payload(job.payload).actionId ?? '' },
+        });
         if (!a) return;
         const cfg = await getGuildConfig(w.deps.db, a.guildId);
         if (!cfg.modLogChannelId) {
-          w.log.warn({ guildId: a.guildId }, 'no modlog channel configured; action visible in dashboard only');
+          w.log.warn(
+            { guildId: a.guildId },
+            'no modlog channel configured; action visible in dashboard only',
+          );
           return;
         }
         await w.deps.discord.sendMessage(cfg.modLogChannelId, { embeds: [moderation.modlogEmbed(a)] });
@@ -48,16 +56,24 @@ export function createModerationJobs(opts: { unban?: WorkerUnban } = {}): Worker
         const a = await w.deps.db.moderationAction.findUnique({ where: { id }, select: { guildId: true } });
         if (!a) return;
         const ctx = makeCtx(w.deps, a.guildId, systemActor('worker'), `job:${job.id}`);
-        await moderation.expireAction(ctx, id, (guildId, userId, reason) => unban(w, guildId, userId, reason));
+        await moderation.expireAction(ctx, id, (guildId, userId, reason) =>
+          unban(w, guildId, userId, reason),
+        );
       },
 
       /** New appeal → staff review card with Accept/Deny buttons in the modlog channel. */
       async 'moderation.appeal-notify'(job, w) {
-        const appeal = await w.deps.db.moderationAppeal.findUnique({ where: { id: payload(job.payload).appealId ?? '' }, include: { action: true } });
+        const appeal = await w.deps.db.moderationAppeal.findUnique({
+          where: { id: payload(job.payload).appealId ?? '' },
+          include: { action: true },
+        });
         if (!appeal || appeal.status !== 'PENDING') return;
         const cfg = await getGuildConfig(w.deps.db, appeal.guildId);
         if (!cfg.modLogChannelId) {
-          w.log.warn({ guildId: appeal.guildId }, 'no modlog channel configured; appeal visible in dashboard only');
+          w.log.warn(
+            { guildId: appeal.guildId },
+            'no modlog channel configured; appeal visible in dashboard only',
+          );
           return;
         }
         const { action, ...row } = appeal;
@@ -75,10 +91,20 @@ export function createModerationJobs(opts: { unban?: WorkerUnban } = {}): Worker
         });
         if (!appeal || appeal.status === 'PENDING') return;
         const cfg = await getGuildConfig(w.deps.db, appeal.guildId);
-        const guild = await w.deps.db.guild.findUnique({ where: { id: appeal.guildId }, select: { name: true } });
+        const guild = await w.deps.db.guild.findUnique({
+          where: { id: appeal.guildId },
+          select: { name: true },
+        });
         const { action, ...row } = appeal;
         const sent = await w.deps.discord.sendDm(appeal.userId, {
-          embeds: [moderation.appealDecisionEmbed(row, action?.ref ?? null, guild?.name ?? 'GYNX.GG', cfg.supportUrl)],
+          embeds: [
+            moderation.appealDecisionEmbed(
+              row,
+              action?.ref ?? null,
+              guild?.name ?? 'GYNX.GG',
+              cfg.supportUrl,
+            ),
+          ],
         });
         if (!sent) w.log.info({ appealId: appeal.id }, 'appellant has DMs closed');
       },

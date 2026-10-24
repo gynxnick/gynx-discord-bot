@@ -7,14 +7,20 @@ import type { Ctx } from '../core/context';
 
 export const auditQuerySchema = paginationSchema.extend({
   action: z.string().trim().max(64).optional(),
-  actorId: z.string().regex(/^\d{17,20}$|^system$/).optional(),
+  actorId: z
+    .string()
+    .regex(/^\d{17,20}$|^system$/)
+    .optional(),
   targetId: z.string().max(64).optional(),
   result: z.enum(['SUCCESS', 'DENIED', 'FAILURE']).optional(),
   since: z.coerce.date().optional(),
 });
 
 /** Search the security audit log. `action` matches as a prefix (e.g. "moderation." ). */
-export async function searchAuditLog(ctx: Ctx, raw: z.input<typeof auditQuerySchema>): Promise<Page<SecurityAuditEvent>> {
+export async function searchAuditLog(
+  ctx: Ctx,
+  raw: z.input<typeof auditQuerySchema>,
+): Promise<Page<SecurityAuditEvent>> {
   await requirePermission(ctx, 'audit.view');
   const q = auditQuerySchema.parse(raw);
   const where: Prisma.SecurityAuditEventWhereInput = {
@@ -25,7 +31,11 @@ export async function searchAuditLog(ctx: Ctx, raw: z.input<typeof auditQuerySch
     result: q.result,
     createdAt: q.since ? { gte: q.since } : undefined,
   };
-  const rows = await ctx.db.securityAuditEvent.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], ...cursorArgs(q) });
+  const rows = await ctx.db.securityAuditEvent.findMany({
+    where,
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    ...cursorArgs(q),
+  });
   return toPage(rows, q.limit);
 }
 

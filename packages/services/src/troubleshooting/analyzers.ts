@@ -43,7 +43,10 @@ const DISCLAIMER = 'This is a likely cause based on known log patterns, not a co
 
 const ev = (line: string) => truncate(line.trim().replace(/\s+/g, ' '), MAX_EVIDENCE);
 
-function find(lines: readonly string[], re: RegExp): { index: number; line: string; m: RegExpMatchArray } | null {
+function find(
+  lines: readonly string[],
+  re: RegExp,
+): { index: number; line: string; m: RegExpMatchArray } | null {
   for (let i = 0; i < lines.length; i++) {
     const m = lines[i]!.match(re);
     if (m) return { index: i, line: lines[i]!, m };
@@ -61,7 +64,10 @@ const MINECRAFT_ANALYZERS: Analyzer[] = [
     articleSlug: 'minecraft-java-version',
     run(lines) {
       const hit =
-        find(lines, /UnsupportedClassVersionError.*class file version (\d+)(?:\.\d+)?.*?up to (\d+)(?:\.\d+)?/) ??
+        find(
+          lines,
+          /UnsupportedClassVersionError.*class file version (\d+)(?:\.\d+)?.*?up to (\d+)(?:\.\d+)?/,
+        ) ??
         find(lines, /class file version (\d+)\.\d+/) ??
         find(lines, /Unsupported class file major version (\d+)/) ??
         find(lines, /UnsupportedClassVersionError/);
@@ -89,8 +95,7 @@ const MINECRAFT_ANALYZERS: Analyzer[] = [
       const kind = hit.m[1]?.trim();
       return {
         confidence: 'likely',
-        explanation:
-          `The Java process ran out of memory${kind ? ` (${truncate(kind, 60)})` : ''}. Common causes are too little memory allocated (-Xmx), too many/heavy mods, or a memory leak in a plugin or mod. ${DISCLAIMER}`,
+        explanation: `The Java process ran out of memory${kind ? ` (${truncate(kind, 60)})` : ''}. Common causes are too little memory allocated (-Xmx), too many/heavy mods, or a memory leak in a plugin or mod. ${DISCLAIMER}`,
         evidence: ev(hit.line),
       };
     },
@@ -114,7 +119,10 @@ const MINECRAFT_ANALYZERS: Analyzer[] = [
           evidence: ev(forge.line),
         };
       }
-      const fabric = find(lines, /Mod '([^']+)' \(([\w.-]+)\)[^\n]*?requires (?:any version|version [^\s]+(?: or later)?) of (?:mod )?'?([^,'!(]+)/);
+      const fabric = find(
+        lines,
+        /Mod '([^']+)' \(([\w.-]+)\)[^\n]*?requires (?:any version|version [^\s]+(?: or later)?) of (?:mod )?'?([^,'!(]+)/,
+      );
       if (fabric) {
         const [, modName, , dep] = fabric.m;
         return {
@@ -143,7 +151,10 @@ const MINECRAFT_ANALYZERS: Analyzer[] = [
       const hit =
         find(lines, /Mixin apply for mod ([\w.-]+) failed/) ??
         find(lines, /Mixin apply failed ([\w.-]+?)\.mixins?\.json/) ??
-        find(lines, /(?:InvalidInjectionException|InvalidMixinException|MixinApplyError).*?from mod ([\w.-]+)/) ??
+        find(
+          lines,
+          /(?:InvalidInjectionException|InvalidMixinException|MixinApplyError).*?from mod ([\w.-]+)/,
+        ) ??
         find(lines, /MixinTransformerError|MixinApplyError|InvalidInjectionException/);
       if (!hit) return null;
       const mod = hit.m[1];
@@ -160,7 +171,8 @@ const MINECRAFT_ANALYZERS: Analyzer[] = [
     scope: 'minecraft',
     articleSlug: 'minecraft-port-in-use',
     run(lines) {
-      const hit = find(lines, /FAILED TO BIND TO PORT/i) ?? find(lines, /BindException: Address already in use/);
+      const hit =
+        find(lines, /FAILED TO BIND TO PORT/i) ?? find(lines, /BindException: Address already in use/);
       if (!hit) return null;
       const assign = find(lines, /Cannot assign requested address/);
       return {
@@ -194,9 +206,15 @@ const MINECRAFT_ANALYZERS: Analyzer[] = [
     articleSlug: 'minecraft-world-corruption',
     run(lines) {
       const hit =
-        find(lines, /Couldn'?t (?:load|read) chunk|Failed to (?:read|load) chunk|Error reading chunk|Invalid chunk/i) ??
+        find(
+          lines,
+          /Couldn'?t (?:load|read) chunk|Failed to (?:read|load) chunk|Error reading chunk|Invalid chunk/i,
+        ) ??
         find(lines, /Chunk file at \[[^\]]+\] is in the wrong location/i) ??
-        find(lines, /region file .*(?:truncated|corrupt)|Exception reading .*\.mca|r\.-?\d+\.-?\d+\.mca.*(?:corrupt|truncated|invalid)/i);
+        find(
+          lines,
+          /region file .*(?:truncated|corrupt)|Exception reading .*\.mca|r\.-?\d+\.-?\d+\.mca.*(?:corrupt|truncated|invalid)/i,
+        );
       if (!hit) return null;
       return {
         confidence: 'possible',
@@ -232,7 +250,9 @@ const MINECRAFT_ANALYZERS: Analyzer[] = [
       if (!hit) return null;
       const file = hit.m[1]!.replace(/^plugins[\\/]/, '');
       const after = lines.slice(hit.index, hit.index + 6).join('\n');
-      const dep = after.match(/Unknown\/missing dependency plugins: \[([^\]]+)\]|UnknownDependencyException:\s*([^\n]+)/);
+      const dep = after.match(
+        /Unknown\/missing dependency plugins: \[([^\]]+)\]|UnknownDependencyException:\s*([^\n]+)/,
+      );
       const api = /Unsupported API version|InvalidPluginException.*api-version/i.test(after);
       const reason = dep
         ? ` It is missing a required plugin: ${truncate((dep[1] ?? dep[2] ?? '').trim(), 80)}.`
@@ -280,7 +300,10 @@ const MINECRAFT_ANALYZERS: Analyzer[] = [
     scope: 'minecraft',
     articleSlug: 'minecraft-version-mismatch',
     run(lines) {
-      const hit = find(lines, /Outdated (?:server|client)!|Incompatible client! Please use|Incompatible FML modded server|Server is running a different version/i);
+      const hit = find(
+        lines,
+        /Outdated (?:server|client)!|Incompatible client! Please use|Incompatible FML modded server|Server is running a different version/i,
+      );
       if (!hit) return null;
       return {
         confidence: 'likely',
@@ -334,7 +357,8 @@ const GENERIC_ANALYZERS: Analyzer[] = [
 /** Analyzer ids, for tests and dashboards. */
 export const ANALYZER_IDS = [...MINECRAFT_ANALYZERS, ...GENERIC_ANALYZERS].map((a) => a.id);
 
-const MINECRAFT_MARKERS = /net\.minecraft|Minecraft Crash Report|\[(?:Server thread|main|Render thread|ServerMain)\/(?:INFO|WARN|ERROR)\]|minecraft server version|eula\.txt|\b(?:forge|neoforge|fabricloader|paper|spigot|bukkit)\b/i;
+const MINECRAFT_MARKERS =
+  /net\.minecraft|Minecraft Crash Report|\[(?:Server thread|main|Render thread|ServerMain)\/(?:INFO|WARN|ERROR)\]|minecraft server version|eula\.txt|\b(?:forge|neoforge|fabricloader|paper|spigot|bukkit)\b/i;
 
 export function detectGame(text: string): string | null {
   return MINECRAFT_MARKERS.test(text.slice(0, 200_000)) ? 'minecraft' : null;
@@ -342,7 +366,9 @@ export function detectGame(text: string): string | null {
 
 /** Mask IPv6 literals (redactSecrets handles IPv4). Validated with isIP to avoid masking timestamps. */
 export function maskIPv6(text: string): string {
-  return text.replace(/(?<![0-9a-z:])[0-9a-f:]{6,39}(?![0-9a-z:])/gi, (m) => ((m.match(/:/g)?.length ?? 0) >= 2 && isIP(m) === 6 ? '[IP]' : m));
+  return text.replace(/(?<![0-9a-z:])[0-9a-f:]{6,39}(?![0-9a-z:])/gi, (m) =>
+    (m.match(/:/g)?.length ?? 0) >= 2 && isIP(m) === 6 ? '[IP]' : m,
+  );
 }
 
 /** The single entry point for anything derived from an upload: redact first, always. */
@@ -369,7 +395,14 @@ export function diagnoseText(raw: string, game?: string | null): DiagnosisResult
     const hit = a.run(lines);
     if (!hit) continue;
     const slug = typeof a.articleSlug === 'function' ? a.articleSlug(effectiveGame) : a.articleSlug;
-    findings.push({ id: a.id, title: a.title, confidence: hit.confidence, explanation: hit.explanation, evidence: hit.evidence, ...(slug ? { articleSlug: slug } : {}) });
+    findings.push({
+      id: a.id,
+      title: a.title,
+      confidence: hit.confidence,
+      explanation: hit.explanation,
+      evidence: hit.evidence,
+      ...(slug ? { articleSlug: slug } : {}),
+    });
   }
   // 'likely' before 'possible'; otherwise keep analyzer order (stable sort).
   findings.sort((x, y) => (x.confidence === y.confidence ? 0 : x.confidence === 'likely' ? -1 : 1));

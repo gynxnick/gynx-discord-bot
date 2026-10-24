@@ -47,7 +47,11 @@ const msg = (content: string, over: Partial<AutomodMessage> = {}): AutomodMessag
 });
 
 const hist = (content: string, n: number, secondsApart = 1): HistoryEntry[] =>
-  Array.from({ length: n }, (_, i) => ({ content, channelId: '222222222222222222', timestamp: new Date(NOW.getTime() - (i + 1) * secondsApart * 1000) }));
+  Array.from({ length: n }, (_, i) => ({
+    content,
+    channelId: '222222222222222222',
+    timestamp: new Date(NOW.getTime() - (i + 1) * secondsApart * 1000),
+  }));
 
 describe('automod: false-positive avoidance', () => {
   it.each([
@@ -88,19 +92,30 @@ describe('automod: exemptions', () => {
 });
 
 describe('automod: INVITE', () => {
-  it.each(['discord.gg/abc123', 'https://discord.com/invite/abc123', 'discordapp.com/invite/abc123', 'discord . gg / abc123', 'discord[.]gg/abc123'])(
-    'detects %s',
-    (content) => expect(evaluateMessage(cfg(), msg(content), [])?.rule).toBe('INVITE'),
-  );
+  it.each([
+    'discord.gg/abc123',
+    'https://discord.com/invite/abc123',
+    'discordapp.com/invite/abc123',
+    'discord . gg / abc123',
+    'discord[.]gg/abc123',
+  ])('detects %s', (content) => expect(evaluateMessage(cfg(), msg(content), [])?.rule).toBe('INVITE'));
 
   it('respects allowed codes', () => {
-    expect(evaluateMessage(cfg({ allowedInviteCodes: ['gynx'] }), msg('join discord.gg/gynx'), [])).toBeNull();
+    expect(
+      evaluateMessage(cfg({ allowedInviteCodes: ['gynx'] }), msg('join discord.gg/gynx'), []),
+    ).toBeNull();
   });
 
   it('new accounts cannot post invites even when invites are allowed', () => {
     const c = cfg({ blockInvites: false });
     expect(evaluateMessage(c, msg('discord.gg/abc123'), [])).toBeNull();
-    expect(evaluateMessage(c, msg('discord.gg/abc123', { accountCreatedAt: new Date(NOW.getTime() - 86_400_000) }), [])?.rule).toBe('INVITE');
+    expect(
+      evaluateMessage(
+        c,
+        msg('discord.gg/abc123', { accountCreatedAt: new Date(NOW.getTime() - 86_400_000) }),
+        [],
+      )?.rule,
+    ).toBe('INVITE');
   });
 
   it('extracts codes', () => {
@@ -126,7 +141,9 @@ describe('automod: BLOCKED_DOMAIN', () => {
   });
 
   it('extracts hosts with trailing dots and obfuscation', () => {
-    expect(extractHosts('hxxp://evil[.]example.org/path and www.test.io.')).toEqual(expect.arrayContaining(['evil.example.org', 'www.test.io']));
+    expect(extractHosts('hxxp://evil[.]example.org/path and www.test.io.')).toEqual(
+      expect.arrayContaining(['evil.example.org', 'www.test.io']),
+    );
   });
 });
 
@@ -146,8 +163,13 @@ describe('automod: PHISHING', () => {
   });
 
   it('flags two weak signals', () => {
-    expect(evaluateMessage(cfg(), msg('Free nitro for everyone! claim your gift: https://nitro-drop.example'), [])?.rule).toBe('PHISHING');
-    expect(evaluateMessage(cfg(), msg('@everyone free nitro https://example.com/x'), [])?.rule).toBe('PHISHING');
+    expect(
+      evaluateMessage(cfg(), msg('Free nitro for everyone! claim your gift: https://nitro-drop.example'), [])
+        ?.rule,
+    ).toBe('PHISHING');
+    expect(evaluateMessage(cfg(), msg('@everyone free nitro https://example.com/x'), [])?.rule).toBe(
+      'PHISHING',
+    );
   });
 
   it('new accounts need only one weak signal', () => {
@@ -161,7 +183,9 @@ describe('automod: PHISHING', () => {
   });
 
   it('can be disabled', () => {
-    expect(evaluateMessage(cfg({ phishingDetection: false }), msg('https://dlscord.gift/abc'), [])).toBeNull();
+    expect(
+      evaluateMessage(cfg({ phishingDetection: false }), msg('https://dlscord.gift/abc'), []),
+    ).toBeNull();
   });
 });
 
@@ -171,7 +195,9 @@ describe('automod: MENTIONS', () => {
     expect(evaluateMessage(cfg(), msg('hi', { mentionCount: 6 }), [])).toBeNull();
   });
   it('counts @everyone/@here attempts', () => {
-    expect(evaluateMessage(cfg({ maxMentions: 2 }), msg('@everyone @here look', { mentionCount: 1 }), [])?.rule).toBe('MENTIONS');
+    expect(
+      evaluateMessage(cfg({ maxMentions: 2 }), msg('@everyone @here look', { mentionCount: 1 }), [])?.rule,
+    ).toBe('MENTIONS');
   });
 });
 
@@ -191,13 +217,19 @@ describe('automod: BLOCKED_PHRASE', () => {
 describe('automod: DUPLICATE and BURST', () => {
   it('flags the Nth identical normalised message in the window', () => {
     expect(evaluateMessage(cfg(), msg('Buy cheap stuff'), hist('buy cheap stuff', 2))).toBeNull();
-    expect(evaluateMessage(cfg(), msg('Buy cheap stuff!!'), hist('buy cheap stuff', 3))?.rule).toBe('DUPLICATE');
+    expect(evaluateMessage(cfg(), msg('Buy cheap stuff!!'), hist('buy cheap stuff', 3))?.rule).toBe(
+      'DUPLICATE',
+    );
   });
   it('ignores duplicates outside the window', () => {
     expect(evaluateMessage(cfg(), msg('Buy cheap stuff'), hist('buy cheap stuff', 3, 20))).toBeNull();
   });
   it('flags bursts', () => {
-    const h = Array.from({ length: 7 }, (_, i) => ({ content: `m${i}`, channelId: 'c', timestamp: new Date(NOW.getTime() - i * 500) }));
+    const h = Array.from({ length: 7 }, (_, i) => ({
+      content: `m${i}`,
+      channelId: 'c',
+      timestamp: new Date(NOW.getTime() - i * 500),
+    }));
     expect(evaluateMessage(cfg(), msg('another one'), h)?.rule).toBe('BURST');
     expect(evaluateMessage(cfg(), msg('another one'), h.slice(0, 5))).toBeNull();
   });

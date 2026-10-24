@@ -15,10 +15,16 @@ describe('checkHierarchy', () => {
     expect(checkHierarchy(base)).toEqual({ ok: true });
   });
   it('rejects self-targeting', () => {
-    expect(checkHierarchy({ ...base, targetId: 'mod' })).toMatchObject({ ok: false, reason: expect.stringMatching(/yourself/) });
+    expect(checkHierarchy({ ...base, targetId: 'mod' })).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/yourself/),
+    });
   });
   it('rejects the guild owner as target', () => {
-    expect(checkHierarchy({ ...base, targetId: 'owner' })).toMatchObject({ ok: false, reason: expect.stringMatching(/owner/) });
+    expect(checkHierarchy({ ...base, targetId: 'owner' })).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/owner/),
+    });
   });
   it('rejects equal or higher top roles', () => {
     expect(checkHierarchy({ ...base, targetHighest: 10 }).ok).toBe(false);
@@ -26,7 +32,10 @@ describe('checkHierarchy', () => {
   });
   it('the owner may act on higher roles but never above the bot', () => {
     expect(checkHierarchy({ ...base, actorId: 'owner', actorHighest: 0, targetHighest: 15 }).ok).toBe(true);
-    expect(checkHierarchy({ ...base, actorId: 'owner', actorHighest: 0, targetHighest: 20 })).toMatchObject({ ok: false, reason: expect.stringMatching(/mine/) });
+    expect(checkHierarchy({ ...base, actorId: 'owner', actorHighest: 0, targetHighest: 20 })).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/mine/),
+    });
   });
   it('rejects targets at or above the bot unless the action is DB-only', () => {
     const above = { ...base, actorHighest: 30, targetHighest: 20 };
@@ -39,6 +48,8 @@ describe('checkHierarchy', () => {
   it('requires ban permission to moderate staff', () => {
     expect(checkHierarchy({ ...base, targetIsStaff: true }).ok).toBe(false);
     expect(checkHierarchy({ ...base, targetIsStaff: true, actorCanBan: true }).ok).toBe(true);
-    expect(checkHierarchy({ ...base, targetIsStaff: true, actorCanBan: true, targetHighest: 12 }).ok).toBe(false);
+    expect(checkHierarchy({ ...base, targetIsStaff: true, actorCanBan: true, targetHighest: 12 }).ok).toBe(
+      false,
+    );
   });
 });

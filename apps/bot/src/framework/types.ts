@@ -70,6 +70,9 @@ export interface BotModule {
 }
 
 /** Helper preserving the event-arg typing when declaring listeners. */
-export function on<K extends keyof ClientEvents>(event: K, run: (rt: BotRuntime, ...args: ClientEvents[K]) => Promise<void>): EventListener {
+export function on<K extends keyof ClientEvents>(
+  event: K,
+  run: (rt: BotRuntime, ...args: ClientEvents[K]) => Promise<void>,
+): EventListener {
   return { event, run } as unknown as EventListener;
 }

@@ -129,7 +129,25 @@ export function parseA2SResponse(buf: Buffer): A2SResponse {
   }
   return {
     type: 'info',
-    info: { protocol, name, map, folder, game, appId, players, maxPlayers, bots, serverType, environment, visibility, vac, version, port, keywords, gameId },
+    info: {
+      protocol,
+      name,
+      map,
+      folder,
+      game,
+      appId,
+      players,
+      maxPlayers,
+      bots,
+      serverType,
+      environment,
+      visibility,
+      vac,
+      version,
+      port,
+      keywords,
+      gameId,
+    },
   };
 }
 
@@ -139,7 +157,11 @@ export interface A2SOptions {
 }
 
 /** Query A2S_INFO from a pinned address, handling the 0x41 challenge. */
-export function a2sInfo(address: string, port: number, opts: A2SOptions = {}): Promise<A2SInfo & { latencyMs: number }> {
+export function a2sInfo(
+  address: string,
+  port: number,
+  opts: A2SOptions = {},
+): Promise<A2SInfo & { latencyMs: number }> {
   const timeoutMs = opts.timeoutMs ?? A2S_DEFAULT_TIMEOUT_MS;
   return new Promise((resolve, reject) => {
     const socket = createSocket(opts.family === 6 ? 'udp6' : 'udp4');
@@ -158,7 +180,10 @@ export function a2sInfo(address: string, port: number, opts: A2SOptions = {}): P
       if (err) reject(err);
       else resolve(value!);
     };
-    const timer = setTimeout(() => finish(new AppError('INTEGRATION', 'The server did not respond in time.')), timeoutMs);
+    const timer = setTimeout(
+      () => finish(new AppError('INTEGRATION', 'The server did not respond in time.')),
+      timeoutMs,
+    );
     const send = (challenge?: Buffer) => {
       sentAt = Date.now();
       socket.send(buildA2SInfoRequest(challenge), port, address, (err) => {
@@ -167,11 +192,13 @@ export function a2sInfo(address: string, port: number, opts: A2SOptions = {}): P
     };
     socket.on('message', (msg: Buffer, rinfo: RemoteInfo) => {
       // Ignore datagrams that do not come from the target (spoofing / stray packets).
-      if (rinfo.port !== port || rinfo.address.replace(/^::ffff:/, '') !== address.replace(/^::ffff:/, '')) return;
+      if (rinfo.port !== port || rinfo.address.replace(/^::ffff:/, '') !== address.replace(/^::ffff:/, ''))
+        return;
       try {
         const res = parseA2SResponse(msg);
         if (res.type === 'challenge') {
-          if (++challenges > MAX_CHALLENGES) throw new AppError('INTEGRATION', 'The server kept challenging the query.');
+          if (++challenges > MAX_CHALLENGES)
+            throw new AppError('INTEGRATION', 'The server kept challenging the query.');
           send(res.challenge);
           return;
         }

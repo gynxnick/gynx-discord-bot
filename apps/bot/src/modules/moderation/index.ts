@@ -23,7 +23,12 @@ import { automodListener } from './automod';
 const NOT_MEMBER = new AppError('NOT_FOUND', 'That user is not a member of this server.');
 
 /** Gateway facts for the service-side hierarchy check. */
-export function hierarchySubject(guild: Guild, actor: GuildMember | null, target: GuildMember | null, targetUser: User): moderation.HierarchySubject {
+export function hierarchySubject(
+  guild: Guild,
+  actor: GuildMember | null,
+  target: GuildMember | null,
+  targetUser: User,
+): moderation.HierarchySubject {
   const botHighest = guild.members.me?.roles.highest.position ?? 0;
   return {
     actorHighest: actor?.roles.highest.position ?? botHighest,
@@ -58,7 +63,11 @@ interface RunOptions {
 }
 
 /** Shared prepare → (DM) → apply → record flow for /warn, /timeout, /kick, /ban. */
-async function runAction(i: ChatInputCommandInteraction<'cached'>, h: HandlerCtx, o: RunOptions): Promise<void> {
+async function runAction(
+  i: ChatInputCommandInteraction<'cached'>,
+  h: HandlerCtx,
+  o: RunOptions,
+): Promise<void> {
   await i.deferReply({ flags: MessageFlags.Ephemeral });
   const user = i.options.getUser('user', true);
   const reason = i.options.getString('reason', true);
@@ -72,7 +81,16 @@ async function runAction(i: ChatInputCommandInteraction<'cached'>, h: HandlerCtx
   );
   const cfg = await getGuildConfig(h.ctx.db, i.guildId);
   const dm = () =>
-    sendDm(user, moderation.actionDmEmbed({ type: plan.type, reason: plan.reason, durationMs: plan.durationMs, guildName: i.guild.name, supportUrl: cfg.supportUrl }));
+    sendDm(
+      user,
+      moderation.actionDmEmbed({
+        type: plan.type,
+        reason: plan.reason,
+        durationMs: plan.durationMs,
+        guildName: i.guild.name,
+        supportUrl: cfg.supportUrl,
+      }),
+    );
 
   let dmSent = false;
   let applied = false;
@@ -83,7 +101,8 @@ async function runAction(i: ChatInputCommandInteraction<'cached'>, h: HandlerCtx
     if (plan.type === 'KICK' || plan.type === 'BAN') dmSent = await dm();
     if (plan.type === 'TIMEOUT') await target!.timeout(plan.durationMs, why);
     else if (plan.type === 'KICK') await target!.kick(why);
-    else if (plan.type === 'BAN') await i.guild.members.ban(user.id, { reason: why, deleteMessageSeconds: plan.deleteMessageSeconds });
+    else if (plan.type === 'BAN')
+      await i.guild.members.ban(user.id, { reason: why, deleteMessageSeconds: plan.deleteMessageSeconds });
     applied = true;
     if (plan.type === 'WARN' || plan.type === 'TIMEOUT') dmSent = await dm();
   } catch (e) {
@@ -93,26 +112,49 @@ async function runAction(i: ChatInputCommandInteraction<'cached'>, h: HandlerCtx
 
   const rec = await moderation.recordAction(h.ctx, plan, { applied, error, dmSent });
   if (!applied) {
-    await respond(i, { embeds: [errorEmbed(`Discord rejected the ${moderation.ACTION_LABELS[plan.type].toLowerCase()}: ${error}\nRecorded as failed (${rec.action.ref}).`)] });
+    await respond(i, {
+      embeds: [
+        errorEmbed(
+          `Discord rejected the ${moderation.ACTION_LABELS[plan.type].toLowerCase()}: ${error}\nRecorded as failed (${rec.action.ref}).`,
+        ),
+      ],
+    });
     return;
   }
   const fields = [
     { name: 'Member', value: `<@${user.id}>`, inline: true },
     { name: 'DM delivered', value: dmSent ? 'Yes' : 'No (DMs closed)', inline: true },
   ];
-  if (plan.durationMs) fields.push({ name: 'Expires', value: discordTimestamp(rec.action.expiresAt ?? new Date(), 'R'), inline: true });
+  if (plan.durationMs)
+    fields.push({
+      name: 'Expires',
+      value: discordTimestamp(rec.action.expiresAt ?? new Date(), 'R'),
+      inline: true,
+    });
   if (rec.suggestion) {
     fields.push({ name: 'Active warnings', value: String(rec.activeWarnings ?? 0), inline: true });
     fields.push({ name: 'Suggested next step', value: rec.suggestion.summary, inline: false });
   }
   await respond(i, {
-    embeds: [brandEmbed({ title: `${rec.action.ref} · ${moderation.ACTION_LABELS[plan.type]} applied`, color: EMBED_COLORS.success, fields })],
+    embeds: [
+      brandEmbed({
+        title: `${rec.action.ref} · ${moderation.ACTION_LABELS[plan.type]} applied`,
+        color: EMBED_COLORS.success,
+        fields,
+      }),
+    ],
   });
 }
 
-const userOpt = (desc: string) => (o: SlashCommandUserOption) => o.setName('user').setDescription(desc).setRequired(true);
+const userOpt = (desc: string) => (o: SlashCommandUserOption) =>
+  o.setName('user').setDescription(desc).setRequired(true);
 const reasonOpt = (o: SlashCommandStringOption) =>
-  o.setName('reason').setDescription('Reason (shown to the member and in the modlog)').setRequired(true).setMinLength(3).setMaxLength(512);
+  o
+    .setName('reason')
+    .setDescription('Reason (shown to the member and in the modlog)')
+    .setRequired(true)
+    .setMinLength(3)
+    .setMaxLength(512);
 
 const commands: SlashCommand[] = [
   {
@@ -135,10 +177,20 @@ const commands: SlashCommand[] = [
       .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
       .setDMPermission(false)
       .addUserOption(userOpt('Member to time out'))
-      .addStringOption((o) => o.setName('duration').setDescription('e.g. 10m, 2h, 1d (1 minute – 28 days)').setRequired(true).setMaxLength(32))
+      .addStringOption((o) =>
+        o
+          .setName('duration')
+          .setDescription('e.g. 10m, 2h, 1d (1 minute – 28 days)')
+          .setRequired(true)
+          .setMaxLength(32),
+      )
       .addStringOption(reasonOpt)
       .toJSON(),
-    execute: (i, h) => runAction(i as ChatInputCommandInteraction<'cached'>, h, { type: 'TIMEOUT', duration: i.options.getString('duration', true) }),
+    execute: (i, h) =>
+      runAction(i as ChatInputCommandInteraction<'cached'>, h, {
+        type: 'TIMEOUT',
+        duration: i.options.getString('duration', true),
+      }),
   },
   {
     module: 'moderation',
@@ -161,8 +213,19 @@ const commands: SlashCommand[] = [
       .setDMPermission(false)
       .addUserOption(userOpt('User to ban'))
       .addStringOption(reasonOpt)
-      .addStringOption((o) => o.setName('duration').setDescription('Temporary ban length, e.g. 7d (max 365d). Empty = permanent').setMaxLength(32))
-      .addIntegerOption((o) => o.setName('delete_days').setDescription('Delete their messages from the last N days (0–7)').setMinValue(0).setMaxValue(7))
+      .addStringOption((o) =>
+        o
+          .setName('duration')
+          .setDescription('Temporary ban length, e.g. 7d (max 365d). Empty = permanent')
+          .setMaxLength(32),
+      )
+      .addIntegerOption((o) =>
+        o
+          .setName('delete_days')
+          .setDescription('Delete their messages from the last N days (0–7)')
+          .setMinValue(0)
+          .setMaxValue(7),
+      )
       .toJSON(),
     execute: (i, h) =>
       runAction(i as ChatInputCommandInteraction<'cached'>, h, {
@@ -185,7 +248,10 @@ const commands: SlashCommand[] = [
       const s = await moderation.getWarningSummary(h.ctx, user.id);
       const lines = s.warnings
         .slice(0, 15)
-        .map((w) => `**${w.ref}** · ${discordTimestamp(w.createdAt, 'R')} · ${truncate(w.reason, 120)}${w.expiresAt ? ` · expires ${discordTimestamp(w.expiresAt, 'R')}` : ''}`);
+        .map(
+          (w) =>
+            `**${w.ref}** · ${discordTimestamp(w.createdAt, 'R')} · ${truncate(w.reason, 120)}${w.expiresAt ? ` · expires ${discordTimestamp(w.expiresAt, 'R')}` : ''}`,
+        );
       await respond(i, {
         embeds: [
           brandEmbed({
@@ -207,7 +273,13 @@ const commands: SlashCommand[] = [
       .setName('appeal')
       .setDescription('Appeal a moderation action taken on your account')
       .setDMPermission(false)
-      .addStringOption((o) => o.setName('action').setDescription('The action to appeal (optional)').setAutocomplete(true).setMaxLength(16))
+      .addStringOption((o) =>
+        o
+          .setName('action')
+          .setDescription('The action to appeal (optional)')
+          .setAutocomplete(true)
+          .setMaxLength(16),
+      )
       .toJSON(),
     async execute(i) {
       const ref = i.options.getString('action')?.trim().toUpperCase();
@@ -252,7 +324,10 @@ export const moderationModule: BotModule = {
         const [action, ...rest] = args;
         if (action === 'submit' && i.isModalSubmit()) {
           const ref = rest[0] && rest[0] !== '-' ? rest[0] : undefined;
-          const appeal = await moderation.submitAppeal(h.ctx, { actionRef: ref, statement: i.fields.getTextInputValue('statement') });
+          const appeal = await moderation.submitAppeal(h.ctx, {
+            actionRef: ref,
+            statement: i.fields.getTextInputValue('statement'),
+          });
           await replySuccess(
             i,
             'Appeal submitted',
@@ -261,7 +336,11 @@ export const moderationModule: BotModule = {
           return;
         }
         if ((action === 'accept' || action === 'deny') && i.isButton()) {
-          if (!h.ctx.actor.permissions.has('moderation.execute') && !h.ctx.actor.permissions.has('moderation.ban')) throw forbidden();
+          if (
+            !h.ctx.actor.permissions.has('moderation.execute') &&
+            !h.ctx.actor.permissions.has('moderation.ban')
+          )
+            throw forbidden();
           const id = rest[0] ?? '';
           const modal = new ModalBuilder()
             .setCustomId(`modappeal:review:${action}:${id}`)
@@ -282,13 +361,22 @@ export const moderationModule: BotModule = {
         if (action === 'review' && i.isModalSubmit()) {
           const [decision, id] = rest;
           const note = i.fields.getTextInputValue('note').trim();
-          const r = await moderation.reviewAppeal(h.ctx, id ?? '', { decision: decision === 'accept' ? 'ACCEPTED' : 'DENIED', note: note || undefined });
+          const r = await moderation.reviewAppeal(h.ctx, id ?? '', {
+            decision: decision === 'accept' ? 'ACCEPTED' : 'DENIED',
+            note: note || undefined,
+          });
           const summary = `${r.appeal.status === 'ACCEPTED' ? 'Accepted' : 'Denied'} by <@${h.ctx.actor.userId}>`;
-          if (i.isFromMessage()) await i.update({ content: summary, components: [], allowedMentions: { parse: [] } });
+          if (i.isFromMessage())
+            await i.update({ content: summary, components: [], allowedMentions: { parse: [] } });
           else await respond(i, { content: summary });
           if (r.requiresManualReversal) {
             await respond(i, {
-              embeds: [successEmbed('Appeal accepted', 'Remember to reverse the action on Discord (remove the timeout or unban the user). The member has been notified.')],
+              embeds: [
+                successEmbed(
+                  'Appeal accepted',
+                  'Remember to reverse the action on Discord (remove the timeout or unban the user). The member has been notified.',
+                ),
+              ],
             });
           }
           return;

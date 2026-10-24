@@ -2,7 +2,15 @@ import { afterAll, describe, expect, it } from 'vitest';
 import type { WorkerEnv } from '@gynx/config';
 import type { ScheduledJob } from '@gynx/database';
 import { marketing } from '@gynx/services';
-import { ctxAs, fakeDiscord, freshGuild, silentLog, snowflake, testDb, testDeps } from '../../../../tests/integration/helpers';
+import {
+  ctxAs,
+  fakeDiscord,
+  freshGuild,
+  silentLog,
+  snowflake,
+  testDb,
+  testDeps,
+} from '../../../../tests/integration/helpers';
 import type { WorkerCtx } from '../framework/types';
 import { marketingJobs, refreshEngagement } from './marketing';
 
@@ -11,7 +19,11 @@ const PUBLISHER = ['announcements.create', 'announcements.publish', 'announcemen
 function workerFor(guildId: string, deps = testDeps()): WorkerCtx & { deps: ReturnType<typeof testDeps> } {
   return {
     deps,
-    env: { DISCORD_GUILD_ID: guildId, DASHBOARD_URL: 'https://dash.test', DISCORD_BOT_TOKEN: 'x'.repeat(70) } as WorkerEnv,
+    env: {
+      DISCORD_GUILD_ID: guildId,
+      DASHBOARD_URL: 'https://dash.test',
+      DISCORD_BOT_TOKEN: 'x'.repeat(70),
+    } as WorkerEnv,
     log: silentLog,
     workerId: 't',
   };
@@ -24,11 +36,25 @@ async function run(w: WorkerCtx, dedupeKey: string): Promise<ScheduledJob> {
   return job;
 }
 
-async function scheduledAnnouncement(guildId: string, w: WorkerCtx, extra: Partial<marketing.CreateAnnouncementInput> = {}) {
+async function scheduledAnnouncement(
+  guildId: string,
+  w: WorkerCtx,
+  extra: Partial<marketing.CreateAnnouncementInput> = {},
+) {
   const staff = ctxAs(guildId, [...PUBLISHER], { deps: w.deps });
-  const a = await marketing.createAnnouncement(staff, { title: 'Launch', body: 'New game!', channelId: snowflake(), ...extra });
+  const a = await marketing.createAnnouncement(staff, {
+    title: 'Launch',
+    body: 'New game!',
+    channelId: snowflake(),
+    ...extra,
+  });
   const when = new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 16).replace('T', ' ');
-  const s = await marketing.scheduleAnnouncement(staff, a.id, { when, timezone: 'UTC' }, { confirmMentions: true });
+  const s = await marketing.scheduleAnnouncement(
+    staff,
+    a.id,
+    { when, timezone: 'UTC' },
+    { confirmMentions: true },
+  );
   return { staff, a: s };
 }
 
@@ -49,7 +75,9 @@ describe('marketing worker: announcements', () => {
 
     await run(w, marketing.announcementJobKey(a.id, edited.version));
     await run(w, marketing.announcementJobKey(a.id, edited.version));
-    expect(await marketing.deliverAnnouncement(w.deps, { announcementId: a.id, version: edited.version })).toBe('skipped');
+    expect(
+      await marketing.deliverAnnouncement(w.deps, { announcementId: a.id, version: edited.version }),
+    ).toBe('skipped');
     expect(w.deps.discord.sent).toHaveLength(1);
     const sent = w.deps.discord.sent[0]!;
     expect(sent.channelId).toBe(a.channelId);
@@ -57,7 +85,10 @@ describe('marketing worker: announcements', () => {
     expect(sent.body.allowed_mentions).toEqual({ parse: ['everyone'] });
     expect(sent.body.embeds?.[0]?.description).toBe('New game, now with mods!');
 
-    const final = await testDb().announcement.findUniqueOrThrow({ where: { id: a.id }, include: { deliveries: true } });
+    const final = await testDb().announcement.findUniqueOrThrow({
+      where: { id: a.id },
+      include: { deliveries: true },
+    });
     expect(final.status).toBe('PUBLISHED');
     expect(final.deliveries).toHaveLength(1);
     expect(final.deliveries[0]).toMatchObject({ success: true, idempotencyKey: `${a.id}:${edited.version}` });
@@ -70,11 +101,21 @@ describe('marketing worker: announcements', () => {
     const { a } = await scheduledAnnouncement(guildId, w);
     // Simulate: attempt 1 set PUBLISHING and inserted the delivery row, then the process died.
     await testDb().announcement.update({ where: { id: a.id }, data: { status: 'PUBLISHING' } });
-    await testDb().announcementDelivery.create({ data: { announcementId: a.id, idempotencyKey: `${a.id}:${a.version}`, channelId: a.channelId, success: false } });
+    await testDb().announcementDelivery.create({
+      data: {
+        announcementId: a.id,
+        idempotencyKey: `${a.id}:${a.version}`,
+        channelId: a.channelId,
+        success: false,
+      },
+    });
 
     await run(w, marketing.announcementJobKey(a.id, a.version));
     expect(w.deps.discord.sent).toHaveLength(0);
-    const after = await testDb().announcement.findUniqueOrThrow({ where: { id: a.id }, include: { deliveries: true } });
+    const after = await testDb().announcement.findUniqueOrThrow({
+      where: { id: a.id },
+      include: { deliveries: true },
+    });
     expect(after.status).toBe('FAILED');
     expect(after.deliveries[0]!.error).toMatch(/not re-sent/);
 
@@ -93,7 +134,10 @@ describe('marketing worker: announcements', () => {
     await run(w, marketing.announcementJobKey(a.id, a.version));
     await run(w, marketing.announcementJobKey(a.id, a.version));
     expect(w.deps.discord.sent).toHaveLength(0);
-    const after = await testDb().announcement.findUniqueOrThrow({ where: { id: a.id }, include: { deliveries: true } });
+    const after = await testDb().announcement.findUniqueOrThrow({
+      where: { id: a.id },
+      include: { deliveries: true },
+    });
     expect(after.status).toBe('FAILED');
     expect(after.deliveries[0]!.error).toContain('Missing Access');
   });
@@ -103,7 +147,9 @@ describe('marketing worker: announcements', () => {
     const w = workerFor(guildId);
     const { staff, a } = await scheduledAnnouncement(guildId, w);
     await marketing.cancelAnnouncement(staff, a.id);
-    const job = await testDb().scheduledJob.findUniqueOrThrow({ where: { dedupeKey: marketing.announcementJobKey(a.id, a.version) } });
+    const job = await testDb().scheduledJob.findUniqueOrThrow({
+      where: { dedupeKey: marketing.announcementJobKey(a.id, a.version) },
+    });
     expect(job.status).toBe('CANCELLED');
     await run(w, job.dedupeKey); // even if a worker had already claimed it
     expect(w.deps.discord.sent).toHaveLength(0);
@@ -126,13 +172,20 @@ describe('marketing worker: announcements', () => {
 });
 
 describe('marketing worker: partners', () => {
-  const answers = { about: 'We run a small modding collective.', proposal: 'Cross-promote GYNX hosting to our members.' };
+  const answers = {
+    about: 'We run a small modding collective.',
+    proposal: 'Cross-promote GYNX hosting to our members.',
+  };
 
   async function approved(guildId: string, w: WorkerCtx) {
     const applicant = ctxAs(guildId, [], { deps: w.deps });
     const app = await marketing.submitPartnerApplication(applicant, { category: 'OTHER', answers });
     const reviewer = ctxAs(guildId, ['partners.review'], { deps: w.deps });
-    await marketing.decidePartnerApplication(reviewer, app.id, { decision: 'APPROVED', decisionNote: 'Welcome!', internalNotes: 'SECRET-INTERNAL-NOTE' });
+    await marketing.decidePartnerApplication(reviewer, app.id, {
+      decision: 'APPROVED',
+      decisionNote: 'Welcome!',
+      internalNotes: 'SECRET-INTERNAL-NOTE',
+    });
     return { app, applicant };
   }
 
@@ -140,8 +193,15 @@ describe('marketing worker: partners', () => {
     const guildId = await freshGuild();
     const reviewChannel = snowflake();
     const partnerRoleId = snowflake();
-    await testDb().guildConfig.update({ where: { guildId }, data: { partnerReviewChannelId: reviewChannel, partnerRoleId } });
-    const discord = fakeDiscord({ listRoles: async () => [{ id: partnerRoleId, name: 'Partner', position: 3, managed: false, permissions: String(1n << 10n) }] });
+    await testDb().guildConfig.update({
+      where: { guildId },
+      data: { partnerReviewChannelId: reviewChannel, partnerRoleId },
+    });
+    const discord = fakeDiscord({
+      listRoles: async () => [
+        { id: partnerRoleId, name: 'Partner', position: 3, managed: false, permissions: String(1n << 10n) },
+      ],
+    });
     const w = workerFor(guildId, testDeps({ discord }));
 
     const applicant = ctxAs(guildId, [], { deps: w.deps });
@@ -152,15 +212,23 @@ describe('marketing worker: partners', () => {
     expect(JSON.stringify(discord.sent[0]!.body)).toContain(app.ref);
 
     const reviewer = ctxAs(guildId, ['partners.review'], { deps: w.deps });
-    await marketing.decidePartnerApplication(reviewer, app.id, { decision: 'APPROVED', decisionNote: 'Welcome!', internalNotes: 'SECRET-INTERNAL-NOTE' });
+    await marketing.decidePartnerApplication(reviewer, app.id, {
+      decision: 'APPROVED',
+      decisionNote: 'Welcome!',
+      internalNotes: 'SECRET-INTERNAL-NOTE',
+    });
     await run(w, `marketing.partner.decision:${app.id}`);
     await run(w, `marketing.partner.decision:${app.id}`); // retry-safe
 
-    expect(discord.roleChanges).toEqual([{ op: 'add', userId: applicant.actor.userId, roleId: partnerRoleId }]);
+    expect(discord.roleChanges).toEqual([
+      { op: 'add', userId: applicant.actor.userId, roleId: partnerRoleId },
+    ]);
     expect(discord.dms).toHaveLength(1);
     expect(JSON.stringify(discord.dms[0]!.body)).toContain('Welcome!');
     expect(JSON.stringify(discord.dms[0]!.body)).not.toContain('SECRET-INTERNAL-NOTE');
-    expect((await testDb().partnerApplication.findUniqueOrThrow({ where: { id: app.id } })).roleGranted).toBe(true);
+    expect((await testDb().partnerApplication.findUniqueOrThrow({ where: { id: app.id } })).roleGranted).toBe(
+      true,
+    );
   });
 
   it('refuses to grant a partner role that carries privileged permissions', async () => {
@@ -168,7 +236,15 @@ describe('marketing worker: partners', () => {
     const partnerRoleId = snowflake();
     await testDb().guildConfig.update({ where: { guildId }, data: { partnerRoleId } });
     const discord = fakeDiscord({
-      listRoles: async () => [{ id: partnerRoleId, name: 'Partner', position: 3, managed: false, permissions: String((1n << 10n) | (1n << 17n)) }], // MentionEveryone
+      listRoles: async () => [
+        {
+          id: partnerRoleId,
+          name: 'Partner',
+          position: 3,
+          managed: false,
+          permissions: String((1n << 10n) | (1n << 17n)),
+        },
+      ], // MentionEveryone
     });
     const w = workerFor(guildId, testDeps({ discord }));
     const { app } = await approved(guildId, w);
@@ -176,9 +252,16 @@ describe('marketing worker: partners', () => {
 
     expect(discord.roleChanges).toHaveLength(0);
     expect(discord.dms).toHaveLength(1); // the applicant is still told the outcome
-    expect((await testDb().partnerApplication.findUniqueOrThrow({ where: { id: app.id } })).roleGranted).toBe(false);
-    const refused = await testDb().securityAuditEvent.findFirst({ where: { guildId, action: 'partners.role.refused', result: 'DENIED' } });
-    expect(refused?.metadata).toMatchObject({ reason: 'privileged-permissions', privileged: ['MentionEveryone'] });
+    expect((await testDb().partnerApplication.findUniqueOrThrow({ where: { id: app.id } })).roleGranted).toBe(
+      false,
+    );
+    const refused = await testDb().securityAuditEvent.findFirst({
+      where: { guildId, action: 'partners.role.refused', result: 'DENIED' },
+    });
+    expect(refused?.metadata).toMatchObject({
+      reason: 'privileged-permissions',
+      privileged: ['MentionEveryone'],
+    });
 
     // Administrator is refused too.
     expect(marketing.privilegedDiscordPermissions(String(1n << 3n))).toEqual(['Administrator']);

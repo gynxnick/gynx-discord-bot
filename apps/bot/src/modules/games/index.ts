@@ -10,30 +10,80 @@ import type { BotModule, HandlerCtx } from '../../framework/types';
  */
 
 const gameChoices = games.gameChoices();
-const liveOpts = (h: HandlerCtx): games.LiveNetOptions => ({ allowedSuffixes: games.parseAllowedSuffixes(h.rt.env.PORTCHECK_ALLOWED_SUFFIXES) });
+const liveOpts = (h: HandlerCtx): games.LiveNetOptions => ({
+  allowedSuffixes: games.parseAllowedSuffixes(h.rt.env.PORTCHECK_ALLOWED_SUFFIXES),
+});
 
 const gameOption = (b: SlashCommandBuilder, description = 'Game') =>
-  b.addStringOption((o) => o.setName('game').setDescription(description).setRequired(true).addChoices(...gameChoices));
+  b.addStringOption((o) =>
+    o
+      .setName('game')
+      .setDescription(description)
+      .setRequired(true)
+      .addChoices(...gameChoices),
+  );
 
-const gameinfo = gameOption(new SlashCommandBuilder().setName('gameinfo').setDescription('Ports, docs and tips for a supported game'));
-const version = gameOption(new SlashCommandBuilder().setName('version').setDescription('Latest public version / update news for a game'));
-const steam = gameOption(new SlashCommandBuilder().setName('steam').setDescription('Steam store link and latest official news for a game'));
+const gameinfo = gameOption(
+  new SlashCommandBuilder().setName('gameinfo').setDescription('Ports, docs and tips for a supported game'),
+);
+const version = gameOption(
+  new SlashCommandBuilder()
+    .setName('version')
+    .setDescription('Latest public version / update news for a game'),
+);
+const steam = gameOption(
+  new SlashCommandBuilder()
+    .setName('steam')
+    .setDescription('Steam store link and latest official news for a game'),
+);
 
-const playercount = gameOption(new SlashCommandBuilder().setName('playercount').setDescription('Live players and version of a GYNX-hosted server'))
-  .addStringOption((o) => o.setName('host').setDescription('Server hostname (authorized GYNX endpoints only)').setRequired(true).setMaxLength(253))
-  .addIntegerOption((o) => o.setName('port').setDescription('Game port (Valheim: game port; query port = +1)').setMinValue(1).setMaxValue(65535));
+const playercount = gameOption(
+  new SlashCommandBuilder()
+    .setName('playercount')
+    .setDescription('Live players and version of a GYNX-hosted server'),
+)
+  .addStringOption((o) =>
+    o
+      .setName('host')
+      .setDescription('Server hostname (authorized GYNX endpoints only)')
+      .setRequired(true)
+      .setMaxLength(253),
+  )
+  .addIntegerOption((o) =>
+    o
+      .setName('port')
+      .setDescription('Game port (Valheim: game port; query port = +1)')
+      .setMinValue(1)
+      .setMaxValue(65535),
+  );
 
 const minecraft = new SlashCommandBuilder()
   .setName('minecraft')
   .setDescription('Minecraft Java server status: version, players and MOTD')
-  .addStringOption((o) => o.setName('host').setDescription('Server hostname (authorized GYNX endpoints only)').setRequired(true).setMaxLength(253))
-  .addIntegerOption((o) => o.setName('port').setDescription('Port (default 25565)').setMinValue(1).setMaxValue(65535));
+  .addStringOption((o) =>
+    o
+      .setName('host')
+      .setDescription('Server hostname (authorized GYNX endpoints only)')
+      .setRequired(true)
+      .setMaxLength(253),
+  )
+  .addIntegerOption((o) =>
+    o.setName('port').setDescription('Port (default 25565)').setMinValue(1).setMaxValue(65535),
+  );
 
 const portcheck = new SlashCommandBuilder()
   .setName('portcheck')
   .setDescription("Test TCP reachability of a GYNX endpoint from the bot's network")
-  .addStringOption((o) => o.setName('host').setDescription('Hostname (authorized GYNX endpoints only)').setRequired(true).setMaxLength(253))
-  .addIntegerOption((o) => o.setName('port').setDescription('TCP port').setRequired(true).setMinValue(1).setMaxValue(65535));
+  .addStringOption((o) =>
+    o
+      .setName('host')
+      .setDescription('Hostname (authorized GYNX endpoints only)')
+      .setRequired(true)
+      .setMaxLength(253),
+  )
+  .addIntegerOption((o) =>
+    o.setName('port').setDescription('TCP port').setRequired(true).setMinValue(1).setMaxValue(65535),
+  );
 
 export const gamesModule: BotModule = {
   name: 'games',
@@ -73,7 +123,11 @@ export const gamesModule: BotModule = {
         await i.deferReply({ flags: 64 });
         const result = await games.queryServer(
           h.ctx,
-          { game: i.options.getString('game', true), host: i.options.getString('host', true), port: i.options.getInteger('port') ?? undefined },
+          {
+            game: i.options.getString('game', true),
+            host: i.options.getString('host', true),
+            port: i.options.getInteger('port') ?? undefined,
+          },
           liveOpts(h),
         );
         await respond(i, { embeds: [games.serverStatusEmbed(result)] });
@@ -86,7 +140,11 @@ export const gamesModule: BotModule = {
         await i.deferReply({ flags: 64 });
         const result = await games.queryServer(
           h.ctx,
-          { game: 'minecraft', host: i.options.getString('host', true), port: i.options.getInteger('port') ?? undefined },
+          {
+            game: 'minecraft',
+            host: i.options.getString('host', true),
+            port: i.options.getInteger('port') ?? undefined,
+          },
           liveOpts(h),
         );
         await respond(i, { embeds: [games.serverStatusEmbed(result)] });
@@ -97,7 +155,11 @@ export const gamesModule: BotModule = {
       data: portcheck.toJSON(),
       async execute(i, h) {
         await i.deferReply({ flags: 64 });
-        const outcome = await games.portCheck(h.ctx, { host: i.options.getString('host', true), port: i.options.getInteger('port', true) }, liveOpts(h));
+        const outcome = await games.portCheck(
+          h.ctx,
+          { host: i.options.getString('host', true), port: i.options.getInteger('port', true) },
+          liveOpts(h),
+        );
         await respond(i, { embeds: [games.portCheckEmbed(outcome)] });
       },
     },

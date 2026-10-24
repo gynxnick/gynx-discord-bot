@@ -1,6 +1,15 @@
 import { z } from 'zod';
 import type { Db, DiagnosticRecord, Prisma } from '@gynx/database';
-import { AppError, cursorArgs, forbidden, notFound, paginationSchema, toPage, validation, type Page } from '@gynx/shared';
+import {
+  AppError,
+  cursorArgs,
+  forbidden,
+  notFound,
+  paginationSchema,
+  toPage,
+  validation,
+  type Page,
+} from '@gynx/shared';
 import { audit } from '../core/audit';
 import { can, requirePermission, requireRate } from '../core/authz';
 import { getGuildConfig, requireModule } from '../core/config';
@@ -69,11 +78,19 @@ export function isAllowedContentType(ct: string | null | undefined): boolean {
 
 /** Throws VALIDATION with a user-facing reason. */
 export function validateAttachment(meta: AttachmentMeta): void {
-  if (!isAllowedLogName(meta.name)) throw validation('Only .log or .txt files can be analysed (for example latest.log or crash-reports/crash-….txt).');
+  if (!isAllowedLogName(meta.name))
+    throw validation(
+      'Only .log or .txt files can be analysed (for example latest.log or crash-reports/crash-….txt).',
+    );
   if (!Number.isFinite(meta.size) || meta.size <= 0) throw validation('That file is empty.');
-  if (meta.size > DIAGNOSTIC_MAX_BYTES) throw validation('That file is larger than 1 MB. Upload just the relevant log (e.g. latest.log) or a crash report.');
-  if (!isAllowedContentType(meta.contentType)) throw validation('That file does not look like a plain-text log.');
-  if (!isAllowedAttachmentUrl(meta.url)) throw validation('Attachments must be uploaded directly to Discord.');
+  if (meta.size > DIAGNOSTIC_MAX_BYTES)
+    throw validation(
+      'That file is larger than 1 MB. Upload just the relevant log (e.g. latest.log) or a crash report.',
+    );
+  if (!isAllowedContentType(meta.contentType))
+    throw validation('That file does not look like a plain-text log.');
+  if (!isAllowedAttachmentUrl(meta.url))
+    throw validation('Attachments must be uploaded directly to Discord.');
 }
 
 /** NUL bytes or > 10% non-printable characters → binary. */
@@ -109,7 +126,8 @@ export async function downloadAttachment(url: string, opts: DownloadOptions = {}
   } catch {
     throw new AppError('INTEGRATION', 'Could not download the file from Discord. Please try again.');
   }
-  if (!res.ok) throw new AppError('INTEGRATION', 'Could not download the file from Discord. Please try again.');
+  if (!res.ok)
+    throw new AppError('INTEGRATION', 'Could not download the file from Discord. Please try again.');
   let body: Buffer | null;
   try {
     body = await readBodyCapped(res, maxBytes);
@@ -141,7 +159,11 @@ export interface DiagnosisOutcome {
   expiresAt: Date;
 }
 
-export async function runDiagnosis(ctx: Ctx, raw: z.input<typeof runDiagnosisSchema>, opts: DownloadOptions = {}): Promise<DiagnosisOutcome> {
+export async function runDiagnosis(
+  ctx: Ctx,
+  raw: z.input<typeof runDiagnosisSchema>,
+  opts: DownloadOptions = {},
+): Promise<DiagnosisOutcome> {
   const cfg = await requireModule(ctx, 'troubleshooting');
   const input = runDiagnosisSchema.parse(raw);
   validateAttachment(input.attachment);
@@ -149,7 +171,10 @@ export async function runDiagnosis(ctx: Ctx, raw: z.input<typeof runDiagnosisSch
 
   const buf = await downloadAttachment(input.attachment.url, opts);
   if (buf.length === 0) throw validation('That file is empty.');
-  if (looksBinary(buf)) throw validation('That file looks binary, not a text log. Please upload a .log or .txt file saved as UTF-8.');
+  if (looksBinary(buf))
+    throw validation(
+      'That file looks binary, not a text log. Please upload a .log or .txt file saved as UTF-8.',
+    );
 
   // Redaction happens inside diagnoseText before any analysis; `buf` is dropped after this call.
   const result = diagnoseText(buf.toString('utf8'), input.game ?? null);
@@ -169,33 +194,62 @@ export async function runDiagnosis(ctx: Ctx, raw: z.input<typeof runDiagnosisSch
       },
     });
     // Metadata: ids only — never content or evidence.
-    await audit(ctx, { action: 'troubleshooting.diagnose', targetType: 'DiagnosticRecord', targetId: rec.id, metadata: { game: result.game, size: buf.length, findings: result.findings.map((f) => f.id) } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'troubleshooting.diagnose',
+        targetType: 'DiagnosticRecord',
+        targetId: rec.id,
+        metadata: { game: result.game, size: buf.length, findings: result.findings.map((f) => f.id) },
+      },
+      tx,
+    );
     return rec;
   });
-  return { recordId: record.id, game: result.game, findings: result.findings, supportUrl: supportUrlOf(cfg), expiresAt };
+  return {
+    recordId: record.id,
+    game: result.game,
+    findings: result.findings,
+    supportUrl: supportUrlOf(cfg),
+    expiresAt,
+  };
 }
 
 /** Owner (or staff) access to a stored diagnosis. */
 export async function getDiagnostic(ctx: Ctx, id: string): Promise<DiagnosticRecord> {
   await requireModule(ctx, 'troubleshooting');
-  const r = await ctx.db.diagnosticRecord.findFirst({ where: { id: z.string().min(1).max(40).parse(id), guildId: ctx.guildId } });
+  const r = await ctx.db.diagnosticRecord.findFirst({
+    where: { id: z.string().min(1).max(40).parse(id), guildId: ctx.guildId },
+  });
   if (!r) throw notFound('Diagnosis');
   if (r.userId !== ctx.actor.userId && !can(ctx, 'troubleshooting.manage')) throw forbidden();
   return r;
 }
 
-export async function listDiagnostics(ctx: Ctx, raw: z.input<typeof paginationSchema> = {}): Promise<Page<DiagnosticRecord>> {
+export async function listDiagnostics(
+  ctx: Ctx,
+  raw: z.input<typeof paginationSchema> = {},
+): Promise<Page<DiagnosticRecord>> {
   await requirePermission(ctx, 'troubleshooting.manage');
   const p = paginationSchema.parse(raw);
-  const rows = await ctx.db.diagnosticRecord.findMany({ where: { guildId: ctx.guildId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], ...cursorArgs(p) });
+  const rows = await ctx.db.diagnosticRecord.findMany({
+    where: { guildId: ctx.guildId },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    ...cursorArgs(p),
+  });
   return toPage(rows, p.limit);
 }
 
 /** "This helped" / "Still stuck" on a diagnosis. Only the uploader can respond. */
-export async function diagnosticFeedback(ctx: Ctx, id: string, helped: boolean): Promise<{ supportUrl: string | null }> {
+export async function diagnosticFeedback(
+  ctx: Ctx,
+  id: string,
+  helped: boolean,
+): Promise<{ supportUrl: string | null }> {
   const r = await getDiagnostic(ctx, id);
   if (r.userId !== ctx.actor.userId) throw forbidden('Only the member who uploaded this file can respond.');
-  if (!helped && !r.escalated) await ctx.db.diagnosticRecord.update({ where: { id: r.id }, data: { escalated: true } });
+  if (!helped && !r.escalated)
+    await ctx.db.diagnosticRecord.update({ where: { id: r.id }, data: { escalated: true } });
   return { supportUrl: supportUrlOf(await getGuildConfig(ctx.db, ctx.guildId)) };
 }
 
@@ -210,8 +264,14 @@ const stripEvidence = (findings: unknown): Prisma.InputJsonValue =>
  *  1. expiresAt passed → drop the redacted excerpt and evidence, set purgedAt (summary kept).
  *  2. expiresAt + 30 days passed → delete the record entirely.
  */
-export async function purgeExpiredDiagnostics(db: Db, guildId: string, now: Date): Promise<{ purged: number; deleted: number }> {
-  const deleted = await db.diagnosticRecord.deleteMany({ where: { guildId, expiresAt: { lt: new Date(now.getTime() - DIAGNOSTIC_SUMMARY_GRACE_MS) } } });
+export async function purgeExpiredDiagnostics(
+  db: Db,
+  guildId: string,
+  now: Date,
+): Promise<{ purged: number; deleted: number }> {
+  const deleted = await db.diagnosticRecord.deleteMany({
+    where: { guildId, expiresAt: { lt: new Date(now.getTime() - DIAGNOSTIC_SUMMARY_GRACE_MS) } },
+  });
   const due = await db.diagnosticRecord.findMany({
     where: { guildId, purgedAt: null, expiresAt: { lte: now } },
     select: { id: true, findings: true },

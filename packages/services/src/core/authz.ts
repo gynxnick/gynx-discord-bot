@@ -27,7 +27,11 @@ export async function requirePermission(ctx: Ctx, key: PermissionKey, action?: s
 
 export async function requireAny(ctx: Ctx, keys: readonly PermissionKey[], action?: string): Promise<void> {
   if (canAny(ctx, keys)) return;
-  await audit(ctx, { action: action ?? 'permission.denied', result: 'DENIED', metadata: { requiredAny: keys } });
+  await audit(ctx, {
+    action: action ?? 'permission.denied',
+    result: 'DENIED',
+    metadata: { requiredAny: keys },
+  });
   throw forbidden();
 }
 

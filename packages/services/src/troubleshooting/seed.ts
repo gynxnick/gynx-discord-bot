@@ -12,14 +12,20 @@ export { SEED_ARTICLES, SEED_FLOWS } from './seed-content';
  * Install the curated default articles and flows. Idempotent: upsert by slug,
  * and existing rows are left untouched so staff edits are never overwritten.
  */
-export async function seedDefaultContent(ctx: Ctx): Promise<{ articlesCreated: number; flowsCreated: number }> {
+export async function seedDefaultContent(
+  ctx: Ctx,
+): Promise<{ articlesCreated: number; flowsCreated: number }> {
   await requirePermission(ctx, 'troubleshooting.manage', 'troubleshooting.seed');
   return ctx.db.$transaction(async (tx) => {
     const existingArticles = new Set(
-      (await tx.knowledgeArticle.findMany({ where: { guildId: ctx.guildId }, select: { slug: true } })).map((a) => a.slug),
+      (await tx.knowledgeArticle.findMany({ where: { guildId: ctx.guildId }, select: { slug: true } })).map(
+        (a) => a.slug,
+      ),
     );
     const existingFlows = new Set(
-      (await tx.troubleshootingFlow.findMany({ where: { guildId: ctx.guildId }, select: { slug: true } })).map((f) => f.slug),
+      (
+        await tx.troubleshootingFlow.findMany({ where: { guildId: ctx.guildId }, select: { slug: true } })
+      ).map((f) => f.slug),
     );
     let articlesCreated = 0;
     for (const raw of SEED_ARTICLES) {

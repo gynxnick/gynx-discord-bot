@@ -37,8 +37,16 @@ export function normaliseForCompare(input: string): string {
 
 /** Jaccard similarity of word sets (0..1), used for suggestion duplicate detection. */
 export function similarity(a: string, b: string): number {
-  const sa = new Set(normaliseForCompare(a).split(' ').filter((w) => w.length > 2));
-  const sb = new Set(normaliseForCompare(b).split(' ').filter((w) => w.length > 2));
+  const sa = new Set(
+    normaliseForCompare(a)
+      .split(' ')
+      .filter((w) => w.length > 2),
+  );
+  const sb = new Set(
+    normaliseForCompare(b)
+      .split(' ')
+      .filter((w) => w.length > 2),
+  );
   if (sa.size === 0 || sb.size === 0) return 0;
   let inter = 0;
   for (const w of sa) if (sb.has(w)) inter++;

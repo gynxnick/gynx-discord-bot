@@ -23,7 +23,10 @@ describe('JobRunner', () => {
   it('runs each periodic bucket exactly once across concurrent workers', async () => {
     let runs = 0;
     const name = `test.periodic.${Date.now()}`;
-    const mod: WorkerModule = { name: 'test', periodic: [{ name, intervalMs: 60_000, run: async () => void runs++ }] };
+    const mod: WorkerModule = {
+      name: 'test',
+      periodic: [{ name, intervalMs: 60_000, run: async () => void runs++ }],
+    };
     const now = new Date();
     const a = new JobRunner(worker('a'), [mod]);
     const b = new JobRunner(worker('b'), [mod]);
@@ -45,7 +48,8 @@ describe('JobRunner', () => {
       },
     };
     const now = new Date();
-    for (let i = 0; i < 3; i++) await enqueueJob(testDb(), { type, dedupeKey: `${type}:x`, runAt: now, guildId });
+    for (let i = 0; i < 3; i++)
+      await enqueueJob(testDb(), { type, dedupeKey: `${type}:x`, runAt: now, guildId });
 
     const r = new JobRunner(worker('c'), [mod]);
     await r.tick(now);

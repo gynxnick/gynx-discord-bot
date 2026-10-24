@@ -16,7 +16,13 @@ describe('detectRaid', () => {
   });
 
   it('ignores joins outside the window and in the future', () => {
-    const joins = [...Array.from({ length: 5 }, (_, n) => ago(n)), ago(60), ago(61), ago(3600), new Date(now.getTime() + 5000)];
+    const joins = [
+      ...Array.from({ length: 5 }, (_, n) => ago(n)),
+      ago(60),
+      ago(61),
+      ago(3600),
+      new Date(now.getTime() + 5000),
+    ];
     expect(detectRaid(joins, now, 6, 60)).toMatchObject({ isRaid: false, joinsInWindow: 5 });
   });
 

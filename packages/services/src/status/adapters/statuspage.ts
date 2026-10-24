@@ -29,7 +29,13 @@ export const statuspageAdapter: CheckAdapter = {
     try {
       const res = await safeGet(statuspageUrl(service.target ?? ''), service, opts);
       if (res.statusCode < 200 || res.statusCode >= 300) {
-        return { ok: false, degraded: false, latencyMs: res.latencyMs, statusCode: res.statusCode, errorClass: classifyStatus(res.statusCode) };
+        return {
+          ok: false,
+          degraded: false,
+          latencyMs: res.latencyMs,
+          statusCode: res.statusCode,
+          errorClass: classifyStatus(res.statusCode),
+        };
       }
       let indicator: unknown;
       try {

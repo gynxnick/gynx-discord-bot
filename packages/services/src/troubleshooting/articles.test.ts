@@ -30,6 +30,8 @@ describe('knowledge search ranking', () => {
 
   it('nudges well-rated articles up', () => {
     const terms = tokenize('memory');
-    expect(scoreArticle(article({ helpfulYes: 9, helpfulNo: 1 }), terms, 'memory')).toBeGreaterThan(scoreArticle(article({ helpfulYes: 1, helpfulNo: 9 }), terms, 'memory'));
+    expect(scoreArticle(article({ helpfulYes: 9, helpfulNo: 1 }), terms, 'memory')).toBeGreaterThan(
+      scoreArticle(article({ helpfulYes: 1, helpfulNo: 9 }), terms, 'memory'),
+    );
   });
 });

@@ -24,11 +24,17 @@ export async function createTrackedLink(ctx: Ctx, raw: CreateTrackedLinkInput): 
   await requireAny(ctx, LINK_MANAGERS, 'marketing.link.create');
   const input = createTrackedLinkSchema.parse(raw);
   if (input.announcementId) {
-    const a = await ctx.db.announcement.findFirst({ where: { id: input.announcementId, guildId: ctx.guildId }, select: { id: true } });
+    const a = await ctx.db.announcement.findFirst({
+      where: { id: input.announcementId, guildId: ctx.guildId },
+      select: { id: true },
+    });
     if (!a) throw notFound('Announcement');
   }
   if (input.partnerCampaignId) {
-    const c = await ctx.db.partnerCampaign.findFirst({ where: { id: input.partnerCampaignId, guildId: ctx.guildId }, select: { id: true } });
+    const c = await ctx.db.partnerCampaign.findFirst({
+      where: { id: input.partnerCampaignId, guildId: ctx.guildId },
+      select: { id: true },
+    });
     if (!c) throw notFound('Partner campaign');
   }
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -45,7 +51,16 @@ export async function createTrackedLink(ctx: Ctx, raw: CreateTrackedLinkInput): 
             createdById: ctx.actor.userId,
           },
         });
-        await audit(ctx, { action: 'marketing.link.create', targetType: 'TrackedLink', targetId: link.id, metadata: { slug: link.slug, host: new URL(link.targetUrl).hostname, campaign: link.campaign } }, tx);
+        await audit(
+          ctx,
+          {
+            action: 'marketing.link.create',
+            targetType: 'TrackedLink',
+            targetId: link.id,
+            metadata: { slug: link.slug, host: new URL(link.targetUrl).hostname, campaign: link.campaign },
+          },
+          tx,
+        );
         return link;
       });
     } catch (e) {
@@ -61,11 +76,19 @@ export const listTrackedLinksSchema = paginationSchema.extend({
   partnerCampaignId: z.string().max(64).optional(),
 });
 
-export async function listTrackedLinks(ctx: Ctx, raw: z.input<typeof listTrackedLinksSchema> = {}): Promise<Page<TrackedLink>> {
+export async function listTrackedLinks(
+  ctx: Ctx,
+  raw: z.input<typeof listTrackedLinksSchema> = {},
+): Promise<Page<TrackedLink>> {
   await requireAny(ctx, [...LINK_MANAGERS, 'analytics.view', 'referrals.view']);
   const f = listTrackedLinksSchema.parse(raw);
   const rows = await ctx.db.trackedLink.findMany({
-    where: { guildId: ctx.guildId, campaign: f.campaign, announcementId: f.announcementId, partnerCampaignId: f.partnerCampaignId },
+    where: {
+      guildId: ctx.guildId,
+      campaign: f.campaign,
+      announcementId: f.announcementId,
+      partnerCampaignId: f.partnerCampaignId,
+    },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     ...cursorArgs(f),
   });
@@ -78,7 +101,11 @@ export async function setTrackedLinkActive(ctx: Ctx, id: string, active: boolean
   if (!link) throw notFound('Link');
   return ctx.db.$transaction(async (tx) => {
     const l = await tx.trackedLink.update({ where: { id }, data: { active } });
-    await audit(ctx, { action: 'marketing.link.update', targetType: 'TrackedLink', targetId: id, metadata: { active } }, tx);
+    await audit(
+      ctx,
+      { action: 'marketing.link.update', targetType: 'TrackedLink', targetId: id, metadata: { active } },
+      tx,
+    );
     return l;
   });
 }

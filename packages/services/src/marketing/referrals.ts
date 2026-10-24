@@ -1,6 +1,23 @@
 import { z } from 'zod';
-import { isUniqueViolation, type AttributionConfidence, type Prisma, type ReferralAttribution, type ReferralInvite } from '@gynx/database';
-import { AppError, conflict, cursorArgs, forbidden, invalidState, notFound, paginationSchema, redactSecrets, toPage, type Page } from '@gynx/shared';
+import {
+  isUniqueViolation,
+  type AttributionConfidence,
+  type Prisma,
+  type ReferralAttribution,
+  type ReferralInvite,
+} from '@gynx/database';
+import {
+  AppError,
+  conflict,
+  cursorArgs,
+  forbidden,
+  invalidState,
+  notFound,
+  paginationSchema,
+  redactSecrets,
+  toPage,
+  type Page,
+} from '@gynx/shared';
 import { audit } from '../core/audit';
 import { can, requireAny, requirePermission, requireRate } from '../core/authz';
 import { requireModule } from '../core/config';
@@ -13,7 +30,13 @@ import { snowflakeSchema } from './common';
 export const createReferralInviteSchema = z.object({
   /** Channel the Discord invite points to. */
   channelId: snowflakeSchema,
-  campaign: z.string().trim().min(1).max(64).regex(/^[\w .-]+$/, 'Use letters, numbers, spaces, dots, dashes or underscores.').optional(),
+  campaign: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .regex(/^[\w .-]+$/, 'Use letters, numbers, spaces, dots, dashes or underscores.')
+    .optional(),
   partnerCampaignId: z.string().min(1).max(64).optional(),
   /** 0 = never expires (default). */
   maxAgeSeconds: z.number().int().min(0).max(604_800).default(0),
@@ -26,7 +49,10 @@ export type CreateReferralInviteInput = z.input<typeof createReferralInviteSchem
  *  - Campaign invites need `referrals.manage`; partner-campaign invites need
  *    `referrals.manage` or `partners.review`, and are owned by the partner.
  */
-export async function createReferralInvite(ctx: Ctx, raw: CreateReferralInviteInput): Promise<{ invite: ReferralInvite; created: boolean }> {
+export async function createReferralInvite(
+  ctx: Ctx,
+  raw: CreateReferralInviteInput,
+): Promise<{ invite: ReferralInvite; created: boolean }> {
   await requireModule(ctx, 'referrals');
   const input = createReferralInviteSchema.parse(raw);
 
@@ -34,7 +60,9 @@ export async function createReferralInvite(ctx: Ctx, raw: CreateReferralInviteIn
   let campaign = input.campaign ?? null;
   if (input.partnerCampaignId) {
     await requireAny(ctx, ['referrals.manage', 'partners.review'], 'referrals.invite.create');
-    const pc = await ctx.db.partnerCampaign.findFirst({ where: { id: input.partnerCampaignId, guildId: ctx.guildId } });
+    const pc = await ctx.db.partnerCampaign.findFirst({
+      where: { id: input.partnerCampaignId, guildId: ctx.guildId },
+    });
     if (!pc) throw notFound('Partner campaign');
     if (!pc.active) throw invalidState('That partner campaign is not active.');
     ownerId = pc.partnerId;
@@ -60,9 +88,25 @@ export async function createReferralInvite(ctx: Ctx, raw: CreateReferralInviteIn
   try {
     return await ctx.db.$transaction(async (tx) => {
       const invite = await tx.referralInvite.create({
-        data: { guildId: ctx.guildId, code, ownerId, campaign, partnerCampaignId: input.partnerCampaignId ?? null, createdById: ctx.actor.userId },
+        data: {
+          guildId: ctx.guildId,
+          code,
+          ownerId,
+          campaign,
+          partnerCampaignId: input.partnerCampaignId ?? null,
+          createdById: ctx.actor.userId,
+        },
       });
-      await audit(ctx, { action: 'referrals.invite.create', targetType: 'ReferralInvite', targetId: invite.id, metadata: { ownerId, campaign, partnerCampaignId: invite.partnerCampaignId } }, tx);
+      await audit(
+        ctx,
+        {
+          action: 'referrals.invite.create',
+          targetType: 'ReferralInvite',
+          targetId: invite.id,
+          metadata: { ownerId, campaign, partnerCampaignId: invite.partnerCampaignId },
+        },
+        tx,
+      );
       return { invite, created: true };
     });
   } catch (e) {
@@ -73,7 +117,10 @@ export async function createReferralInvite(ctx: Ctx, raw: CreateReferralInviteIn
 
 export async function listMyReferralInvites(ctx: Ctx): Promise<ReferralInvite[]> {
   await requireModule(ctx, 'referrals');
-  return ctx.db.referralInvite.findMany({ where: { guildId: ctx.guildId, ownerId: ctx.actor.userId }, orderBy: { createdAt: 'desc' } });
+  return ctx.db.referralInvite.findMany({
+    where: { guildId: ctx.guildId, ownerId: ctx.actor.userId },
+    orderBy: { createdAt: 'desc' },
+  });
 }
 
 export const listInvitesSchema = paginationSchema.extend({
@@ -82,11 +129,19 @@ export const listInvitesSchema = paginationSchema.extend({
   partnerCampaignId: z.string().max(64).optional(),
 });
 
-export async function listReferralInvites(ctx: Ctx, raw: z.input<typeof listInvitesSchema> = {}): Promise<Page<ReferralInvite>> {
+export async function listReferralInvites(
+  ctx: Ctx,
+  raw: z.input<typeof listInvitesSchema> = {},
+): Promise<Page<ReferralInvite>> {
   await requireAny(ctx, ['referrals.view', 'referrals.manage']);
   const f = listInvitesSchema.parse(raw);
   const rows = await ctx.db.referralInvite.findMany({
-    where: { guildId: ctx.guildId, ownerId: f.ownerId, campaign: f.campaign, partnerCampaignId: f.partnerCampaignId },
+    where: {
+      guildId: ctx.guildId,
+      ownerId: f.ownerId,
+      campaign: f.campaign,
+      partnerCampaignId: f.partnerCampaignId,
+    },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     ...cursorArgs(f),
   });
@@ -97,10 +152,15 @@ export async function listReferralInvites(ctx: Ctx, raw: z.input<typeof listInvi
 export async function deactivateReferralInvite(ctx: Ctx, id: string): Promise<ReferralInvite> {
   const inv = await ctx.db.referralInvite.findFirst({ where: { id, guildId: ctx.guildId } });
   if (!inv) throw notFound('Invite');
-  if (inv.ownerId !== ctx.actor.userId) await requirePermission(ctx, 'referrals.manage', 'referrals.invite.deactivate');
+  if (inv.ownerId !== ctx.actor.userId)
+    await requirePermission(ctx, 'referrals.manage', 'referrals.invite.deactivate');
   return ctx.db.$transaction(async (tx) => {
     const r = await tx.referralInvite.update({ where: { id }, data: { active: false } });
-    await audit(ctx, { action: 'referrals.invite.deactivate', targetType: 'ReferralInvite', targetId: id }, tx);
+    await audit(
+      ctx,
+      { action: 'referrals.invite.deactivate', targetType: 'ReferralInvite', targetId: id },
+      tx,
+    );
     return r;
   });
 }
@@ -140,7 +200,11 @@ export async function recordAttribution(ctx: Ctx, raw: RecordAttributionInput): 
   const inviteCode = confidence === 'CONFIRMED' ? (input.inviteCode ?? null) : null;
   if (confidence === 'CONFIRMED' && !inviteCode) confidence = 'UNKNOWN';
 
-  const invite = inviteCode ? await ctx.db.referralInvite.findFirst({ where: { guildId: ctx.guildId, code: inviteCode, active: true } }) : null;
+  const invite = inviteCode
+    ? await ctx.db.referralInvite.findFirst({
+        where: { guildId: ctx.guildId, code: inviteCode, active: true },
+      })
+    : null;
   // A single changed invite that we don't track (or that was deactivated) credits nobody.
   if (confidence === 'CONFIRMED' && !invite) confidence = 'UNKNOWN';
   const referrerId = confidence === 'CONFIRMED' ? (invite?.ownerId ?? null) : null;
@@ -149,7 +213,13 @@ export async function recordAttribution(ctx: Ctx, raw: RecordAttributionInput): 
   if (referrerId && inviteCode) {
     const [previous, recent] = await Promise.all([
       ctx.db.referralAttribution.count({ where: { guildId: ctx.guildId, joinedUserId: input.joinedUserId } }),
-      ctx.db.referralAttribution.count({ where: { guildId: ctx.guildId, inviteCode, joinedAt: { gte: new Date(joinedAt.getTime() - BURST_WINDOW_MS), lte: joinedAt } } }),
+      ctx.db.referralAttribution.count({
+        where: {
+          guildId: ctx.guildId,
+          inviteCode,
+          joinedAt: { gte: new Date(joinedAt.getTime() - BURST_WINDOW_MS), lte: joinedAt },
+        },
+      }),
     ]);
     flags = detectReferralAbuse({
       referrerId,
@@ -172,7 +242,9 @@ export async function recordAttribution(ctx: Ctx, raw: RecordAttributionInput): 
         campaign: invite?.campaign ?? null,
         confidence,
         status: flags.length ? 'FLAGGED' : 'VALID',
-        flagReason: flags.length ? flags.map((f) => ABUSE_FLAG_LABELS[f as keyof typeof ABUSE_FLAG_LABELS]).join('; ') : null,
+        flagReason: flags.length
+          ? flags.map((f) => ABUSE_FLAG_LABELS[f as keyof typeof ABUSE_FLAG_LABELS]).join('; ')
+          : null,
         joinedAt,
       },
     });
@@ -180,7 +252,17 @@ export async function recordAttribution(ctx: Ctx, raw: RecordAttributionInput): 
       await tx.referralInvite.update({ where: { id: invite.id }, data: { lastKnownUses: input.inviteUses } });
     }
     if (flags.length) {
-      await audit(ctx, { action: 'referrals.attribution.flagged', targetType: 'ReferralAttribution', targetId: row.id, result: 'FAILURE', metadata: { flags, referrerId } }, tx);
+      await audit(
+        ctx,
+        {
+          action: 'referrals.attribution.flagged',
+          targetType: 'ReferralAttribution',
+          targetId: row.id,
+          result: 'FAILURE',
+          metadata: { flags, referrerId },
+        },
+        tx,
+      );
     }
     return row;
   });
@@ -192,7 +274,11 @@ export const reviewAttributionSchema = z.object({
 });
 
 /** Staff resolution of flagged / disputed attributions. */
-export async function reviewAttribution(ctx: Ctx, id: string, raw: z.input<typeof reviewAttributionSchema>): Promise<ReferralAttribution> {
+export async function reviewAttribution(
+  ctx: Ctx,
+  id: string,
+  raw: z.input<typeof reviewAttributionSchema>,
+): Promise<ReferralAttribution> {
   await requirePermission(ctx, 'referrals.manage', 'referrals.attribution.review');
   const input = reviewAttributionSchema.parse(raw);
   const row = await ctx.db.referralAttribution.findFirst({ where: { id, guildId: ctx.guildId } });
@@ -200,13 +286,27 @@ export async function reviewAttribution(ctx: Ctx, id: string, raw: z.input<typeo
   if (input.status === 'VALID' && (row.confidence !== 'CONFIRMED' || !row.referrerId)) {
     throw invalidState('Only confirmed attributions with a referrer can be marked valid.');
   }
-  if (row.referrerId && row.referrerId === ctx.actor.userId) throw forbidden('You cannot review your own referrals.');
+  if (row.referrerId && row.referrerId === ctx.actor.userId)
+    throw forbidden('You cannot review your own referrals.');
   return ctx.db.$transaction(async (tx) => {
     const updated = await tx.referralAttribution.update({
       where: { id },
-      data: { status: input.status, reviewNote: redactSecrets(input.note, { maskIps: false }), reviewedById: ctx.actor.userId },
+      data: {
+        status: input.status,
+        reviewNote: redactSecrets(input.note, { maskIps: false }),
+        reviewedById: ctx.actor.userId,
+      },
     });
-    await audit(ctx, { action: 'referrals.attribution.review', targetType: 'ReferralAttribution', targetId: id, metadata: { from: row.status, to: input.status } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'referrals.attribution.review',
+        targetType: 'ReferralAttribution',
+        targetId: id,
+        metadata: { from: row.status, to: input.status },
+      },
+      tx,
+    );
     return updated;
   });
 }
@@ -218,17 +318,28 @@ export const listAttributionsSchema = paginationSchema.extend({
   campaign: z.string().trim().max(64).optional(),
 });
 
-export async function listAttributions(ctx: Ctx, raw: z.input<typeof listAttributionsSchema> = {}): Promise<Page<ReferralAttribution>> {
+export async function listAttributions(
+  ctx: Ctx,
+  raw: z.input<typeof listAttributionsSchema> = {},
+): Promise<Page<ReferralAttribution>> {
   await requireAny(ctx, ['referrals.view', 'referrals.manage']);
   const f = listAttributionsSchema.parse(raw);
   const rows = await ctx.db.referralAttribution.findMany({
-    where: { guildId: ctx.guildId, status: f.status, confidence: f.confidence, referrerId: f.referrerId, campaign: f.campaign },
+    where: {
+      guildId: ctx.guildId,
+      status: f.status,
+      confidence: f.confidence,
+      referrerId: f.referrerId,
+      campaign: f.campaign,
+    },
     orderBy: [{ joinedAt: 'desc' }, { id: 'desc' }],
     ...cursorArgs(f),
   });
   const page = toPage(rows, f.limit);
   // Review notes are for referral managers only.
-  return can(ctx, 'referrals.manage') ? page : { ...page, items: page.items.map((r) => ({ ...r, reviewNote: null })) };
+  return can(ctx, 'referrals.manage')
+    ? page
+    : { ...page, items: page.items.map((r) => ({ ...r, reviewNote: null })) };
 }
 
 // ─── Leaderboard & stats ────────────────────────────────────────────────────
@@ -240,7 +351,10 @@ const sinceFor = (period: LeaderboardPeriod, now: Date): Date | undefined =>
   period === 'all' ? undefined : new Date(now.getTime() - Number(period) * 86_400_000);
 
 /** Counted referrals = CONFIRMED + VALID only. Flagged/disputed/invalid never count. */
-export const countedReferralWhere = (guildId: string, since?: Date): Prisma.ReferralAttributionWhereInput => ({
+export const countedReferralWhere = (
+  guildId: string,
+  since?: Date,
+): Prisma.ReferralAttributionWhereInput => ({
   guildId,
   status: 'VALID',
   confidence: 'CONFIRMED',
@@ -248,7 +362,10 @@ export const countedReferralWhere = (guildId: string, since?: Date): Prisma.Refe
   ...(since ? { joinedAt: { gte: since } } : {}),
 });
 
-export async function referralLeaderboard(ctx: Ctx, period: LeaderboardPeriod = '30'): Promise<Array<{ rank: number; referrerId: string; referrals: number }>> {
+export async function referralLeaderboard(
+  ctx: Ctx,
+  period: LeaderboardPeriod = '30',
+): Promise<Array<{ rank: number; referrerId: string; referrals: number }>> {
   await requireModule(ctx, 'referrals');
   const p = z.enum(LEADERBOARD_PERIODS).parse(period);
   const rows = await ctx.db.referralAttribution.groupBy({
@@ -267,9 +384,23 @@ export async function myReferralStats(ctx: Ctx) {
   const base = { guildId: ctx.guildId, referrerId: ctx.actor.userId, confidence: 'CONFIRMED' as const };
   const [byStatus, invites, last30] = await Promise.all([
     ctx.db.referralAttribution.groupBy({ by: ['status'], where: base, _count: { _all: true } }),
-    ctx.db.referralInvite.findMany({ where: { guildId: ctx.guildId, ownerId: ctx.actor.userId, active: true }, select: { code: true, campaign: true } }),
-    ctx.db.referralAttribution.count({ where: { ...countedReferralWhere(ctx.guildId, sinceFor('30', ctx.now())), referrerId: ctx.actor.userId } }),
+    ctx.db.referralInvite.findMany({
+      where: { guildId: ctx.guildId, ownerId: ctx.actor.userId, active: true },
+      select: { code: true, campaign: true },
+    }),
+    ctx.db.referralAttribution.count({
+      where: {
+        ...countedReferralWhere(ctx.guildId, sinceFor('30', ctx.now())),
+        referrerId: ctx.actor.userId,
+      },
+    }),
   ]);
   const n = (s: string) => byStatus.find((b) => b.status === s)?._count._all ?? 0;
-  return { valid: n('VALID'), underReview: n('FLAGGED') + n('DISPUTED'), invalid: n('INVALID'), validLast30Days: last30, invites };
+  return {
+    valid: n('VALID'),
+    underReview: n('FLAGGED') + n('DISPUTED'),
+    invalid: n('INVALID'),
+    validLast30Days: last30,
+    invites,
+  };
 }

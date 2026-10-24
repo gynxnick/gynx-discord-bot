@@ -25,7 +25,10 @@ const TYPE: Partial<Record<ApplicationCommandOptionType, string>> = {
 
 function optionLine(o: APIApplicationCommandOption): string {
   const req = 'required' in o && o.required ? '' : ' _(optional)_';
-  const choices = 'choices' in o && o.choices?.length ? ` — one of: ${o.choices.map((c) => `\`${c.name}\``).join(', ')}` : '';
+  const choices =
+    'choices' in o && o.choices?.length
+      ? ` — one of: ${o.choices.map((c) => `\`${c.name}\``).join(', ')}`
+      : '';
   const auto = 'autocomplete' in o && o.autocomplete ? ' (autocomplete)' : '';
   return `\`${o.name}\` (${TYPE[o.type] ?? 'value'}${auto})${req}: ${o.description}${choices}`;
 }
@@ -47,9 +50,19 @@ for (const m of modules) {
     const p = COMMAND_POLICIES[c.data.name];
     const perm = p?.permission ? `requires \`${p.permission}\`` : 'any member';
     const rl = p?.rateLimit ? ` · limit ${p.rateLimit[0]} per ${p.rateLimit[1]}s` : '';
-    out.push(`### \`/${c.data.name}\``, '', `${c.data.description}  `, `_${perm}${rl} · module \`${c.module}\`_`, '');
+    out.push(
+      `### \`/${c.data.name}\``,
+      '',
+      `${c.data.description}  `,
+      `_${perm}${rl} · module \`${c.module}\`_`,
+      '',
+    );
     const opts = (c.data.options ?? []) as APIApplicationCommandOption[];
-    const subs = opts.filter((o) => o.type === ApplicationCommandOptionType.Subcommand || o.type === ApplicationCommandOptionType.SubcommandGroup);
+    const subs = opts.filter(
+      (o) =>
+        o.type === ApplicationCommandOptionType.Subcommand ||
+        o.type === ApplicationCommandOptionType.SubcommandGroup,
+    );
     if (subs.length) {
       for (const s of subs) {
         if (s.type === ApplicationCommandOptionType.SubcommandGroup) {
@@ -59,7 +72,8 @@ for (const m of modules) {
           }
         } else {
           out.push(`- **\`${s.name}\`**: ${s.description}`);
-          for (const o of (s as { options?: APIApplicationCommandOption[] }).options ?? []) out.push(`  - ${optionLine(o)}`);
+          for (const o of (s as { options?: APIApplicationCommandOption[] }).options ?? [])
+            out.push(`  - ${optionLine(o)}`);
         }
       }
     } else if (opts.length) {

@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Incident, MonitoredService } from '@gynx/database';
 import { canTransitionIncident, severitiesAtOrBelow } from './incidents';
-import { computeUptime, overallState, toPublicIncident, toPublicMaintenance, toPublicService } from './public';
+import {
+  computeUptime,
+  overallState,
+  toPublicIncident,
+  toPublicMaintenance,
+  toPublicService,
+} from './public';
 import { alertEmbed, incidentEmbed, statusPageEmbed } from './render';
 import { validateTarget } from './services';
 
@@ -75,7 +81,16 @@ describe('incident rules', () => {
 });
 
 describe('public projections never expose monitoring internals', () => {
-  const forbidden = ['secret-host', 'target', 'allowPrivate', 'errorClass', 'port', 'consecutive', 'lastAlert', 'createdById'];
+  const forbidden = [
+    'secret-host',
+    'target',
+    'allowPrivate',
+    'errorClass',
+    'port',
+    'consecutive',
+    'lastAlert',
+    'createdById',
+  ];
   const assertClean = (value: unknown) => {
     const json = JSON.stringify(value);
     for (const f of forbidden) expect(json, `leaked "${f}"`).not.toContain(f);
@@ -114,10 +129,24 @@ describe('public projections never expose monitoring internals', () => {
     assertClean(pi);
     expect(JSON.stringify(pi)).not.toContain('Hidden internal');
 
-    const pm = toPublicMaintenance({ id: 'm1', title: 'Upgrade', description: 'Kernel upgrade', status: 'SCHEDULED', startsAt: new Date(), endsAt: new Date(), services: [service] });
+    const pm = toPublicMaintenance({
+      id: 'm1',
+      title: 'Upgrade',
+      description: 'Kernel upgrade',
+      status: 'SCHEDULED',
+      startsAt: new Date(),
+      endsAt: new Date(),
+      services: [service],
+    });
     assertClean(pm);
 
-    const page = statusPageEmbed({ overall: 'OUTAGE', services: [toPublicService(service)], activeIncidents: [pi], upcomingMaintenance: [pm], generatedAt: new Date() });
+    const page = statusPageEmbed({
+      overall: 'OUTAGE',
+      services: [toPublicService(service)],
+      activeIncidents: [pi],
+      upcomingMaintenance: [pm],
+      generatedAt: new Date(),
+    });
     assertClean(page);
     assertClean(incidentEmbed(pi));
     assertClean(alertEmbed(toPublicService(service), 'OPERATIONAL'));
@@ -126,9 +155,21 @@ describe('public projections never expose monitoring internals', () => {
 
 describe('target validation', () => {
   it('accepts http(s) URLs and host+port for TCP', () => {
-    expect(validateTarget({ kind: 'HTTP', target: 'https://status.gynx.gg/health', port: null, allowPrivate: false }).target).toBe('https://status.gynx.gg/health');
-    expect(validateTarget({ kind: 'TCP', target: 'Node1.GYNX.gg', port: 25565, allowPrivate: false })).toEqual({ target: 'node1.gynx.gg', port: 25565 });
-    expect(validateTarget({ kind: 'MANUAL', target: 'ignored', port: 1, allowPrivate: false })).toEqual({ target: null, port: null });
+    expect(
+      validateTarget({
+        kind: 'HTTP',
+        target: 'https://status.gynx.gg/health',
+        port: null,
+        allowPrivate: false,
+      }).target,
+    ).toBe('https://status.gynx.gg/health');
+    expect(
+      validateTarget({ kind: 'TCP', target: 'Node1.GYNX.gg', port: 25565, allowPrivate: false }),
+    ).toEqual({ target: 'node1.gynx.gg', port: 25565 });
+    expect(validateTarget({ kind: 'MANUAL', target: 'ignored', port: 1, allowPrivate: false })).toEqual({
+      target: null,
+      port: null,
+    });
   });
   it('rejects other schemes, credentials, missing ports and private literals without allowPrivate', () => {
     const bad = [
@@ -143,6 +184,8 @@ describe('target validation', () => {
       { kind: 'TCP' as const, target: '10.0.0.5', port: 22 },
     ];
     for (const b of bad) expect(() => validateTarget({ ...b, allowPrivate: false }), b.target).toThrow();
-    expect(() => validateTarget({ kind: 'TCP', target: '10.0.0.5', port: 22, allowPrivate: true })).not.toThrow();
+    expect(() =>
+      validateTarget({ kind: 'TCP', target: '10.0.0.5', port: 22, allowPrivate: true }),
+    ).not.toThrow();
   });
 });

@@ -1,6 +1,16 @@
 import { z } from 'zod';
 import type { Db, MaintenanceWindow, Prisma } from '@gynx/database';
-import { cursorArgs, invalidState, neutraliseMentions, notFound, paginationSchema, redactSecrets, toPage, validation, type Page } from '@gynx/shared';
+import {
+  cursorArgs,
+  invalidState,
+  neutraliseMentions,
+  notFound,
+  paginationSchema,
+  redactSecrets,
+  toPage,
+  validation,
+  type Page,
+} from '@gynx/shared';
 import { audit } from '../core/audit';
 import { requireAny, requirePermission } from '../core/authz';
 import { requireModule } from '../core/config';
@@ -31,17 +41,23 @@ export const updateMaintenanceSchema = z.object(windowFields).partial();
 export type CreateMaintenanceInput = z.input<typeof createMaintenanceSchema>;
 
 function validateWindow(startsAt: Date, endsAt: Date, now: Date, isNew: boolean) {
-  if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime())) throw validation('Invalid start or end time.');
+  if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()))
+    throw validation('Invalid start or end time.');
   if (endsAt.getTime() <= startsAt.getTime()) throw validation('The maintenance must end after it starts.');
   if (endsAt.getTime() <= now.getTime()) throw validation('The maintenance end time is in the past.');
-  if (isNew && startsAt.getTime() < now.getTime() - PAST_GRACE_MS) throw validation('The maintenance start time is in the past.');
-  if (endsAt.getTime() - startsAt.getTime() > MAX_WINDOW_MS) throw validation('Maintenance windows can be at most 14 days long.');
+  if (isNew && startsAt.getTime() < now.getTime() - PAST_GRACE_MS)
+    throw validation('The maintenance start time is in the past.');
+  if (endsAt.getTime() - startsAt.getTime() > MAX_WINDOW_MS)
+    throw validation('Maintenance windows can be at most 14 days long.');
 }
 
 async function serviceIdsFor(tx: Prisma.TransactionClient, guildId: string, slugs: string[]) {
   const unique = [...new Set(slugs)];
   if (!unique.length) return [];
-  const rows = await tx.monitoredService.findMany({ where: { guildId, slug: { in: unique } }, select: { id: true, slug: true } });
+  const rows = await tx.monitoredService.findMany({
+    where: { guildId, slug: { in: unique } },
+    select: { id: true, slug: true },
+  });
   const missing = unique.filter((s) => !rows.some((r) => r.slug === s));
   if (missing.length) throw validation(`Unknown service(s): ${missing.join(', ')}`);
   return rows.map((r) => r.id);
@@ -69,10 +85,41 @@ export async function createMaintenance(ctx: Ctx, raw: CreateMaintenanceInput): 
     });
     const keys = maintenanceJobKeys(w.id);
     const payload = { windowId: w.id };
-    await enqueueJob(tx, { type: 'status.maintenance.announce', dedupeKey: keys.announce, runAt: now, guildId: ctx.guildId, payload });
-    await enqueueJob(tx, { type: 'status.maintenance.start', dedupeKey: keys.start, runAt: w.startsAt, guildId: ctx.guildId, payload });
-    await enqueueJob(tx, { type: 'status.maintenance.end', dedupeKey: keys.end, runAt: w.endsAt, guildId: ctx.guildId, payload });
-    await audit(ctx, { action: 'status.maintenance.create', targetType: 'MaintenanceWindow', targetId: w.id, metadata: { startsAt: w.startsAt.toISOString(), endsAt: w.endsAt.toISOString(), services: ids.length } }, tx);
+    await enqueueJob(tx, {
+      type: 'status.maintenance.announce',
+      dedupeKey: keys.announce,
+      runAt: now,
+      guildId: ctx.guildId,
+      payload,
+    });
+    await enqueueJob(tx, {
+      type: 'status.maintenance.start',
+      dedupeKey: keys.start,
+      runAt: w.startsAt,
+      guildId: ctx.guildId,
+      payload,
+    });
+    await enqueueJob(tx, {
+      type: 'status.maintenance.end',
+      dedupeKey: keys.end,
+      runAt: w.endsAt,
+      guildId: ctx.guildId,
+      payload,
+    });
+    await audit(
+      ctx,
+      {
+        action: 'status.maintenance.create',
+        targetType: 'MaintenanceWindow',
+        targetId: w.id,
+        metadata: {
+          startsAt: w.startsAt.toISOString(),
+          endsAt: w.endsAt.toISOString(),
+          services: ids.length,
+        },
+      },
+      tx,
+    );
     return w;
   });
 }
@@ -88,12 +135,17 @@ async function loadWindow(ctx: Ctx, id: string) {
  * window can only extend/shorten its end. Pending jobs are moved, and members
  * get a fresh announcement when the times change.
  */
-export async function updateMaintenance(ctx: Ctx, id: string, raw: z.input<typeof updateMaintenanceSchema>): Promise<MaintenanceWindow> {
+export async function updateMaintenance(
+  ctx: Ctx,
+  id: string,
+  raw: z.input<typeof updateMaintenanceSchema>,
+): Promise<MaintenanceWindow> {
   await requireModule(ctx, 'status');
   await requirePermission(ctx, 'incidents.manage', 'status.maintenance.update');
   const input = updateMaintenanceSchema.parse(raw);
   const w = await loadWindow(ctx, id);
-  if (w.status === 'COMPLETED' || w.status === 'CANCELLED') throw invalidState('This maintenance window is already closed.');
+  if (w.status === 'COMPLETED' || w.status === 'CANCELLED')
+    throw invalidState('This maintenance window is already closed.');
   if (w.status === 'IN_PROGRESS' && (input.startsAt || input.serviceSlugs)) {
     throw invalidState('Maintenance already started: only the end time and text can be changed.');
   }
@@ -129,7 +181,16 @@ export async function updateMaintenance(ctx: Ctx, id: string, raw: z.input<typeo
         });
       }
     }
-    await audit(ctx, { action: 'status.maintenance.update', targetType: 'MaintenanceWindow', targetId: id, metadata: { fields: Object.keys(input), timesChanged } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'status.maintenance.update',
+        targetType: 'MaintenanceWindow',
+        targetId: id,
+        metadata: { fields: Object.keys(input), timesChanged },
+      },
+      tx,
+    );
     return updated;
   });
 }
@@ -140,19 +201,36 @@ export async function cancelMaintenance(ctx: Ctx, id: string): Promise<Maintenan
   await requirePermission(ctx, 'incidents.manage', 'status.maintenance.cancel');
   const w = await loadWindow(ctx, id);
   if (w.status !== 'SCHEDULED') {
-    throw invalidState(w.status === 'IN_PROGRESS' ? 'This maintenance is in progress — end it early instead.' : 'This maintenance window is already closed.');
+    throw invalidState(
+      w.status === 'IN_PROGRESS'
+        ? 'This maintenance is in progress — end it early instead.'
+        : 'This maintenance window is already closed.',
+    );
   }
   return ctx.db.$transaction(async (tx) => {
-    const res = await tx.maintenanceWindow.updateMany({ where: { id, status: 'SCHEDULED' }, data: { status: 'CANCELLED' } });
+    const res = await tx.maintenanceWindow.updateMany({
+      where: { id, status: 'SCHEDULED' },
+      data: { status: 'CANCELLED' },
+    });
     if (res.count === 0) throw invalidState('This maintenance window changed state; please refresh.');
     const keys = maintenanceJobKeys(id);
     await cancelJob(tx, keys.announce);
     await cancelJob(tx, keys.start);
     await cancelJob(tx, keys.end);
     if (w.announcedAt) {
-      await enqueueJob(tx, { type: 'status.maintenance.cancelled', dedupeKey: keys.cancelled, runAt: ctx.now(), guildId: ctx.guildId, payload: { windowId: id } });
+      await enqueueJob(tx, {
+        type: 'status.maintenance.cancelled',
+        dedupeKey: keys.cancelled,
+        runAt: ctx.now(),
+        guildId: ctx.guildId,
+        payload: { windowId: id },
+      });
     }
-    await audit(ctx, { action: 'status.maintenance.cancel', targetType: 'MaintenanceWindow', targetId: id }, tx);
+    await audit(
+      ctx,
+      { action: 'status.maintenance.cancel', targetType: 'MaintenanceWindow', targetId: id },
+      tx,
+    );
     return tx.maintenanceWindow.findUniqueOrThrow({ where: { id } });
   });
 }
@@ -168,8 +246,19 @@ export async function endMaintenanceNow(ctx: Ctx, id: string): Promise<Maintenan
     const updated = await tx.maintenanceWindow.update({ where: { id }, data: { endsAt: now } });
     const key = maintenanceJobKeys(id).end;
     const moved = await rescheduleJob(tx, key, now);
-    if (!moved) await enqueueJob(tx, { type: 'status.maintenance.end', dedupeKey: `${key}:early`, runAt: now, guildId: ctx.guildId, payload: { windowId: id } });
-    await audit(ctx, { action: 'status.maintenance.end_early', targetType: 'MaintenanceWindow', targetId: id }, tx);
+    if (!moved)
+      await enqueueJob(tx, {
+        type: 'status.maintenance.end',
+        dedupeKey: `${key}:early`,
+        runAt: now,
+        guildId: ctx.guildId,
+        payload: { windowId: id },
+      });
+    await audit(
+      ctx,
+      { action: 'status.maintenance.end_early', targetType: 'MaintenanceWindow', targetId: id },
+      tx,
+    );
     return updated;
   });
 }
@@ -178,7 +267,10 @@ export const listMaintenanceSchema = paginationSchema.extend({
   status: z.enum(['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
 });
 
-export async function listMaintenance(ctx: Ctx, raw: z.input<typeof listMaintenanceSchema> = {}): Promise<Page<MaintenanceWindow & { services: Array<{ id: string; slug: string; name: string }> }>> {
+export async function listMaintenance(
+  ctx: Ctx,
+  raw: z.input<typeof listMaintenanceSchema> = {},
+): Promise<Page<MaintenanceWindow & { services: Array<{ id: string; slug: string; name: string }> }>> {
   await requireAny(ctx, ['incidents.view', 'incidents.manage'], 'status.maintenance.list');
   const q = listMaintenanceSchema.parse(raw);
   const rows = await ctx.db.maintenanceWindow.findMany({
@@ -206,7 +298,17 @@ export type WindowWithServices = Prisma.MaintenanceWindowGetPayload<{ include: t
 
 const sysAudit = async (tx: Prisma.TransactionClient, guildId: string, action: string, targetId: string) =>
   tx.securityAuditEvent.create({
-    data: { guildId, actorId: 'system', actorType: 'SYSTEM', source: 'worker', action, targetType: 'MaintenanceWindow', targetId, result: 'SUCCESS', metadata: {} },
+    data: {
+      guildId,
+      actorId: 'system',
+      actorType: 'SYSTEM',
+      source: 'worker',
+      action,
+      targetType: 'MaintenanceWindow',
+      targetId,
+      result: 'SUCCESS',
+      metadata: {},
+    },
   });
 
 /**
@@ -214,14 +316,24 @@ const sysAudit = async (tx: Prisma.TransactionClient, guildId: string, action: s
  * services → MAINTENANCE. Returns the window while it is in progress, or null
  * if it was cancelled / is not due (stale job after a reschedule).
  */
-export async function beginMaintenance(db: Ctx['db'], windowId: string, now: Date): Promise<WindowWithServices | null> {
+export async function beginMaintenance(
+  db: Ctx['db'],
+  windowId: string,
+  now: Date,
+): Promise<WindowWithServices | null> {
   const w = await db.maintenanceWindow.findUnique({ where: { id: windowId }, include: withServices });
   if (!w) return null;
   if (w.status === 'IN_PROGRESS') return w;
   if (w.status !== 'SCHEDULED' || w.startsAt.getTime() > now.getTime() + 1000) return null;
   return db.$transaction(async (tx) => {
-    const res = await tx.maintenanceWindow.updateMany({ where: { id: windowId, status: 'SCHEDULED' }, data: { status: 'IN_PROGRESS' } });
-    if (res.count === 0) return tx.maintenanceWindow.findUnique({ where: { id: windowId }, include: withServices }).then((x) => (x?.status === 'IN_PROGRESS' ? x : null));
+    const res = await tx.maintenanceWindow.updateMany({
+      where: { id: windowId, status: 'SCHEDULED' },
+      data: { status: 'IN_PROGRESS' },
+    });
+    if (res.count === 0)
+      return tx.maintenanceWindow
+        .findUnique({ where: { id: windowId }, include: withServices })
+        .then((x) => (x?.status === 'IN_PROGRESS' ? x : null));
     await tx.monitoredService.updateMany({
       where: { id: { in: w.services.map((s) => s.id) }, state: { not: 'MAINTENANCE' } },
       data: { state: 'MAINTENANCE', lastStateChangeAt: now },
@@ -236,14 +348,21 @@ export async function beginMaintenance(db: Ctx['db'], windowId: string, now: Dat
  * window go back to UNKNOWN with fresh counters, so the next check sets their
  * real state. Returns the window and whether an "ended" notice should be posted.
  */
-export async function finishMaintenance(db: Ctx['db'], windowId: string, now: Date): Promise<{ window: WindowWithServices; notify: boolean } | null> {
+export async function finishMaintenance(
+  db: Ctx['db'],
+  windowId: string,
+  now: Date,
+): Promise<{ window: WindowWithServices; notify: boolean } | null> {
   const w = await db.maintenanceWindow.findUnique({ where: { id: windowId }, include: withServices });
   if (!w || w.status === 'CANCELLED') return null;
   if (w.status === 'COMPLETED') return { window: w, notify: !w.endNotifiedAt && !!w.startNotifiedAt };
   if (w.endsAt.getTime() > now.getTime() + 1000) return null; // stale job: the window was extended
   const wasRunning = w.status === 'IN_PROGRESS';
   return db.$transaction(async (tx) => {
-    const res = await tx.maintenanceWindow.updateMany({ where: { id: windowId, status: { in: ['SCHEDULED', 'IN_PROGRESS'] } }, data: { status: 'COMPLETED' } });
+    const res = await tx.maintenanceWindow.updateMany({
+      where: { id: windowId, status: { in: ['SCHEDULED', 'IN_PROGRESS'] } },
+      data: { status: 'COMPLETED' },
+    });
     if (res.count === 0) return null;
     const stillCovered = await tx.maintenanceWindow.findMany({
       where: { guildId: w.guildId, status: 'IN_PROGRESS', id: { not: w.id } },
@@ -256,7 +375,10 @@ export async function finishMaintenance(db: Ctx['db'], windowId: string, now: Da
       data: { state: 'UNKNOWN', consecutiveFailures: 0, consecutiveSuccesses: 0, lastStateChangeAt: now },
     });
     await sysAudit(tx, w.guildId, 'status.maintenance.complete', w.id);
-    const window = await tx.maintenanceWindow.findUniqueOrThrow({ where: { id: windowId }, include: withServices });
+    const window = await tx.maintenanceWindow.findUniqueOrThrow({
+      where: { id: windowId },
+      include: withServices,
+    });
     return { window, notify: wasRunning && !window.endNotifiedAt };
   });
 }

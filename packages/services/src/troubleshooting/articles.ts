@@ -1,6 +1,14 @@
 import { z } from 'zod';
 import { isUniqueViolation, type KnowledgeArticle, type Prisma } from '@gynx/database';
-import { conflict, cursorArgs, notFound, paginationSchema, redactSecrets, toPage, type Page } from '@gynx/shared';
+import {
+  conflict,
+  cursorArgs,
+  notFound,
+  paginationSchema,
+  redactSecrets,
+  toPage,
+  type Page,
+} from '@gynx/shared';
 import { audit } from '../core/audit';
 import { can, requirePermission, requireRate } from '../core/authz';
 import { requireModule } from '../core/config';
@@ -33,7 +41,9 @@ function clean<T extends Partial<z.infer<typeof articleInputSchema>>>(a: T): T {
   return {
     ...a,
     ...(a.title !== undefined ? { title: redactSecrets(a.title, { maskIps: false, keepEmails: true }) } : {}),
-    ...(a.summary !== undefined ? { summary: redactSecrets(a.summary, { maskIps: false, keepEmails: true }) } : {}),
+    ...(a.summary !== undefined
+      ? { summary: redactSecrets(a.summary, { maskIps: false, keepEmails: true }) }
+      : {}),
     ...(a.body !== undefined ? { body: redactSecrets(a.body, { maskIps: false, keepEmails: true }) } : {}),
     ...(a.tags !== undefined ? { tags: [...new Set(a.tags)] } : {}),
   };
@@ -47,7 +57,16 @@ export async function createArticle(ctx: Ctx, raw: ArticleInput): Promise<Knowle
       const a = await tx.knowledgeArticle.create({
         data: { ...input, game: input.game ?? null, url: input.url ?? null, guildId: ctx.guildId },
       });
-      await audit(ctx, { action: 'troubleshooting.article.create', targetType: 'KnowledgeArticle', targetId: a.id, metadata: { slug: a.slug, published: a.published } }, tx);
+      await audit(
+        ctx,
+        {
+          action: 'troubleshooting.article.create',
+          targetType: 'KnowledgeArticle',
+          targetId: a.id,
+          metadata: { slug: a.slug, published: a.published },
+        },
+        tx,
+      );
       return a;
     });
   } catch (e) {
@@ -62,14 +81,27 @@ async function loadManaged(ctx: Ctx, id: string): Promise<KnowledgeArticle> {
   return a;
 }
 
-export async function updateArticle(ctx: Ctx, id: string, raw: z.input<typeof articleUpdateSchema>): Promise<KnowledgeArticle> {
+export async function updateArticle(
+  ctx: Ctx,
+  id: string,
+  raw: z.input<typeof articleUpdateSchema>,
+): Promise<KnowledgeArticle> {
   await requirePermission(ctx, 'troubleshooting.manage', 'troubleshooting.article.update');
   const input = clean(articleUpdateSchema.parse(raw));
   const existing = await loadManaged(ctx, id);
   try {
     return await ctx.db.$transaction(async (tx) => {
       const a = await tx.knowledgeArticle.update({ where: { id: existing.id }, data: input });
-      await audit(ctx, { action: 'troubleshooting.article.update', targetType: 'KnowledgeArticle', targetId: a.id, metadata: { slug: a.slug, fields: Object.keys(input) } }, tx);
+      await audit(
+        ctx,
+        {
+          action: 'troubleshooting.article.update',
+          targetType: 'KnowledgeArticle',
+          targetId: a.id,
+          metadata: { slug: a.slug, fields: Object.keys(input) },
+        },
+        tx,
+      );
       return a;
     });
   } catch (e) {
@@ -78,7 +110,11 @@ export async function updateArticle(ctx: Ctx, id: string, raw: z.input<typeof ar
   }
 }
 
-export async function setArticlePublished(ctx: Ctx, id: string, published: boolean): Promise<KnowledgeArticle> {
+export async function setArticlePublished(
+  ctx: Ctx,
+  id: string,
+  published: boolean,
+): Promise<KnowledgeArticle> {
   return updateArticle(ctx, id, { published });
 }
 
@@ -87,7 +123,16 @@ export async function deleteArticle(ctx: Ctx, id: string): Promise<void> {
   const a = await loadManaged(ctx, id);
   await ctx.db.$transaction(async (tx) => {
     await tx.knowledgeArticle.delete({ where: { id: a.id } });
-    await audit(ctx, { action: 'troubleshooting.article.delete', targetType: 'KnowledgeArticle', targetId: a.id, metadata: { slug: a.slug } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'troubleshooting.article.delete',
+        targetType: 'KnowledgeArticle',
+        targetId: a.id,
+        metadata: { slug: a.slug },
+      },
+      tx,
+    );
   });
 }
 
@@ -97,7 +142,10 @@ export const listArticlesSchema = paginationSchema.extend({
 });
 
 /** Staff listing including drafts. */
-export async function listArticles(ctx: Ctx, raw: z.input<typeof listArticlesSchema> = {}): Promise<Page<KnowledgeArticle>> {
+export async function listArticles(
+  ctx: Ctx,
+  raw: z.input<typeof listArticlesSchema> = {},
+): Promise<Page<KnowledgeArticle>> {
   await requirePermission(ctx, 'troubleshooting.manage');
   const f = listArticlesSchema.parse(raw);
   const rows = await ctx.db.knowledgeArticle.findMany({
@@ -112,7 +160,9 @@ export async function listArticles(ctx: Ctx, raw: z.input<typeof listArticlesSch
 export async function getArticle(ctx: Ctx, idOrSlug: string): Promise<KnowledgeArticle> {
   await requireModule(ctx, 'troubleshooting');
   const key = z.string().trim().min(1).max(64).parse(idOrSlug);
-  const a = await ctx.db.knowledgeArticle.findFirst({ where: { guildId: ctx.guildId, OR: [{ id: key }, { slug: key }] } });
+  const a = await ctx.db.knowledgeArticle.findFirst({
+    where: { guildId: ctx.guildId, OR: [{ id: key }, { slug: key }] },
+  });
   if (!a || (!a.published && !can(ctx, 'troubleshooting.manage'))) throw notFound('Article');
   return a;
 }
@@ -125,7 +175,11 @@ export async function viewArticle(ctx: Ctx, idOrSlug: string): Promise<Knowledge
 }
 
 /** Members rate an article once per day per article. */
-export async function voteArticle(ctx: Ctx, id: string, helpful: boolean): Promise<{ helpfulYes: number; helpfulNo: number }> {
+export async function voteArticle(
+  ctx: Ctx,
+  id: string,
+  helpful: boolean,
+): Promise<{ helpfulYes: number; helpfulNo: number }> {
   const a = await getArticle(ctx, id);
   if (!a.published) throw notFound('Article');
   await requireRate(ctx, 'troubleshooting.vote', 20, 3600);
@@ -145,12 +199,41 @@ export const searchArticlesSchema = z.object({
   query: z.string().trim().min(2, 'Search for at least 2 characters.').max(100),
   game: gameKeySchema.optional(),
   /** Offset cursor (results are ranked, not id-ordered). */
-  cursor: z.string().regex(/^\d{1,4}$/).optional(),
+  cursor: z
+    .string()
+    .regex(/^\d{1,4}$/)
+    .optional(),
   limit: z.coerce.number().int().min(1).max(25).default(5),
   includeDrafts: z.boolean().default(false),
 });
 
-const STOP_WORDS = new Set(['the', 'and', 'for', 'with', 'my', 'is', 'to', 'a', 'an', 'of', 'on', 'in', 'it', 'i', 'cant', "can't", 'how', 'why', 'what', 'can', 'not', 'dont', 'doesnt', 'wont', 'help']);
+const STOP_WORDS = new Set([
+  'the',
+  'and',
+  'for',
+  'with',
+  'my',
+  'is',
+  'to',
+  'a',
+  'an',
+  'of',
+  'on',
+  'in',
+  'it',
+  'i',
+  'cant',
+  "can't",
+  'how',
+  'why',
+  'what',
+  'can',
+  'not',
+  'dont',
+  'doesnt',
+  'wont',
+  'help',
+]);
 
 export function tokenize(q: string): string[] {
   const terms = q
@@ -162,7 +245,10 @@ export function tokenize(q: string): string[] {
   return [...new Set(terms)].slice(0, 8);
 }
 
-type Scorable = Pick<KnowledgeArticle, 'title' | 'summary' | 'body' | 'tags' | 'game' | 'helpfulYes' | 'helpfulNo' | 'views'>;
+type Scorable = Pick<
+  KnowledgeArticle,
+  'title' | 'summary' | 'body' | 'tags' | 'game' | 'helpfulYes' | 'helpfulNo' | 'views'
+>;
 
 /** Weighted relevance: title ≫ tags > summary > body, plus game match and helpfulness. Pure. */
 export function scoreArticle(a: Scorable, terms: readonly string[], phrase: string, game?: string): number {
@@ -198,21 +284,29 @@ export interface SearchHit {
   score: number;
 }
 
-export async function searchArticles(ctx: Ctx, raw: z.input<typeof searchArticlesSchema>): Promise<{ items: SearchHit[]; nextCursor: string | null; total: number }> {
+export async function searchArticles(
+  ctx: Ctx,
+  raw: z.input<typeof searchArticlesSchema>,
+): Promise<{ items: SearchHit[]; nextCursor: string | null; total: number }> {
   await requireModule(ctx, 'troubleshooting');
   const f = searchArticlesSchema.parse(raw);
   const drafts = f.includeDrafts && can(ctx, 'troubleshooting.manage');
   const terms = tokenize(f.query);
   if (terms.length === 0) return { items: [], nextCursor: null, total: 0 };
 
-  const ci = (field: 'title' | 'summary' | 'body', t: string): Prisma.KnowledgeArticleWhereInput => ({ [field]: { contains: t, mode: 'insensitive' } });
+  const ci = (field: 'title' | 'summary' | 'body', t: string): Prisma.KnowledgeArticleWhereInput => ({
+    [field]: { contains: t, mode: 'insensitive' },
+  });
   const rows = await ctx.db.knowledgeArticle.findMany({
     where: {
       guildId: ctx.guildId,
       ...(drafts ? {} : { published: true }),
       // A game filter keeps general (game = null) articles too.
       ...(f.game ? { AND: [{ OR: [{ game: f.game }, { game: null }] }] } : {}),
-      OR: [...terms.flatMap((t) => [ci('title', t), ci('summary', t), ci('body', t)]), { tags: { hasSome: terms } }],
+      OR: [
+        ...terms.flatMap((t) => [ci('title', t), ci('summary', t), ci('body', t)]),
+        { tags: { hasSome: terms } },
+      ],
     },
     take: 200,
     orderBy: { id: 'asc' },
@@ -220,7 +314,10 @@ export async function searchArticles(ctx: Ctx, raw: z.input<typeof searchArticle
   const ranked = rows
     .map((article) => ({ article, score: scoreArticle(article, terms, f.query, f.game) }))
     .filter((h) => h.score > 0)
-    .sort((a, b) => b.score - a.score || b.article.views - a.article.views || a.article.id.localeCompare(b.article.id));
+    .sort(
+      (a, b) =>
+        b.score - a.score || b.article.views - a.article.views || a.article.id.localeCompare(b.article.id),
+    );
   const offset = f.cursor ? Number(f.cursor) : 0;
   const items = ranked.slice(offset, offset + f.limit);
   const next = offset + f.limit < ranked.length ? String(offset + f.limit) : null;
@@ -228,7 +325,11 @@ export async function searchArticles(ctx: Ctx, raw: z.input<typeof searchArticle
 }
 
 /** Title autocomplete for /knowledge-search (published only, ≤ 25). */
-export async function autocompleteArticles(ctx: Ctx, prefix: string, game?: string): Promise<Array<{ slug: string; title: string }>> {
+export async function autocompleteArticles(
+  ctx: Ctx,
+  prefix: string,
+  game?: string,
+): Promise<Array<{ slug: string; title: string }>> {
   await requireModule(ctx, 'troubleshooting');
   const q = prefix.trim().slice(0, 100);
   const g = game ? gameKeySchema.safeParse(game) : undefined;

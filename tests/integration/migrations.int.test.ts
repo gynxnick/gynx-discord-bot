@@ -30,7 +30,9 @@ describe('database migrations', () => {
 
   it('issues gap-free sequences under concurrency', async () => {
     const guildId = await freshGuild();
-    const values = await Promise.all(Array.from({ length: 20 }, () => nextSequence(testDb(), guildId, 'incident')));
+    const values = await Promise.all(
+      Array.from({ length: 20 }, () => nextSequence(testDb(), guildId, 'incident')),
+    );
     expect(new Set(values).size).toBe(20);
     expect(Math.max(...values)).toBe(20);
   });

@@ -23,14 +23,26 @@ const base = (over: Partial<CheckTarget> = {}): CheckTarget => ({
 /** Public resolver stub so tests never hit DNS. */
 const publicResolver = async () => [{ address: '93.184.216.34', family: 4 }];
 
-function fakeTransport(handler: (req: HttpTransportRequest) => { statusCode: number; location?: string; body?: string; latencyMs?: number }): CheckTransport & { calls: HttpTransportRequest[] } {
+function fakeTransport(
+  handler: (req: HttpTransportRequest) => {
+    statusCode: number;
+    location?: string;
+    body?: string;
+    latencyMs?: number;
+  },
+): CheckTransport & { calls: HttpTransportRequest[] } {
   const calls: HttpTransportRequest[] = [];
   return {
     calls,
     async http(req) {
       calls.push(req);
       const r = handler(req);
-      return { statusCode: r.statusCode, location: r.location, body: Buffer.from(r.body ?? ''), latencyMs: r.latencyMs ?? 10 };
+      return {
+        statusCode: r.statusCode,
+        location: r.location,
+        body: Buffer.from(r.body ?? ''),
+        latencyMs: r.latencyMs ?? 10,
+      };
     },
     async tcp() {
       return 5;
@@ -81,7 +93,8 @@ describe('HTTP adapter against a real local server', () => {
     await new Promise<void>((r) => server.close(() => r()));
   });
 
-  const local = (path: string, over: Partial<CheckTarget> = {}) => base({ target: `http://127.0.0.1:${port}${path}`, allowPrivate: true, ...over });
+  const local = (path: string, over: Partial<CheckTarget> = {}) =>
+    base({ target: `http://127.0.0.1:${port}${path}`, allowPrivate: true, ...over });
 
   it('reports ok with latency and status code', async () => {
     const r = await httpAdapter.check(local('/ok'));
@@ -90,16 +103,30 @@ describe('HTTP adapter against a real local server', () => {
   });
 
   it('classifies 5xx and unexpected status codes', async () => {
-    expect(await httpAdapter.check(local('/nope'))).toMatchObject({ ok: false, statusCode: 503, errorClass: 'HTTP_5XX' });
-    expect(await httpAdapter.check(local('/ok', { expectedStatus: 204 }))).toMatchObject({ ok: false, statusCode: 200, errorClass: 'UNEXPECTED_STATUS' });
+    expect(await httpAdapter.check(local('/nope'))).toMatchObject({
+      ok: false,
+      statusCode: 503,
+      errorClass: 'HTTP_5XX',
+    });
+    expect(await httpAdapter.check(local('/ok', { expectedStatus: 204 }))).toMatchObject({
+      ok: false,
+      statusCode: 200,
+      errorClass: 'UNEXPECTED_STATUS',
+    });
   });
 
   it('enforces the timeout', async () => {
-    expect(await httpAdapter.check(local('/slow', { timeoutMs: 300 }))).toMatchObject({ ok: false, errorClass: 'TIMEOUT', latencyMs: null });
+    expect(await httpAdapter.check(local('/slow', { timeoutMs: 300 }))).toMatchObject({
+      ok: false,
+      errorClass: 'TIMEOUT',
+      latencyMs: null,
+    });
   });
 
   it('marks slow-but-ok responses as degraded', async () => {
-    expect(await httpAdapter.check(local('/slow', { timeoutMs: 3000, degradedLatencyMs: 500 }))).toMatchObject({ ok: true, degraded: true });
+    expect(
+      await httpAdapter.check(local('/slow', { timeoutMs: 3000, degradedLatencyMs: 500 })),
+    ).toMatchObject({ ok: true, degraded: true });
   });
 
   it('caps the body read at 64KB without failing', async () => {
@@ -108,7 +135,11 @@ describe('HTTP adapter against a real local server', () => {
 
   it('follows at most one same-host redirect and never a cross-host one', async () => {
     expect(await httpAdapter.check(local('/redirect-same'))).toMatchObject({ ok: true, statusCode: 200 });
-    expect(await httpAdapter.check(local('/redirect-loop'))).toMatchObject({ ok: false, statusCode: 302, errorClass: 'UNEXPECTED_STATUS' });
+    expect(await httpAdapter.check(local('/redirect-loop'))).toMatchObject({
+      ok: false,
+      statusCode: 302,
+      errorClass: 'UNEXPECTED_STATUS',
+    });
     const before = hits;
     expect(await httpAdapter.check(local('/redirect-away'))).toMatchObject({ ok: false, statusCode: 302 });
     expect(hits - before).toBe(1);
@@ -130,10 +161,16 @@ describe('HTTP adapter against a real local server', () => {
     const tcp = net.createServer((s) => s.end());
     await new Promise<void>((r) => tcp.listen(0, '127.0.0.1', () => r()));
     const tcpPort = (tcp.address() as AddressInfo).port;
-    expect(await tcpAdapter.check(base({ kind: 'TCP', target: '127.0.0.1', port: tcpPort, allowPrivate: true }))).toMatchObject({ ok: true });
-    expect(await tcpAdapter.check(base({ kind: 'TCP', target: '127.0.0.1', port: tcpPort, allowPrivate: false }))).toMatchObject({ ok: false, errorClass: 'BLOCKED_TARGET' });
+    expect(
+      await tcpAdapter.check(base({ kind: 'TCP', target: '127.0.0.1', port: tcpPort, allowPrivate: true })),
+    ).toMatchObject({ ok: true });
+    expect(
+      await tcpAdapter.check(base({ kind: 'TCP', target: '127.0.0.1', port: tcpPort, allowPrivate: false })),
+    ).toMatchObject({ ok: false, errorClass: 'BLOCKED_TARGET' });
     await new Promise<void>((r) => tcp.close(() => r()));
-    expect(await tcpAdapter.check(base({ kind: 'TCP', target: '127.0.0.1', port: tcpPort, allowPrivate: true }))).toMatchObject({ ok: false, errorClass: 'CONN_REFUSED' });
+    expect(
+      await tcpAdapter.check(base({ kind: 'TCP', target: '127.0.0.1', port: tcpPort, allowPrivate: true })),
+    ).toMatchObject({ ok: false, errorClass: 'CONN_REFUSED' });
   });
 });
 
@@ -149,7 +186,10 @@ describe('HTTP adapter with an injected transport', () => {
   it('blocks hostnames that resolve to private / metadata addresses (DNS rebinding)', async () => {
     const t = fakeTransport(() => ({ statusCode: 200 }));
     for (const address of ['10.1.2.3', '169.254.169.254', '127.0.0.1', '::1']) {
-      const r = await httpAdapter.check(base(), { transport: t, resolver: async () => [{ address, family: address.includes(':') ? 6 : 4 }] });
+      const r = await httpAdapter.check(base(), {
+        transport: t,
+        resolver: async () => [{ address, family: address.includes(':') ? 6 : 4 }],
+      });
       expect(r.errorClass).toBe('BLOCKED_TARGET');
     }
     expect(t.calls).toHaveLength(0);
@@ -157,41 +197,81 @@ describe('HTTP adapter with an injected transport', () => {
 
   it('re-validates the redirect target', async () => {
     let n = 0;
-    const t = fakeTransport(() => (n++ === 0 ? { statusCode: 301, location: 'https://status.example.com/next' } : { statusCode: 200 }));
-    const resolver = async () => (n === 0 ? [{ address: '93.184.216.34', family: 4 }] : [{ address: '10.0.0.1', family: 4 }]);
+    const t = fakeTransport(() =>
+      n++ === 0 ? { statusCode: 301, location: 'https://status.example.com/next' } : { statusCode: 200 },
+    );
+    const resolver = async () =>
+      n === 0 ? [{ address: '93.184.216.34', family: 4 }] : [{ address: '10.0.0.1', family: 4 }];
     const r = await httpAdapter.check(base(), { transport: t, resolver });
     expect(r.errorClass).toBe('BLOCKED_TARGET');
   });
 
   it('rejects non-http schemes and credentials in URLs', async () => {
     const t = fakeTransport(() => ({ statusCode: 200 }));
-    for (const target of ['ftp://status.example.com', 'file:///etc/passwd', 'gopher://x', 'https://u:p@status.example.com', 'not a url']) {
-      expect((await httpAdapter.check(base({ target }), { transport: t, resolver: publicResolver })).errorClass).toBe('BLOCKED_TARGET');
+    for (const target of [
+      'ftp://status.example.com',
+      'file:///etc/passwd',
+      'gopher://x',
+      'https://u:p@status.example.com',
+      'not a url',
+    ]) {
+      expect(
+        (await httpAdapter.check(base({ target }), { transport: t, resolver: publicResolver })).errorClass,
+      ).toBe('BLOCKED_TARGET');
     }
     expect(t.calls).toHaveLength(0);
   });
 
   it('reports DNS failures as a sanitised class', async () => {
-    const r = await httpAdapter.check(base(), { resolver: async () => { throw new Error('getaddrinfo ENOTFOUND status.example.com'); } });
+    const r = await httpAdapter.check(base(), {
+      resolver: async () => {
+        throw new Error('getaddrinfo ENOTFOUND status.example.com');
+      },
+    });
     expect(r).toEqual({ ok: false, degraded: false, latencyMs: null, errorClass: 'DNS' });
   });
 
   it('classifies 4xx and maps statuspage outages', async () => {
     const t = fakeTransport(() => ({ statusCode: 404 }));
-    expect((await httpAdapter.check(base(), { transport: t, resolver: publicResolver })).errorClass).toBe('HTTP_4XX');
+    expect((await httpAdapter.check(base(), { transport: t, resolver: publicResolver })).errorClass).toBe(
+      'HTTP_4XX',
+    );
     const sp = fakeTransport(() => ({ statusCode: 200, body: '{"status":{"indicator":"major"}}' }));
-    expect(await statuspageAdapter.check(base({ kind: 'STATUSPAGE', target: 'https://status.example.com/' }), { transport: sp, resolver: publicResolver })).toMatchObject({ ok: false });
+    expect(
+      await statuspageAdapter.check(base({ kind: 'STATUSPAGE', target: 'https://status.example.com/' }), {
+        transport: sp,
+        resolver: publicResolver,
+      }),
+    ).toMatchObject({ ok: false });
     expect(sp.calls[0]!.url.pathname).toBe('/api/v2/status.json');
     const junk = fakeTransport(() => ({ statusCode: 200, body: '<html>' }));
-    expect((await statuspageAdapter.check(base({ kind: 'STATUSPAGE' }), { transport: junk, resolver: publicResolver })).errorClass).toBe('INVALID_RESPONSE');
+    expect(
+      (
+        await statuspageAdapter.check(base({ kind: 'STATUSPAGE' }), {
+          transport: junk,
+          resolver: publicResolver,
+        })
+      ).errorClass,
+    ).toBe('INVALID_RESPONSE');
   });
 
   it('maps indicators and error codes without leaking messages', () => {
     expect(mapIndicator('none')).toEqual({ ok: true, degraded: false });
     expect(mapIndicator('critical').ok).toBe(false);
-    expect(classifyError(Object.assign(new Error('connect ECONNREFUSED 10.0.0.1:443'), { code: 'ECONNREFUSED', syscall: 'connect' }))).toBe('CONN_REFUSED');
+    expect(
+      classifyError(
+        Object.assign(new Error('connect ECONNREFUSED 10.0.0.1:443'), {
+          code: 'ECONNREFUSED',
+          syscall: 'connect',
+        }),
+      ),
+    ).toBe('CONN_REFUSED');
     expect(classifyError(Object.assign(new Error('x'), { code: 'CERT_HAS_EXPIRED' }))).toBe('TLS');
-    expect(classifyError(Object.assign(new Error('x'), { code: 'ERR_TLS_CERT_ALTNAME_INVALID' }))).toBe('TLS');
-    expect(classifyError(Object.assign(new Error('x'), { code: 'HPE_INVALID_CONSTANT' }))).toBe('INVALID_RESPONSE');
+    expect(classifyError(Object.assign(new Error('x'), { code: 'ERR_TLS_CERT_ALTNAME_INVALID' }))).toBe(
+      'TLS',
+    );
+    expect(classifyError(Object.assign(new Error('x'), { code: 'HPE_INVALID_CONSTANT' }))).toBe(
+      'INVALID_RESPONSE',
+    );
   });
 });

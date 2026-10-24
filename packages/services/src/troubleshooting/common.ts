@@ -21,5 +21,7 @@ export function supportUrlOf(cfg: Pick<GuildConfig, 'supportUrl'>): string | nul
 
 /** Escalation copy. Tickets live in an external system — we only ever link to it. */
 export function supportText(url: string | null): string {
-  return url ? `Still stuck? Contact the support team: ${url}` : 'Still stuck? Please contact the support team.';
+  return url
+    ? `Still stuck? Contact the support team: ${url}`
+    : 'Still stuck? Please contact the support team.';
 }

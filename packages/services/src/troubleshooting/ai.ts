@@ -59,7 +59,14 @@ export const NoopProvider: AiTroubleshootingProvider = {
  * vetted implementation exists.
  */
 export async function getAiProvider(ctx: Ctx): Promise<AiTroubleshootingProvider> {
-  const cfg = await ctx.db.integrationConfig.findFirst({ where: { guildId: ctx.guildId, kind: 'AI_PROVIDER', enabled: true }, select: { name: true } });
-  if (cfg) ctx.log.debug({ provider: cfg.name }, 'AI provider configured but no implementation is available; using deterministic analysis only');
+  const cfg = await ctx.db.integrationConfig.findFirst({
+    where: { guildId: ctx.guildId, kind: 'AI_PROVIDER', enabled: true },
+    select: { name: true },
+  });
+  if (cfg)
+    ctx.log.debug(
+      { provider: cfg.name },
+      'AI provider configured but no implementation is available; using deterministic analysis only',
+    );
   return NoopProvider;
 }

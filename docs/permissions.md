@@ -27,16 +27,16 @@ Permissions are resolved per interaction (bot) and refreshed every 5 minutes per
 
 ### Recommended setup
 
-| Discord role | Grant |
-|---|---|
-| Owners / founders | (guild owner is automatic) or `OWNER` |
-| Admins | `ADMINISTRATOR` |
-| Senior staff | `SENIOR_STAFF` |
-| Support team | `SUPPORT_STAFF` |
-| Moderators | `MODERATOR` |
-| Marketing | `MARKETING_STAFF` |
-| Analysts / leadership viewers | `ANALYST` |
-| Members | nothing (self-service commands need no grant) |
+| Discord role                  | Grant                                         |
+| ----------------------------- | --------------------------------------------- |
+| Owners / founders             | (guild owner is automatic) or `OWNER`         |
+| Admins                        | `ADMINISTRATOR`                               |
+| Senior staff                  | `SENIOR_STAFF`                                |
+| Support team                  | `SUPPORT_STAFF`                               |
+| Moderators                    | `MODERATOR`                                   |
+| Marketing                     | `MARKETING_STAFF`                             |
+| Analysts / leadership viewers | `ANALYST`                                     |
+| Members                       | nothing (self-service commands need no grant) |
 
 Use `DENY` for exceptions, e.g. a moderator who should not ban: `USER <id> moderation.ban DENY`.
 
@@ -45,82 +45,83 @@ Use `DENY` for exceptions, e.g. a moderator who should not ban: `USER <id> moder
 Regenerate with `pnpm docs:permissions` after changing keys, presets or command policies.
 
 <!-- generated:start -->
+
 ### Permission keys by preset
 
-| Key | Description | Own | Adm | Snr | Sup | Mod | Mkt | Ana |
-|---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| `dashboard.access` | Sign in to the web dashboard | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `incidents.view` | View incidents and monitoring internals | ✓ | ✓ | ✓ | ✓ |  |  |  |
-| `incidents.manage` | Create and update incidents and maintenance windows | ✓ | ✓ | ✓ |  |  |  |  |
-| `status.manage` | Configure monitored services, endpoints and thresholds | ✓ | ✓ |  |  |  |  |  |
-| `moderation.execute` | Warn, timeout and kick members | ✓ | ✓ | ✓ |  | ✓ |  |  |
-| `moderation.ban` 🔒 | Ban and unban members | ✓ | ✓ | ✓ |  |  |  |  |
-| `moderation.audit.view` | View moderation records and moderator notes | ✓ | ✓ | ✓ |  | ✓ |  |  |
-| `automod.manage` | Configure automod thresholds, blocked terms and domains | ✓ | ✓ |  |  |  |  |  |
-| `security.reports.view` | View abuse and security reports | ✓ | ✓ | ✓ |  | ✓ |  |  |
-| `security.reports.manage` 🔒 | Triage, investigate and resolve reports | ✓ | ✓ | ✓ |  |  |  |  |
-| `audit.view` 🔒 | View the security audit log | ✓ | ✓ | ✓ |  |  |  |  |
-| `community.manage` | Edit welcome flow, self-roles, FAQs and guides | ✓ | ✓ |  |  |  |  |  |
-| `suggestions.manage` | Respond to and moderate suggestions | ✓ | ✓ | ✓ |  | ✓ |  |  |
-| `troubleshooting.manage` | Edit knowledge base and troubleshooting flows | ✓ | ✓ | ✓ | ✓ |  |  |  |
-| `events.manage` | Create and manage events | ✓ | ✓ |  |  |  | ✓ |  |
-| `polls.manage` | Create and close polls | ✓ | ✓ |  |  |  | ✓ |  |
-| `giveaways.manage` | Create, end and reroll giveaways | ✓ | ✓ |  |  |  | ✓ |  |
-| `announcements.create` | Draft announcements | ✓ | ✓ |  |  |  | ✓ |  |
-| `announcements.publish` | Publish and schedule announcements | ✓ | ✓ |  |  |  | ✓ |  |
-| `announcements.mass_mention` 🔒 | Use @everyone/@here and role mentions in announcements | ✓ | ✓ |  |  |  |  |  |
-| `referrals.view` | View referral analytics | ✓ | ✓ |  |  |  | ✓ | ✓ |
-| `referrals.manage` | Create tracked invites and review attribution disputes | ✓ | ✓ |  |  |  | ✓ |  |
-| `partners.review` | Review partner applications and campaigns | ✓ | ✓ |  |  |  | ✓ |  |
-| `analytics.view` | View analytics dashboards and weekly reports | ✓ | ✓ | ✓ |  |  | ✓ | ✓ |
-| `analytics.export` | Export analytics reports | ✓ | ✓ |  |  |  |  | ✓ |
-| `settings.manage` 🔒 | Change module, channel and integration settings | ✓ | ✓ |  |  |  |  |  |
-| `permissions.manage` 🔒 | Change staff permissions | ✓ | ✓ |  |  |  |  |  |
+| Key                             | Description                                             | Own | Adm | Snr | Sup | Mod | Mkt | Ana |
+| ------------------------------- | ------------------------------------------------------- | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| `dashboard.access`              | Sign in to the web dashboard                            |  ✓  |  ✓  |  ✓  |  ✓  |  ✓  |  ✓  |  ✓  |
+| `incidents.view`                | View incidents and monitoring internals                 |  ✓  |  ✓  |  ✓  |  ✓  |     |     |     |
+| `incidents.manage`              | Create and update incidents and maintenance windows     |  ✓  |  ✓  |  ✓  |     |     |     |     |
+| `status.manage`                 | Configure monitored services, endpoints and thresholds  |  ✓  |  ✓  |     |     |     |     |     |
+| `moderation.execute`            | Warn, timeout and kick members                          |  ✓  |  ✓  |  ✓  |     |  ✓  |     |     |
+| `moderation.ban` 🔒             | Ban and unban members                                   |  ✓  |  ✓  |  ✓  |     |     |     |     |
+| `moderation.audit.view`         | View moderation records and moderator notes             |  ✓  |  ✓  |  ✓  |     |  ✓  |     |     |
+| `automod.manage`                | Configure automod thresholds, blocked terms and domains |  ✓  |  ✓  |     |     |     |     |     |
+| `security.reports.view`         | View abuse and security reports                         |  ✓  |  ✓  |  ✓  |     |  ✓  |     |     |
+| `security.reports.manage` 🔒    | Triage, investigate and resolve reports                 |  ✓  |  ✓  |  ✓  |     |     |     |     |
+| `audit.view` 🔒                 | View the security audit log                             |  ✓  |  ✓  |  ✓  |     |     |     |     |
+| `community.manage`              | Edit welcome flow, self-roles, FAQs and guides          |  ✓  |  ✓  |     |     |     |     |     |
+| `suggestions.manage`            | Respond to and moderate suggestions                     |  ✓  |  ✓  |  ✓  |     |  ✓  |     |     |
+| `troubleshooting.manage`        | Edit knowledge base and troubleshooting flows           |  ✓  |  ✓  |  ✓  |  ✓  |     |     |     |
+| `events.manage`                 | Create and manage events                                |  ✓  |  ✓  |     |     |     |  ✓  |     |
+| `polls.manage`                  | Create and close polls                                  |  ✓  |  ✓  |     |     |     |  ✓  |     |
+| `giveaways.manage`              | Create, end and reroll giveaways                        |  ✓  |  ✓  |     |     |     |  ✓  |     |
+| `announcements.create`          | Draft announcements                                     |  ✓  |  ✓  |     |     |     |  ✓  |     |
+| `announcements.publish`         | Publish and schedule announcements                      |  ✓  |  ✓  |     |     |     |  ✓  |     |
+| `announcements.mass_mention` 🔒 | Use @everyone/@here and role mentions in announcements  |  ✓  |  ✓  |     |     |     |     |     |
+| `referrals.view`                | View referral analytics                                 |  ✓  |  ✓  |     |     |     |  ✓  |  ✓  |
+| `referrals.manage`              | Create tracked invites and review attribution disputes  |  ✓  |  ✓  |     |     |     |  ✓  |     |
+| `partners.review`               | Review partner applications and campaigns               |  ✓  |  ✓  |     |     |     |  ✓  |     |
+| `analytics.view`                | View analytics dashboards and weekly reports            |  ✓  |  ✓  |  ✓  |     |     |  ✓  |  ✓  |
+| `analytics.export`              | Export analytics reports                                |  ✓  |  ✓  |     |     |     |     |  ✓  |
+| `settings.manage` 🔒            | Change module, channel and integration settings         |  ✓  |  ✓  |     |     |     |     |     |
+| `permissions.manage` 🔒         | Change staff permissions                                |  ✓  |  ✓  |     |     |     |     |     |
 
 Legend: Own = OWNER, Adm = ADMINISTRATOR, Snr = SENIOR_STAFF, Sup = SUPPORT_STAFF, Mod = MODERATOR, Mkt = MARKETING_STAFF, Ana = ANALYST. 🔒 = privileged (never grantable to the partner role).
 
 ### Slash command requirements
 
-| Command | Required permission | Discord default visibility | Rate limit (per user) |
-|---|---|---|---|
-| `/about` | any member* | everyone | 10 / 60s |
-| `/analytics` | `analytics.view` | ManageGuild | — |
-| `/announce` | `announcements.publish` | ManageGuild | — |
-| `/appeal` | any member* | everyone | 2 / 3600s |
-| `/audit-log` | `audit.view` | ManageGuild | — |
-| `/ban` | `moderation.ban` | BanMembers | — |
-| `/config` | `settings.manage` | ManageGuild | — |
-| `/diagnose` | any member* | everyone | 3 / 300s |
-| `/event` | any member* | everyone | 10 / 60s |
-| `/faq` | any member* | everyone | 15 / 60s |
-| `/gameinfo` | any member* | everyone | 10 / 60s |
-| `/giveaway` | `giveaways.manage` | ManageGuild | — |
-| `/guides` | any member* | everyone | 15 / 60s |
-| `/help` | any member* | everyone | 10 / 60s |
-| `/incidents` | any member* | everyone | 10 / 60s |
-| `/kick` | `moderation.execute` | KickMembers | — |
-| `/knowledge-search` | any member* | everyone | 15 / 60s |
-| `/minecraft` | any member* | everyone | 5 / 60s |
-| `/partners` | any member* | everyone | 3 / 600s |
-| `/playercount` | any member* | everyone | 5 / 60s |
-| `/poll` | `polls.manage` | ManageMessages | — |
-| `/portcheck` | any member* | everyone | 3 / 300s |
-| `/referral` | any member* | everyone | 5 / 60s |
-| `/report-abuse` | any member* | everyone | 3 / 3600s |
-| `/roles` | any member* | everyone | 10 / 60s |
-| `/rules` | any member* | everyone | 10 / 60s |
-| `/schedule-announcement` | `announcements.publish` | ManageGuild | — |
-| `/staff-stats` | `analytics.view` | ManageGuild | — |
-| `/status` | any member* | everyone | 10 / 60s |
-| `/steam` | any member* | everyone | 5 / 60s |
-| `/subscribe-status` | any member* | everyone | 5 / 60s |
-| `/suggest` | any member* | everyone | 3 / 3600s |
-| `/timeout` | `moderation.execute` | ModerateMembers | — |
-| `/troubleshoot` | any member* | everyone | 10 / 60s |
-| `/uptime` | any member* | everyone | 10 / 60s |
-| `/version` | any member* | everyone | 10 / 60s |
-| `/warn` | `moderation.execute` | ModerateMembers | — |
-| `/warnings` | `moderation.audit.view` | ModerateMembers | — |
+| Command                  | Required permission     | Discord default visibility | Rate limit (per user) |
+| ------------------------ | ----------------------- | -------------------------- | --------------------- |
+| `/about`                 | any member*             | everyone                   | 10 / 60s              |
+| `/analytics`             | `analytics.view`        | ManageGuild                | —                     |
+| `/announce`              | `announcements.publish` | ManageGuild                | —                     |
+| `/appeal`                | any member*             | everyone                   | 2 / 3600s             |
+| `/audit-log`             | `audit.view`            | ManageGuild                | —                     |
+| `/ban`                   | `moderation.ban`        | BanMembers                 | —                     |
+| `/config`                | `settings.manage`       | ManageGuild                | —                     |
+| `/diagnose`              | any member*             | everyone                   | 3 / 300s              |
+| `/event`                 | any member*             | everyone                   | 10 / 60s              |
+| `/faq`                   | any member*             | everyone                   | 15 / 60s              |
+| `/gameinfo`              | any member*             | everyone                   | 10 / 60s              |
+| `/giveaway`              | `giveaways.manage`      | ManageGuild                | —                     |
+| `/guides`                | any member*             | everyone                   | 15 / 60s              |
+| `/help`                  | any member*             | everyone                   | 10 / 60s              |
+| `/incidents`             | any member*             | everyone                   | 10 / 60s              |
+| `/kick`                  | `moderation.execute`    | KickMembers                | —                     |
+| `/knowledge-search`      | any member*             | everyone                   | 15 / 60s              |
+| `/minecraft`             | any member*             | everyone                   | 5 / 60s               |
+| `/partners`              | any member*             | everyone                   | 3 / 600s              |
+| `/playercount`           | any member*             | everyone                   | 5 / 60s               |
+| `/poll`                  | `polls.manage`          | ManageMessages             | —                     |
+| `/portcheck`             | any member*             | everyone                   | 3 / 300s              |
+| `/referral`              | any member*             | everyone                   | 5 / 60s               |
+| `/report-abuse`          | any member*             | everyone                   | 3 / 3600s             |
+| `/roles`                 | any member*             | everyone                   | 10 / 60s              |
+| `/rules`                 | any member*             | everyone                   | 10 / 60s              |
+| `/schedule-announcement` | `announcements.publish` | ManageGuild                | —                     |
+| `/staff-stats`           | `analytics.view`        | ManageGuild                | —                     |
+| `/status`                | any member*             | everyone                   | 10 / 60s              |
+| `/steam`                 | any member*             | everyone                   | 5 / 60s               |
+| `/subscribe-status`      | any member*             | everyone                   | 5 / 60s               |
+| `/suggest`               | any member*             | everyone                   | 3 / 3600s             |
+| `/timeout`               | `moderation.execute`    | ModerateMembers            | —                     |
+| `/troubleshoot`          | any member*             | everyone                   | 10 / 60s              |
+| `/uptime`                | any member*             | everyone                   | 10 / 60s              |
+| `/version`               | any member*             | everyone                   | 10 / 60s              |
+| `/warn`                  | `moderation.execute`    | ModerateMembers            | —                     |
+| `/warnings`              | `moderation.audit.view` | ModerateMembers            | —                     |
 
 \* Object-level checks still apply inside the service (e.g. only your own records; staff-only subcommands).
 <!-- generated:end -->

@@ -24,7 +24,11 @@ const RULES: Rule[] = [
     pattern: /https:\/\/(?:\w+\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[\w-]+/gi,
     replace: `https://discord.com/api/webhooks/${REDACTED}`,
   },
-  { name: 'jwt', pattern: /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g, replace: REDACTED },
+  {
+    name: 'jwt',
+    pattern: /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g,
+    replace: REDACTED,
+  },
   { name: 'aws-access-key', pattern: /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g, replace: REDACTED },
   { name: 'github-token', pattern: /\bgh[pousr]_[A-Za-z0-9]{30,}\b/g, replace: REDACTED },
   { name: 'slack-token', pattern: /\bxox[abprs]-[A-Za-z0-9-]{10,}\b/g, replace: REDACTED },

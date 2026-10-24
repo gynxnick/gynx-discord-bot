@@ -24,13 +24,15 @@ export interface SeedFlow {
   definition: FlowDefinition;
 }
 
-const STILL_STUCK = '\n\n**Still stuck?** Use the *Still stuck* button below to reach the support team — include what you already tried and the exact error message.';
+const STILL_STUCK =
+  '\n\n**Still stuck?** Use the *Still stuck* button below to reach the support team — include what you already tried and the exact error message.';
 
 export const SEED_ARTICLES: readonly SeedArticle[] = [
   {
     slug: 'minecraft-cant-connect',
     title: "Minecraft: Can't connect / Connection timed out",
-    summary: 'Step-by-step checks when the client shows "Can\'t connect to server", "Connection refused" or "Connection timed out".',
+    summary:
+      'Step-by-step checks when the client shows "Can\'t connect to server", "Connection refused" or "Connection timed out".',
     game: 'minecraft',
     tags: ['connect', 'connection', 'timeout', 'timed', 'refused', 'join', 'network'],
     body:
@@ -80,11 +82,22 @@ export const SEED_ARTICLES: readonly SeedArticle[] = [
     title: 'Minecraft: Mod or plugin conflicts and missing dependencies',
     summary: 'Diagnose missing dependencies, Mixin failures and plugins that refuse to load.',
     game: 'minecraft',
-    tags: ['mods', 'plugins', 'forge', 'fabric', 'neoforge', 'mixin', 'dependency', 'conflict', 'paper', 'spigot'],
+    tags: [
+      'mods',
+      'plugins',
+      'forge',
+      'fabric',
+      'neoforge',
+      'mixin',
+      'dependency',
+      'conflict',
+      'paper',
+      'spigot',
+    ],
     body:
       '**Missing dependencies** — Forge/NeoForge prints `Missing or unsupported mandatory dependencies` and lists `Mod ID` + `Requested by`. Fabric says `Mod X requires …`. Install the listed library (e.g. Fabric API, Architectury, Cloth Config) in the version required.\n\n' +
       '**Mixin failures** — `Mixin apply failed …` / `Mixin apply for mod X failed` usually means mod X is built for a different Minecraft or loader version, or two mods patch the same code. Update mod X, or remove it to confirm.\n\n' +
-      '**Plugins** — `Could not load \'plugins/X.jar\'` is followed by the reason: an `UnknownDependencyException` (install the dependency, e.g. Vault/ProtocolLib), an unsupported `api-version` (plugin is for another server version), or a corrupt download.\n\n' +
+      "**Plugins** — `Could not load 'plugins/X.jar'` is followed by the reason: an `UnknownDependencyException` (install the dependency, e.g. Vault/ProtocolLib), an unsupported `api-version` (plugin is for another server version), or a corrupt download.\n\n" +
       '**Never mix:** Forge mods on Fabric (or vice versa), client-only mods (shaders, minimaps) on servers, or Bukkit plugins on a mod loader without a hybrid server.\n\n' +
       '**Find the culprit fast:** remove half of the mods/plugins, test, and repeat on the half that still fails (binary search). Always keep a backup first.' +
       STILL_STUCK,
@@ -110,13 +123,14 @@ export const SEED_ARTICLES: readonly SeedArticle[] = [
   {
     slug: 'minecraft-world-corruption',
     title: 'Minecraft: World corruption basics',
-    summary: 'Recognise corrupted chunks/regions and ticking-entity crashes, and recover safely from backups.',
+    summary:
+      'Recognise corrupted chunks/regions and ticking-entity crashes, and recover safely from backups.',
     game: 'minecraft',
     tags: ['world', 'corruption', 'corrupt', 'chunk', 'region', 'ticking', 'entity', 'backup', 'crash'],
     body:
-      '**Signs:** log lines such as `Couldn\'t load chunk`, `Chunk file at [x, z] is in the wrong location`, region file errors, or a crash report describing a `Ticking entity` / `Ticking block entity`.\n\n' +
+      "**Signs:** log lines such as `Couldn't load chunk`, `Chunk file at [x, z] is in the wrong location`, region file errors, or a crash report describing a `Ticking entity` / `Ticking block entity`.\n\n" +
       '**First, stop and back up.** Copy the whole world folder before trying anything — repairs can make things worse.\n\n' +
-      '**Ticking entity / block entity:** the crash report shows *Entity Type* and *Entity\'s Exact location*. Updating the related mod often fixes it. Some loaders/configs (e.g. Forge `removeErroringEntities`) can remove the broken entity — use with care and only with a backup.\n\n' +
+      "**Ticking entity / block entity:** the crash report shows *Entity Type* and *Entity's Exact location*. Updating the related mod often fixes it. Some loaders/configs (e.g. Forge `removeErroringEntities`) can remove the broken entity — use with care and only with a backup.\n\n" +
       '**Corrupted chunks:** restoring the affected region file (`region/r.X.Z.mca`) from a backup is the safest fix. Tools like MCA Selector can delete or inspect individual chunks (deleted chunks regenerate).\n\n' +
       '**Prevent it:** always stop the server with `stop` (never kill it), keep regular backups, and avoid disk-full situations.' +
       STILL_STUCK,
@@ -155,10 +169,10 @@ export const SEED_ARTICLES: readonly SeedArticle[] = [
     game: 'minecraft',
     tags: ['lag', 'tps', 'mspt', 'cant keep up', 'performance', 'overloaded', 'spark'],
     body:
-      '`Can\'t keep up! Is the server overloaded? Running 5000ms or 100 ticks behind` means the server could not run its 20 ticks per second. A few warnings during startup or world generation are normal.\n\n' +
+      "`Can't keep up! Is the server overloaded? Running 5000ms or 100 ticks behind` means the server could not run its 20 ticks per second. A few warnings during startup or world generation are normal.\n\n" +
       '**Frequent warnings point to:** large farms or mob grinders, many dropped items/entities, redstone clocks, loading new chunks while players explore, too-high view/simulation distance, or a slow mod/plugin.\n\n' +
       '**How to find the cause:** install *spark* and run `/spark profiler` for a few minutes during lag — it shows which mod, plugin or entity type uses the most time.\n\n' +
-      '**Quick wins:** pre-generate the world, lower `simulation-distance`, limit entities (e.g. Paper\'s entity settings), and keep mods/plugins up to date.' +
+      "**Quick wins:** pre-generate the world, lower `simulation-distance`, limit entities (e.g. Paper's entity settings), and keep mods/plugins up to date." +
       STILL_STUCK,
   },
   {
@@ -218,7 +232,8 @@ export const SEED_ARTICLES: readonly SeedArticle[] = [
   {
     slug: 'gmod-missing-content',
     title: "Garry's Mod: Missing textures, ERROR models and Workshop content",
-    summary: 'Purple/black checkers or red ERROR signs mean missing content — subscribe to the server collection or mount games.',
+    summary:
+      'Purple/black checkers or red ERROR signs mean missing content — subscribe to the server collection or mount games.',
     game: 'gmod',
     tags: ['gmod', 'garrys mod', 'missing', 'textures', 'error', 'workshop', 'collection', 'css', 'content'],
     body:
@@ -258,7 +273,8 @@ export const SEED_FLOWS: readonly SeedFlow[] = [
           ],
         },
         network: {
-          prompt: 'Try once with VPN/proxy disabled or on another network (e.g. phone hotspot). Does it work then?',
+          prompt:
+            'Try once with VPN/proxy disabled or on another network (e.g. phone hotspot). Does it work then?',
           options: [
             { label: 'Yes, it works now', resolve: true },
             { label: 'No, still timing out', articleSlug: 'minecraft-cant-connect' },
@@ -291,7 +307,8 @@ export const SEED_FLOWS: readonly SeedFlow[] = [
       start: 'symptom',
       nodes: {
         symptom: {
-          prompt: 'Tip: `/diagnose` can read your latest.log automatically. Which of these appears in the log?',
+          prompt:
+            'Tip: `/diagnose` can read your latest.log automatically. Which of these appears in the log?',
           options: [
             { label: 'UnsupportedClassVersionError', articleSlug: 'minecraft-java-version' },
             { label: 'You need to agree to the EULA', articleSlug: 'minecraft-eula' },
@@ -417,7 +434,8 @@ export const SEED_FLOWS: readonly SeedFlow[] = [
           ],
         },
         css: {
-          prompt: 'Have you subscribed to the server’s Workshop collection and mounted Counter-Strike: Source (if the server needs it)?',
+          prompt:
+            'Have you subscribed to the server’s Workshop collection and mounted Counter-Strike: Source (if the server needs it)?',
           options: [
             { label: 'That fixed it', resolve: true },
             { label: 'Done, still missing', articleSlug: 'gmod-missing-content' },

@@ -14,7 +14,11 @@ export async function ctxForMember(rt: BotRuntime, member: GuildMember, correlat
   return makeCtx(rt.deps, member.guild.id, actor, correlationId);
 }
 
-export async function ctxForInteraction(rt: BotRuntime, i: Interaction, correlationId: string): Promise<Ctx | null> {
+export async function ctxForInteraction(
+  rt: BotRuntime,
+  i: Interaction,
+  correlationId: string,
+): Promise<Ctx | null> {
   if (!i.inCachedGuild()) return null;
   return ctxForMember(rt, i.member, correlationId);
 }

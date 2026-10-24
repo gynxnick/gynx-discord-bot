@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  html,
+  body {
+    @apply bg-void text-fg antialiased;
+  }
+  body {
+    @apply min-h-screen font-sans text-sm leading-relaxed;
+  }
+  /* Visible keyboard focus everywhere (accent ring), never on mouse click. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-void;
+  }
+  ::selection {
+    @apply bg-accent/30 text-fg;
+  }
+  a {
+    @apply text-accent underline-offset-2 hover:underline;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .sr-only-focusable:not(:focus) {
+    @apply sr-only;
+  }
+}

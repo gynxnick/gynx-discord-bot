@@ -14,7 +14,8 @@ export function buildCommandPayload(commands: SlashCommand[]) {
     const flag = policy?.discordDefault ? PermissionFlagsBits[policy.discordDefault] : undefined;
     return {
       ...c.data,
-      default_member_permissions: flag !== undefined ? flag.toString() : c.data.default_member_permissions ?? null,
+      default_member_permissions:
+        flag !== undefined ? flag.toString() : (c.data.default_member_permissions ?? null),
       contexts: [0],
     };
   });

@@ -11,14 +11,17 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
+    "@discordjs/rest": "^2.6.3",
     "@gynx/config": "workspace:^",
     "@gynx/database": "workspace:^",
     "@gynx/permissions": "workspace:^",
     "@gynx/services": "workspace:^",
     "@gynx/shared": "workspace:^",
+    "@prisma/client": "^6.2.1",
     "discord-api-types": "^0.38.57",
     "discord.js": "^14.27.0",
     "ioredis": "^5.4.2",
+    "pino": "^9.6.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {

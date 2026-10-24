@@ -1,7 +1,14 @@
 import { z } from 'zod';
 import type { GuildConfig, Prisma } from '@gynx/database';
 import { privilegedKeysIn } from '@gynx/permissions';
-import { AppError, WEEKDAYS, isValidTimeZone, nextWeeklyOccurrence, validation, type Weekday } from '@gynx/shared';
+import {
+  AppError,
+  WEEKDAYS,
+  isValidTimeZone,
+  nextWeeklyOccurrence,
+  validation,
+  type Weekday,
+} from '@gynx/shared';
 import { audit } from '../core/audit';
 import { requirePermission } from '../core/authz';
 import { MODULES, getGuildConfig } from '../core/config';
@@ -65,10 +72,26 @@ const int = (min: number, max: number) => z.number().int().min(min).max(max);
 
 export const settingsPatchSchema = z
   .object({
-    timezone: z.string().trim().max(64).refine(isValidTimeZone, 'Unknown time zone (use an IANA name such as Europe/London)'),
+    timezone: z
+      .string()
+      .trim()
+      .max(64)
+      .refine(isValidTimeZone, 'Unknown time zone (use an IANA name such as Europe/London)'),
     enabledModules: z.array(z.enum(MODULES)).max(MODULES.length),
-    channels: z.object(Object.fromEntries(Object.keys(CHANNEL_KINDS).map((k) => [k, snowflake.nullable().optional()])) as Record<ChannelKind, z.ZodOptional<z.ZodNullable<typeof snowflake>>>).strict(),
-    roles: z.object(Object.fromEntries(Object.keys(ROLE_KINDS).map((k) => [k, snowflake.nullable().optional()])) as Record<RoleKind, z.ZodOptional<z.ZodNullable<typeof snowflake>>>).strict(),
+    channels: z
+      .object(
+        Object.fromEntries(
+          Object.keys(CHANNEL_KINDS).map((k) => [k, snowflake.nullable().optional()]),
+        ) as Record<ChannelKind, z.ZodOptional<z.ZodNullable<typeof snowflake>>>,
+      )
+      .strict(),
+    roles: z
+      .object(
+        Object.fromEntries(
+          Object.keys(ROLE_KINDS).map((k) => [k, snowflake.nullable().optional()]),
+        ) as Record<RoleKind, z.ZodOptional<z.ZodNullable<typeof snowflake>>>,
+      )
+      .strict(),
     supportUrl: httpsUrl.nullable(),
     status: z
       .object({
@@ -92,7 +115,13 @@ export const settingsPatchSchema = z
     activeMemberMinMessages: int(1, 1000),
     reportNotifyReporter: z.boolean(),
     embedFooter: z.string().trim().min(1).max(100),
-    reportSchedule: z.object({ day: z.enum(WEEKDAYS), time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Time must be HH:MM (24h)'), enabled: z.boolean().optional() }).strict(),
+    reportSchedule: z
+      .object({
+        day: z.enum(WEEKDAYS),
+        time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Time must be HH:MM (24h)'),
+        enabled: z.boolean().optional(),
+      })
+      .strict(),
   })
   .partial()
   .strict();
@@ -104,20 +133,54 @@ export interface GuildSettings {
   channels: Record<ChannelKind, string | null>;
   roles: Record<RoleKind, string | null>;
   supportUrl: string | null;
-  status: { checkIntervalSeconds: number; failureThreshold: number; recoveryThreshold: number; alertCooldownMinutes: number };
-  retention: { diagnosticHours: number; reportDays: number; auditDays: number; healthCheckDays: number; activityDays: number };
+  status: {
+    checkIntervalSeconds: number;
+    failureThreshold: number;
+    recoveryThreshold: number;
+    alertCooldownMinutes: number;
+  };
+  retention: {
+    diagnosticHours: number;
+    reportDays: number;
+    auditDays: number;
+    healthCheckDays: number;
+    activityDays: number;
+  };
   activeMemberMinMessages: number;
   reportNotifyReporter: boolean;
   embedFooter: string;
-  reportSchedule: { day: string; time: string; timezone: string; enabled: boolean; nextRunAt: string | null; channelId: string | null } | null;
+  reportSchedule: {
+    day: string;
+    time: string;
+    timezone: string;
+    enabled: boolean;
+    nextRunAt: string | null;
+    channelId: string | null;
+  } | null;
 }
 
-function toView(cfg: GuildConfig, def: { day: string; time: string; timezone: string; enabled: boolean; nextRunAt: Date | null; channelId: string | null } | null): GuildSettings {
+function toView(
+  cfg: GuildConfig,
+  def: {
+    day: string;
+    time: string;
+    timezone: string;
+    enabled: boolean;
+    nextRunAt: Date | null;
+    channelId: string | null;
+  } | null,
+): GuildSettings {
   return {
     timezone: cfg.timezone,
     enabledModules: [...cfg.enabledModules],
-    channels: Object.fromEntries(Object.entries(CHANNEL_KINDS).map(([k, col]) => [k, cfg[col]])) as Record<ChannelKind, string | null>,
-    roles: Object.fromEntries(Object.entries(ROLE_KINDS).map(([k, col]) => [k, cfg[col]])) as Record<RoleKind, string | null>,
+    channels: Object.fromEntries(Object.entries(CHANNEL_KINDS).map(([k, col]) => [k, cfg[col]])) as Record<
+      ChannelKind,
+      string | null
+    >,
+    roles: Object.fromEntries(Object.entries(ROLE_KINDS).map(([k, col]) => [k, cfg[col]])) as Record<
+      RoleKind,
+      string | null
+    >,
     supportUrl: cfg.supportUrl,
     status: {
       checkIntervalSeconds: cfg.statusCheckIntervalSeconds,
@@ -135,14 +198,25 @@ function toView(cfg: GuildConfig, def: { day: string; time: string; timezone: st
     activeMemberMinMessages: cfg.activeMemberMinMessages,
     reportNotifyReporter: cfg.reportNotifyReporter,
     embedFooter: cfg.embedFooter,
-    reportSchedule: def ? { day: def.day, time: def.time, timezone: def.timezone, enabled: def.enabled, nextRunAt: def.nextRunAt?.toISOString() ?? null, channelId: def.channelId } : null,
+    reportSchedule: def
+      ? {
+          day: def.day,
+          time: def.time,
+          timezone: def.timezone,
+          enabled: def.enabled,
+          nextRunAt: def.nextRunAt?.toISOString() ?? null,
+          channelId: def.channelId,
+        }
+      : null,
   };
 }
 
 export async function getSettings(ctx: Ctx): Promise<GuildSettings> {
   await requirePermission(ctx, 'settings.manage');
   const cfg = await getGuildConfig(ctx.db, ctx.guildId);
-  const def = await ctx.db.reportDefinition.findUnique({ where: { guildId_name: { guildId: ctx.guildId, name: DEFAULT_REPORT_NAME } } });
+  const def = await ctx.db.reportDefinition.findUnique({
+    where: { guildId_name: { guildId: ctx.guildId, name: DEFAULT_REPORT_NAME } },
+  });
   return toView(cfg, def);
 }
 
@@ -153,8 +227,10 @@ function toColumns(p: z.output<typeof settingsPatchSchema>): ConfigColumns {
   const c: ConfigColumns = {};
   if (p.timezone !== undefined) c.timezone = p.timezone;
   if (p.enabledModules !== undefined) c.enabledModules = MODULES.filter((m) => p.enabledModules!.includes(m));
-  for (const [k, v] of Object.entries(p.channels ?? {})) if (v !== undefined) (c as Record<string, unknown>)[CHANNEL_KINDS[k as ChannelKind]] = v;
-  for (const [k, v] of Object.entries(p.roles ?? {})) if (v !== undefined) (c as Record<string, unknown>)[ROLE_KINDS[k as RoleKind]] = v;
+  for (const [k, v] of Object.entries(p.channels ?? {}))
+    if (v !== undefined) (c as Record<string, unknown>)[CHANNEL_KINDS[k as ChannelKind]] = v;
+  for (const [k, v] of Object.entries(p.roles ?? {}))
+    if (v !== undefined) (c as Record<string, unknown>)[ROLE_KINDS[k as RoleKind]] = v;
   if (p.supportUrl !== undefined) c.supportUrl = p.supportUrl;
   const s = p.status ?? {};
   if (s.checkIntervalSeconds !== undefined) c.statusCheckIntervalSeconds = s.checkIntervalSeconds;
@@ -176,20 +252,32 @@ function toColumns(p: z.output<typeof settingsPatchSchema>): ConfigColumns {
 /** Cross-field safety rules evaluated on the merged (resulting) configuration. */
 async function validateMerged(ctx: Ctx, merged: GuildConfig, changed: readonly string[]): Promise<void> {
   for (const [kind, col] of Object.entries(ROLE_KINDS)) {
-    if (changed.includes(col) && merged[col] === ctx.guildId) throw validation(`The @everyone role cannot be used as the ${ROLE_KIND_LABELS[kind as RoleKind]} role.`);
+    if (changed.includes(col) && merged[col] === ctx.guildId)
+      throw validation(
+        `The @everyone role cannot be used as the ${ROLE_KIND_LABELS[kind as RoleKind]} role.`,
+      );
   }
   const partner = merged.partnerRoleId;
   if (partner) {
     for (const kind of ['staffPing', 'escalation'] as const) {
       if (merged[ROLE_KINDS[kind]] === partner) {
-        throw new AppError('FORBIDDEN', `The partner role cannot also be the ${ROLE_KIND_LABELS[kind]} role — partners must never receive staff pings or escalations.`);
+        throw new AppError(
+          'FORBIDDEN',
+          `The partner role cannot also be the ${ROLE_KIND_LABELS[kind]} role — partners must never receive staff pings or escalations.`,
+        );
       }
     }
     if (changed.includes('partnerRoleId')) {
-      const grants = await ctx.db.staffPermission.findMany({ where: { guildId: ctx.guildId, subjectType: 'ROLE', subjectId: partner, effect: 'ALLOW' }, select: { permission: true } });
+      const grants = await ctx.db.staffPermission.findMany({
+        where: { guildId: ctx.guildId, subjectType: 'ROLE', subjectId: partner, effect: 'ALLOW' },
+        select: { permission: true },
+      });
       const privileged = grants.flatMap((g) => privilegedKeysIn(g.permission));
       if (privileged.length > 0) {
-        throw new AppError('FORBIDDEN', `That role holds privileged staff permissions (${[...new Set(privileged)].join(', ')}) and cannot be the partner role.`);
+        throw new AppError(
+          'FORBIDDEN',
+          `That role holds privileged staff permissions (${[...new Set(privileged)].join(', ')}) and cannot be the partner role.`,
+        );
       }
     }
   }
@@ -197,8 +285,13 @@ async function validateMerged(ctx: Ctx, merged: GuildConfig, changed: readonly s
     const id = merged[CHANNEL_KINDS[priv]];
     if (!id) continue;
     for (const pub of PUBLIC_CHANNELS) {
-      if (merged[CHANNEL_KINDS[pub]] === id && (changed.includes(CHANNEL_KINDS[priv]) || changed.includes(CHANNEL_KINDS[pub]))) {
-        throw validation(`The ${CHANNEL_KIND_LABELS[priv]} channel is staff-only and cannot be the same as the public ${CHANNEL_KIND_LABELS[pub]} channel.`);
+      if (
+        merged[CHANNEL_KINDS[pub]] === id &&
+        (changed.includes(CHANNEL_KINDS[priv]) || changed.includes(CHANNEL_KINDS[pub]))
+      ) {
+        throw validation(
+          `The ${CHANNEL_KIND_LABELS[priv]} channel is staff-only and cannot be the same as the public ${CHANNEL_KIND_LABELS[pub]} channel.`,
+        );
       }
     }
   }
@@ -221,11 +314,26 @@ export async function updateSettings(ctx: Ctx, raw: SettingsPatch): Promise<Guil
   const now = ctx.now();
   return ctx.db.$transaction(async (tx) => {
     const cfg = changed.length
-      ? await tx.guildConfig.update({ where: { guildId: ctx.guildId }, data: Object.fromEntries(changed.map((k) => [k, (cols as Record<string, unknown>)[k]])) as Prisma.GuildConfigUpdateInput })
+      ? await tx.guildConfig.update({
+          where: { guildId: ctx.guildId },
+          data: Object.fromEntries(
+            changed.map((k) => [k, (cols as Record<string, unknown>)[k]]),
+          ) as Prisma.GuildConfigUpdateInput,
+        })
       : before;
 
-    let def = await tx.reportDefinition.findUnique({ where: { guildId_name: { guildId: ctx.guildId, name: DEFAULT_REPORT_NAME } } });
-    const defBefore = def ? { day: def.day, time: def.time, timezone: def.timezone, enabled: def.enabled, channelId: def.channelId } : null;
+    let def = await tx.reportDefinition.findUnique({
+      where: { guildId_name: { guildId: ctx.guildId, name: DEFAULT_REPORT_NAME } },
+    });
+    const defBefore = def
+      ? {
+          day: def.day,
+          time: def.time,
+          timezone: def.timezone,
+          enabled: def.enabled,
+          channelId: def.channelId,
+        }
+      : null;
     const sched = patch.reportSchedule;
     if (sched || (def && (changed.includes('timezone') || changed.includes('reportChannelId')))) {
       const day = (sched?.day ?? def?.day ?? 'MONDAY') as Weekday;
@@ -235,10 +343,33 @@ export async function updateSettings(ctx: Ctx, raw: SettingsPatch): Promise<Guil
       const channelId = changed.includes('reportChannelId') || !def ? cfg.reportChannelId : def.channelId;
       const nextRunAt = enabled ? nextWeeklyOccurrence(now, day, time, timezone) : null;
       def = def
-        ? await tx.reportDefinition.update({ where: { id: def.id }, data: { day, time, enabled, timezone, channelId, nextRunAt } })
-        : await tx.reportDefinition.create({ data: { guildId: ctx.guildId, name: DEFAULT_REPORT_NAME, day, time, enabled, timezone, channelId, periodDays: 7, nextRunAt } });
+        ? await tx.reportDefinition.update({
+            where: { id: def.id },
+            data: { day, time, enabled, timezone, channelId, nextRunAt },
+          })
+        : await tx.reportDefinition.create({
+            data: {
+              guildId: ctx.guildId,
+              name: DEFAULT_REPORT_NAME,
+              day,
+              time,
+              enabled,
+              timezone,
+              channelId,
+              periodDays: 7,
+              nextRunAt,
+            },
+          });
     }
-    const defAfter = def ? { day: def.day, time: def.time, timezone: def.timezone, enabled: def.enabled, channelId: def.channelId } : null;
+    const defAfter = def
+      ? {
+          day: def.day,
+          time: def.time,
+          timezone: def.timezone,
+          enabled: def.enabled,
+          channelId: def.channelId,
+        }
+      : null;
     const scheduleChanged = JSON.stringify(defBefore) !== JSON.stringify(defAfter);
 
     if (changed.length || scheduleChanged) {
@@ -249,7 +380,11 @@ export async function updateSettings(ctx: Ctx, raw: SettingsPatch): Promise<Guil
           targetType: 'GuildConfig',
           targetId: ctx.guildId,
           metadata: {
-            ...diffMetadata(before as unknown as Record<string, unknown>, cols as Record<string, unknown>, changed),
+            ...diffMetadata(
+              before as unknown as Record<string, unknown>,
+              cols as Record<string, unknown>,
+              changed,
+            ),
             ...(scheduleChanged ? { reportSchedule: { before: defBefore, after: defAfter } } : {}),
           },
         },

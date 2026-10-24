@@ -28,7 +28,12 @@ export interface Thresholds {
 
 export type ServiceSnapshot = Pick<
   MonitoredService,
-  'state' | 'consecutiveFailures' | 'consecutiveSuccesses' | 'lastStateChangeAt' | 'lastAlertAt' | 'lastAlertState'
+  | 'state'
+  | 'consecutiveFailures'
+  | 'consecutiveSuccesses'
+  | 'lastStateChangeAt'
+  | 'lastAlertAt'
+  | 'lastAlertState'
 >;
 
 export interface ApplyOptions {
@@ -82,7 +87,11 @@ export const STATE_RANK: Record<ServiceState, number> = {
 
 const ALERTABLE: ReadonlySet<ServiceState> = new Set(['OPERATIONAL', 'DEGRADED', 'OUTAGE']);
 
-function sameQualityStreak(result: CheckResult, okStreak: number, previous?: ApplyOptions['previous']): number {
+function sameQualityStreak(
+  result: CheckResult,
+  okStreak: number,
+  previous?: ApplyOptions['previous'],
+): number {
   if (!previous) return okStreak;
   let n = 1;
   for (const p of previous) {
@@ -93,7 +102,14 @@ function sameQualityStreak(result: CheckResult, okStreak: number, previous?: App
   return Math.min(n, okStreak);
 }
 
-function nextState(current: ServiceState, result: CheckResult, t: Thresholds, failStreak: number, okStreak: number, qualityStreak: number): ServiceState {
+function nextState(
+  current: ServiceState,
+  result: CheckResult,
+  t: Thresholds,
+  failStreak: number,
+  okStreak: number,
+  qualityStreak: number,
+): ServiceState {
   // A window that ended without the end job running yet behaves like UNKNOWN.
   const base: ServiceState = current === 'MAINTENANCE' ? 'UNKNOWN' : current;
   if (!result.ok) {
@@ -121,7 +137,9 @@ export function applyCheckResult(
   const okStreak = result.ok ? service.consecutiveSuccesses + 1 : 0;
   const quality = result.ok ? sameQualityStreak(result, okStreak, opts.previous) : 0;
 
-  const to: ServiceState = opts.inMaintenance ? 'MAINTENANCE' : nextState(service.state, result, thresholds, failStreak, okStreak, quality);
+  const to: ServiceState = opts.inMaintenance
+    ? 'MAINTENANCE'
+    : nextState(service.state, result, thresholds, failStreak, okStreak, quality);
   const changed = to !== service.state;
   const lastStateChangeAt = changed ? now : service.lastStateChangeAt;
 
@@ -139,8 +157,10 @@ export function applyCheckResult(
   if (ALERTABLE.has(to)) {
     const baseline: ServiceState = service.lastAlertState ?? 'OPERATIONAL';
     if (to !== baseline) {
-      const recovery = (baseline === 'OUTAGE' || baseline === 'DEGRADED') && STATE_RANK[to] < STATE_RANK[baseline];
-      const cooldownElapsed = !service.lastAlertAt || now.getTime() - service.lastAlertAt.getTime() >= thresholds.cooldownMs;
+      const recovery =
+        (baseline === 'OUTAGE' || baseline === 'DEGRADED') && STATE_RANK[to] < STATE_RANK[baseline];
+      const cooldownElapsed =
+        !service.lastAlertAt || now.getTime() - service.lastAlertAt.getTime() >= thresholds.cooldownMs;
       if (recovery || cooldownElapsed) {
         alert = { state: to, previousAlertState: service.lastAlertState, recovery };
         update.lastAlertAt = now;

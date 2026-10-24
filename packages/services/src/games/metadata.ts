@@ -75,8 +75,17 @@ export async function getMinecraftLatest(deps: MetadataDeps = {}): Promise<Versi
     if (!release) return { available: false, message: VERSION_UNAVAILABLE };
     const snapshot = typeof data.latest?.snapshot === 'string' ? data.latest.snapshot : null;
     const entry = Array.isArray(data.versions) ? data.versions.find((v) => v.id === release) : undefined;
-    const releaseTime = typeof entry?.releaseTime === 'string' && !Number.isNaN(Date.parse(entry.releaseTime)) ? new Date(entry.releaseTime) : null;
-    return { available: true, kind: 'minecraft', release: release.slice(0, 40), snapshot: snapshot?.slice(0, 40) ?? null, releaseTime };
+    const releaseTime =
+      typeof entry?.releaseTime === 'string' && !Number.isNaN(Date.parse(entry.releaseTime))
+        ? new Date(entry.releaseTime)
+        : null;
+    return {
+      available: true,
+      kind: 'minecraft',
+      release: release.slice(0, 40),
+      snapshot: snapshot?.slice(0, 40) ?? null,
+      releaseTime,
+    };
   } catch {
     return { available: false, message: VERSION_UNAVAILABLE };
   }
@@ -85,7 +94,9 @@ export async function getMinecraftLatest(deps: MetadataDeps = {}): Promise<Versi
 export async function getSteamNews(appId: number, deps: MetadataDeps = {}): Promise<SteamNewsItem | null> {
   try {
     const data = (await fetchJson(steamNewsUrl(appId), deps)) as {
-      appnews?: { newsitems?: Array<{ title?: unknown; url?: unknown; date?: unknown; feedlabel?: unknown }> };
+      appnews?: {
+        newsitems?: Array<{ title?: unknown; url?: unknown; date?: unknown; feedlabel?: unknown }>;
+      };
     };
     const item = data.appnews?.newsitems?.[0];
     if (!item || typeof item.title !== 'string' || typeof item.date !== 'number') return null;

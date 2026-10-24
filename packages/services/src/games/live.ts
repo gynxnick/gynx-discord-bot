@@ -1,6 +1,13 @@
 import { connect, isIP } from 'node:net';
 import { z } from 'zod';
-import { AppError, isAppError, isValidPort, resolveSafeTarget, type SafeTarget, type SafeTargetOptions } from '@gynx/shared';
+import {
+  AppError,
+  isAppError,
+  isValidPort,
+  resolveSafeTarget,
+  type SafeTarget,
+  type SafeTargetOptions,
+} from '@gynx/shared';
 import { audit } from '../core/audit';
 import { requireRate } from '../core/authz';
 import { requireModule } from '../core/config';
@@ -41,7 +48,8 @@ export function parseAllowedSuffixes(raw: string | undefined | null): string[] {
     .filter((s) => s.length > 0);
 }
 
-export const liveChecksEnabled = (opts: Pick<LiveNetOptions, 'allowedSuffixes'>) => opts.allowedSuffixes.length > 0;
+export const liveChecksEnabled = (opts: Pick<LiveNetOptions, 'allowedSuffixes'>) =>
+  opts.allowedSuffixes.length > 0;
 
 /** Authorize + resolve + pin. Throws INVALID_STATE when live checks are disabled. */
 export async function resolveGameTarget(host: string, opts: LiveNetOptions): Promise<SafeTarget> {
@@ -54,7 +62,8 @@ export async function resolveGameTarget(host: string, opts: LiveNetOptions): Pro
 }
 
 /** Host for logs/audit: never store an IP literal. */
-const safeHostLabel = (host: string) => (isIP(host.trim()) ? '[IP]' : host.trim().toLowerCase().slice(0, 253));
+const safeHostLabel = (host: string) =>
+  isIP(host.trim()) ? '[IP]' : host.trim().toLowerCase().slice(0, 253);
 
 const hostSchema = z.string().trim().min(1).max(253);
 const portSchema = z.coerce.number().int().refine(isValidPort, 'Port must be between 1 and 65535.');
@@ -74,7 +83,11 @@ export interface ServerQueryResult {
 }
 
 /** Query a game server's public status (players, version, MOTD). */
-export async function queryServer(ctx: Ctx, raw: z.input<typeof queryServerSchema>, opts: LiveNetOptions): Promise<ServerQueryResult> {
+export async function queryServer(
+  ctx: Ctx,
+  raw: z.input<typeof queryServerSchema>,
+  opts: LiveNetOptions,
+): Promise<ServerQueryResult> {
   await requireModule(ctx, 'games');
   const input = queryServerSchema.parse(raw);
   const game = getGame(input.game);
@@ -86,30 +99,48 @@ export async function queryServer(ctx: Ctx, raw: z.input<typeof queryServerSchem
   const base = { gameId: game.id, gameName: game.name, hostname: target.hostname };
 
   if (!game.query || game.queryProtocol === 'none') {
-    return { ...base, info: emptyInfo(firstPort, `${game.name} has no public query protocol, so live data is unavailable.`) };
+    return {
+      ...base,
+      info: emptyInfo(firstPort, `${game.name} has no public query protocol, so live data is unavailable.`),
+    };
   }
   const budget = opts.timeoutMs ?? 5000;
   const perAttempt = Math.max(1000, Math.floor(budget / ports.length));
   let lastError: unknown;
   for (const port of ports) {
     try {
-      const info = await game.query(target.address, port, { hostname: target.hostname, family: target.family, timeoutMs: perAttempt });
+      const info = await game.query(target.address, port, {
+        hostname: target.hostname,
+        family: target.family,
+        timeoutMs: perAttempt,
+      });
       return { ...base, info };
     } catch (e) {
       lastError = e;
     }
   }
-  ctx.log.debug({ game: game.id, host: target.hostname, err: isAppError(lastError) ? lastError.message : 'error' }, 'game query failed');
+  ctx.log.debug(
+    { game: game.id, host: target.hostname, err: isAppError(lastError) ? lastError.message : 'error' },
+    'game query failed',
+  );
   return {
     ...base,
-    info: emptyInfo(firstPort, 'The server did not answer the status query. It may be offline, starting up, or have queries disabled.'),
+    info: emptyInfo(
+      firstPort,
+      'The server did not answer the status query. It may be offline, starting up, or have queries disabled.',
+    ),
   };
 }
 
 export type PortCheckResult = 'open' | 'closed' | 'timeout' | 'unreachable';
 
 /** Low-level TCP connect probe to a pinned address. */
-export function tcpProbe(address: string, port: number, timeoutMs = 3000, family?: 4 | 6): Promise<{ result: PortCheckResult; latencyMs: number | null }> {
+export function tcpProbe(
+  address: string,
+  port: number,
+  timeoutMs = 3000,
+  family?: 4 | 6,
+): Promise<{ result: PortCheckResult; latencyMs: number | null }> {
   return new Promise((resolve) => {
     const started = Date.now();
     const socket = connect({ host: address, port, family });
@@ -123,7 +154,9 @@ export function tcpProbe(address: string, port: number, timeoutMs = 3000, family
     };
     const timer = setTimeout(() => finish('timeout'), timeoutMs);
     socket.once('connect', () => finish('open'));
-    socket.on('error', (err: NodeJS.ErrnoException) => finish(err.code === 'ECONNREFUSED' ? 'closed' : 'unreachable'));
+    socket.on('error', (err: NodeJS.ErrnoException) =>
+      finish(err.code === 'ECONNREFUSED' ? 'closed' : 'unreachable'),
+    );
   });
 }
 
@@ -140,7 +173,11 @@ export interface PortCheckOutcome {
  * TCP reachability test from the bot's network to an authorized endpoint.
  * Rate-limited (3 per 5 min per user) and audited (hostname only, never IPs).
  */
-export async function portCheck(ctx: Ctx, raw: z.input<typeof portCheckSchema>, opts: LiveNetOptions): Promise<PortCheckOutcome> {
+export async function portCheck(
+  ctx: Ctx,
+  raw: z.input<typeof portCheckSchema>,
+  opts: LiveNetOptions,
+): Promise<PortCheckOutcome> {
   await requireModule(ctx, 'games');
   const input = portCheckSchema.parse(raw);
   if (!liveChecksEnabled(opts)) throw new AppError('INVALID_STATE', LIVE_DISABLED_MESSAGE);
@@ -153,7 +190,11 @@ export async function portCheck(ctx: Ctx, raw: z.input<typeof portCheckSchema>, 
     await audit(ctx, {
       action: 'games.portcheck',
       result: 'DENIED',
-      metadata: { host: safeHostLabel(input.host), port: input.port, reason: isAppError(e) ? e.code : 'error' },
+      metadata: {
+        host: safeHostLabel(input.host),
+        port: input.port,
+        reason: isAppError(e) ? e.code : 'error',
+      },
     });
     throw e;
   }

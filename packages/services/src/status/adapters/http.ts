@@ -1,5 +1,12 @@
 import { CheckError, classifyError, nodeTransport, pinTarget } from './transport';
-import { MAX_BODY_BYTES, type CheckAdapter, type CheckOptions, type CheckResult, type CheckTarget, type HttpTransportResponse } from '../types';
+import {
+  MAX_BODY_BYTES,
+  type CheckAdapter,
+  type CheckOptions,
+  type CheckResult,
+  type CheckTarget,
+  type HttpTransportResponse,
+} from '../types';
 
 /** Parse an http(s) URL; anything else is a blocked target. */
 export function parseHttpUrl(raw: string | null | undefined): URL {
@@ -34,7 +41,13 @@ export async function safeGet(
     const remaining = deadlineAt - Date.now();
     if (remaining <= 0) throw new CheckError('TIMEOUT');
     const pinned = await pinTarget(url.hostname, service.allowPrivate, opts);
-    const res = await transport.http({ url, address: pinned.address, family: pinned.family, timeoutMs: remaining, maxBodyBytes: MAX_BODY_BYTES });
+    const res = await transport.http({
+      url,
+      address: pinned.address,
+      family: pinned.family,
+      timeoutMs: remaining,
+      maxBodyBytes: MAX_BODY_BYTES,
+    });
     totalLatency += res.latencyMs;
     const isRedirect = res.statusCode >= 300 && res.statusCode < 400 && res.location;
     if (!isRedirect || hop === 1) return { ...res, latencyMs: totalLatency };
@@ -67,8 +80,16 @@ export const httpAdapter: CheckAdapter = {
     try {
       const res = await safeGet(service.target ?? '', service, opts);
       const ok = statusMatches(res.statusCode, service.expectedStatus);
-      if (!ok) return { ok: false, degraded: false, latencyMs: res.latencyMs, statusCode: res.statusCode, errorClass: classifyStatus(res.statusCode) };
-      const degraded = typeof service.degradedLatencyMs === 'number' && res.latencyMs > service.degradedLatencyMs;
+      if (!ok)
+        return {
+          ok: false,
+          degraded: false,
+          latencyMs: res.latencyMs,
+          statusCode: res.statusCode,
+          errorClass: classifyStatus(res.statusCode),
+        };
+      const degraded =
+        typeof service.degradedLatencyMs === 'number' && res.latencyMs > service.degradedLatencyMs;
       return { ok: true, degraded, latencyMs: res.latencyMs, statusCode: res.statusCode };
     } catch (err) {
       return { ok: false, degraded: false, latencyMs: null, errorClass: classifyError(err) };

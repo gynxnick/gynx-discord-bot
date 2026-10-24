@@ -55,8 +55,13 @@ export class ActivityCollector {
 
   private requeue(batch: analytics.ActivityBatch): void {
     if (this.size >= MAX_KEYS) return; // drop rather than grow without bound
-    for (const c of batch.channels) this.channels.set(`${c.date}|${c.channelId}`, (this.channels.get(`${c.date}|${c.channelId}`) ?? 0) + c.count);
-    for (const u of batch.users) this.users.set(`${u.date}|${u.userId}`, (this.users.get(`${u.date}|${u.userId}`) ?? 0) + u.count);
+    for (const c of batch.channels)
+      this.channels.set(
+        `${c.date}|${c.channelId}`,
+        (this.channels.get(`${c.date}|${c.channelId}`) ?? 0) + c.count,
+      );
+    for (const u of batch.users)
+      this.users.set(`${u.date}|${u.userId}`, (this.users.get(`${u.date}|${u.userId}`) ?? 0) + u.count);
   }
 
   /** Flush buffered counts; concurrent calls share one in-flight flush. */

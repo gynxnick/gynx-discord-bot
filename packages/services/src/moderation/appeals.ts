@@ -1,6 +1,16 @@
 import { z } from 'zod';
 import type { AppealStatus, ModerationAction, ModerationAppeal, Prisma } from '@gynx/database';
-import { conflict, cursorArgs, forbidden, invalidState, notFound, paginationSchema, redactSecrets, toPage, type Page } from '@gynx/shared';
+import {
+  conflict,
+  cursorArgs,
+  forbidden,
+  invalidState,
+  notFound,
+  paginationSchema,
+  redactSecrets,
+  toPage,
+  type Page,
+} from '@gynx/shared';
 import { audit } from '../core/audit';
 import { requireAny, requirePermission, requireRate } from '../core/authz';
 import { requireModule } from '../core/config';
@@ -35,11 +45,15 @@ export async function submitAppeal(ctx: Ctx, raw: SubmitAppealInput): Promise<Mo
 
   let action: ModerationAction | null = null;
   if (input.actionRef) {
-    action = await ctx.db.moderationAction.findFirst({ where: { guildId: ctx.guildId, ref: input.actionRef } });
+    action = await ctx.db.moderationAction.findFirst({
+      where: { guildId: ctx.guildId, ref: input.actionRef },
+    });
     // Same error whether it doesn't exist or belongs to someone else: no enumeration of others' records.
-    if (!action || action.targetId !== ctx.actor.userId) throw notFound('A moderation action with that reference on your account');
+    if (!action || action.targetId !== ctx.actor.userId)
+      throw notFound('A moderation action with that reference on your account');
     if (!APPEALABLE.has(action.type)) throw invalidState('That action cannot be appealed.');
-    if (action.status !== 'APPLIED') throw invalidState('That action is no longer in effect, so there is nothing to appeal.');
+    if (action.status !== 'APPLIED')
+      throw invalidState('That action is no longer in effect, so there is nothing to appeal.');
   }
 
   const appeal = await ctx.db.$transaction(async (tx) => {
@@ -47,10 +61,20 @@ export async function submitAppeal(ctx: Ctx, raw: SubmitAppealInput): Promise<Mo
     const lockKey = `appeal:${ctx.guildId}:${ctx.actor.userId}:${action?.id ?? 'general'}`;
     await tx.$queryRaw`SELECT 1 AS ok FROM pg_advisory_xact_lock(hashtext(${lockKey}))`;
     const pending = await tx.moderationAppeal.findFirst({
-      where: { guildId: ctx.guildId, userId: ctx.actor.userId, actionId: action?.id ?? null, status: 'PENDING' },
+      where: {
+        guildId: ctx.guildId,
+        userId: ctx.actor.userId,
+        actionId: action?.id ?? null,
+        status: 'PENDING',
+      },
       select: { id: true },
     });
-    if (pending) throw conflict(action ? `You already have a pending appeal for ${action.ref}.` : 'You already have a pending appeal.');
+    if (pending)
+      throw conflict(
+        action
+          ? `You already have a pending appeal for ${action.ref}.`
+          : 'You already have a pending appeal.',
+      );
     const created = await tx.moderationAppeal.create({
       data: {
         guildId: ctx.guildId,
@@ -59,7 +83,16 @@ export async function submitAppeal(ctx: Ctx, raw: SubmitAppealInput): Promise<Mo
         statement: redactSecrets(input.statement, { maskIps: false }),
       },
     });
-    await audit(ctx, { action: 'moderation.appeal.submit', targetType: 'ModerationAppeal', targetId: created.id, metadata: { actionRef: action?.ref ?? null } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'moderation.appeal.submit',
+        targetType: 'ModerationAppeal',
+        targetId: created.id,
+        metadata: { actionRef: action?.ref ?? null },
+      },
+      tx,
+    );
     await enqueueJob(tx, {
       type: 'moderation.appeal-notify',
       dedupeKey: `moderation.appeal-notify:${created.id}`,
@@ -88,14 +121,25 @@ export interface ReviewedAppeal {
  * Accepting a WARN appeal revokes the warning; other accepted types are flagged
  * for manual reversal on Discord. The appellant is DMed via a worker job.
  */
-export async function reviewAppeal(ctx: Ctx, id: string, raw: z.input<typeof reviewAppealSchema>): Promise<ReviewedAppeal> {
+export async function reviewAppeal(
+  ctx: Ctx,
+  id: string,
+  raw: z.input<typeof reviewAppealSchema>,
+): Promise<ReviewedAppeal> {
   const input = parseInput(reviewAppealSchema, raw);
-  const appeal = await ctx.db.moderationAppeal.findFirst({ where: { id, guildId: ctx.guildId }, include: { action: true } });
+  const appeal = await ctx.db.moderationAppeal.findFirst({
+    where: { id, guildId: ctx.guildId },
+    include: { action: true },
+  });
   if (!appeal) {
     await requireAny(ctx, ['moderation.execute', 'moderation.ban'], 'moderation.appeal.review');
     throw notFound('Appeal');
   }
-  await requirePermission(ctx, appeal.action?.type === 'BAN' ? 'moderation.ban' : 'moderation.execute', 'moderation.appeal.review');
+  await requirePermission(
+    ctx,
+    appeal.action?.type === 'BAN' ? 'moderation.ban' : 'moderation.execute',
+    'moderation.appeal.review',
+  );
   if (appeal.userId === ctx.actor.userId) throw forbidden('You cannot review your own appeal.');
   if (appeal.status !== 'PENDING') throw invalidState('This appeal has already been reviewed.');
 
@@ -110,7 +154,10 @@ export async function reviewAppeal(ctx: Ctx, id: string, raw: z.input<typeof rev
     let requiresManualReversal = false;
     if (input.decision === 'ACCEPTED' && appeal.action && appeal.action.status === 'APPLIED') {
       if (appeal.action.type === 'WARN') {
-        await tx.warning.updateMany({ where: { actionId: appeal.action.id, active: true }, data: { active: false } });
+        await tx.warning.updateMany({
+          where: { actionId: appeal.action.id, active: true },
+          data: { active: false },
+        });
         await tx.moderationAction.update({ where: { id: appeal.action.id }, data: { status: 'REVERSED' } });
       } else if (appeal.action.type === 'TIMEOUT' || appeal.action.type === 'BAN') {
         requiresManualReversal = true;
@@ -140,16 +187,27 @@ export async function reviewAppeal(ctx: Ctx, id: string, raw: z.input<typeof rev
 
 export const listAppealsSchema = paginationSchema.extend({
   status: z.enum(['PENDING', 'ACCEPTED', 'DENIED']).optional(),
-  userId: z.string().regex(/^\d{17,20}$/).optional(),
+  userId: z
+    .string()
+    .regex(/^\d{17,20}$/)
+    .optional(),
 });
 
 export async function listAppeals(
   ctx: Ctx,
   raw: z.input<typeof listAppealsSchema>,
 ): Promise<Page<ModerationAppeal & { action: Pick<ModerationAction, 'ref' | 'type' | 'reason'> | null }>> {
-  await requireAny(ctx, ['moderation.execute', 'moderation.ban', 'moderation.audit.view'], 'moderation.appeals.view');
+  await requireAny(
+    ctx,
+    ['moderation.execute', 'moderation.ban', 'moderation.audit.view'],
+    'moderation.appeals.view',
+  );
   const f = parseInput(listAppealsSchema, raw);
-  const where: Prisma.ModerationAppealWhereInput = { guildId: ctx.guildId, status: f.status as AppealStatus | undefined, userId: f.userId };
+  const where: Prisma.ModerationAppealWhereInput = {
+    guildId: ctx.guildId,
+    status: f.status as AppealStatus | undefined,
+    userId: f.userId,
+  };
   const rows = await ctx.db.moderationAppeal.findMany({
     where,
     include: { action: { select: { ref: true, type: true, reason: true } } },

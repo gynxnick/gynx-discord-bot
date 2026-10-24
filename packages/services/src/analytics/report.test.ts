@@ -1,13 +1,31 @@
 import { describe, expect, it } from 'vitest';
-import type { CommunitySection, InfrastructureSection, MarketingSection, ModerationSection, OutstandingSection, ReferralSection } from './collect';
+import type {
+  CommunitySection,
+  InfrastructureSection,
+  MarketingSection,
+  ModerationSection,
+  OutstandingSection,
+  ReferralSection,
+} from './collect';
 import { available, unavailable, type Metric } from './metrics';
-import { csvField, executiveSummary, flattenMetrics, renderMarkdown, SUPPORT_NOTE, toCsv, type ReportData } from './report';
+import {
+  csvField,
+  executiveSummary,
+  flattenMetrics,
+  renderMarkdown,
+  SUPPORT_NOTE,
+  toCsv,
+  type ReportData,
+} from './report';
 import { reportEmbeds } from './render';
 
-const n = (value: number, previous?: number): Metric<number> => (previous === undefined ? available(value) : { available: true, value, previous });
+const n = (value: number, previous?: number): Metric<number> =>
+  previous === undefined ? available(value) : { available: true, value, previous };
 const na = unavailable<never>('no data has been recorded yet');
 
-function fixture(overrides: Partial<Omit<ReportData, 'summary' | 'flat'>> = {}): Omit<ReportData, 'summary' | 'flat'> {
+function fixture(
+  overrides: Partial<Omit<ReportData, 'summary' | 'flat'>> = {},
+): Omit<ReportData, 'summary' | 'flat'> {
   const community: CommunitySection = {
     totalMembers: available(1500, 'snapshot at 26 Oct 2026, 08:00'),
     joins: n(40, 20),
@@ -22,7 +40,14 @@ function fixture(overrides: Partial<Omit<ReportData, 'summary' | 'flat'>> = {}):
     activeMemberThreshold: 1,
     activityDays: 7,
   };
-  const referrals: ReferralSection = { attributedJoins: na, confirmed: na, ambiguous: na, unknown: na, flagged: na, topReferrers: na };
+  const referrals: ReferralSection = {
+    attributedJoins: na,
+    confirmed: na,
+    ambiguous: na,
+    unknown: na,
+    flagged: na,
+    topReferrers: na,
+  };
   const moderation: ModerationSection = {
     actions: n(8, 4),
     actionsByType: { available: true, value: { WARN: 5, TIMEOUT: 3 }, previous: { WARN: 4 } },
@@ -49,7 +74,9 @@ function fixture(overrides: Partial<Omit<ReportData, 'summary' | 'flat'>> = {}):
   };
   const marketing: MarketingSection = {
     announcementsPublished: n(3, 2),
-    announcementReactions: unavailable('not available — no delivered announcements with reaction data in this period'),
+    announcementReactions: unavailable(
+      'not available — no delivered announcements with reaction data in this period',
+    ),
     trackedLinkClicks: available(140, 'first period, cumulative'),
     partnerApplications: n(2),
     partnerApplicationsByStatus: available({ PENDING: 2 }),
@@ -61,7 +88,9 @@ function fixture(overrides: Partial<Omit<ReportData, 'summary' | 'flat'>> = {}):
   const outstanding: OutstandingSection = {
     asOf: '2026-10-26T09:00:00.000Z',
     staleAbuseReports: 1,
-    activeIncidents: [{ ref: 'INC-0003', title: 'EU latency', severity: 'MINOR', startedAt: '2026-10-25T09:00:00.000Z' }],
+    activeIncidents: [
+      { ref: 'INC-0003', title: 'EU latency', severity: 'MINOR', startedAt: '2026-10-25T09:00:00.000Z' },
+    ],
     deadJobs: 2,
     flaggedReferrals: 0,
     stalePartnerApplications: 0,
@@ -112,18 +141,38 @@ describe('executive summary', () => {
     expect(d.summary.length).toBeLessThanOrEqual(6);
     expect(d.summary[0]).toContain('net growth of +30 members');
     expect(d.summary.some((b) => b.includes('2 incidents opened (1 major/critical)'))).toBe(true);
-    expect(d.summary.some((b) => b.startsWith('Security: 4 open abuse reports (1 older than 72h)'))).toBe(true);
-    expect(d.summary.some((b) => b.startsWith('Needs attention:') && b.includes('1 active incident') && b.includes('2 failed background jobs'))).toBe(true);
-    expect(d.summary.some((b) => b === 'Notable change: Net member growth up 200% to 30 (from 10).')).toBe(true);
+    expect(d.summary.some((b) => b.startsWith('Security: 4 open abuse reports (1 older than 72h)'))).toBe(
+      true,
+    );
+    expect(
+      d.summary.some(
+        (b) =>
+          b.startsWith('Needs attention:') &&
+          b.includes('1 active incident') &&
+          b.includes('2 failed background jobs'),
+      ),
+    ).toBe(true);
+    expect(d.summary.some((b) => b === 'Notable change: Net member growth up 200% to 30 (from 10).')).toBe(
+      true,
+    );
   });
 
   it('still produces at least 3 bullets when nearly everything is unavailable', () => {
     const base = fixture();
-    const empty = Object.fromEntries(Object.keys(base.community).map((k) => [k, na])) as unknown as CommunitySection;
+    const empty = Object.fromEntries(
+      Object.keys(base.community).map((k) => [k, na]),
+    ) as unknown as CommunitySection;
     const d = build({
       community: { ...empty, activeMemberThreshold: 1, activityDays: 7 },
-      moderation: Object.fromEntries(Object.keys(base.moderation).map((k) => [k, na])) as unknown as ModerationSection,
-      infrastructure: { ...(Object.fromEntries(Object.keys(base.infrastructure).map((k) => [k, na])) as unknown as InfrastructureSection), uptime: [] },
+      moderation: Object.fromEntries(
+        Object.keys(base.moderation).map((k) => [k, na]),
+      ) as unknown as ModerationSection,
+      infrastructure: {
+        ...(Object.fromEntries(
+          Object.keys(base.infrastructure).map((k) => [k, na]),
+        ) as unknown as InfrastructureSection),
+        uptime: [],
+      },
       outstanding: { ...base.outstanding, activeIncidents: [], deadJobs: 0, staleAbuseReports: 0 },
     });
     expect(d.summary.length).toBeGreaterThanOrEqual(3);
@@ -181,6 +230,8 @@ describe('CSV export', () => {
     const lines = csv.trimEnd().split('\r\n');
     expect(lines[0]).toBe('section,metric,label,available,value,previous,delta,delta_pct,note');
     expect(lines).toHaveLength(d.flat.length + 1);
-    expect(lines.find((l) => l.startsWith('community,community.joins,'))).toBe('community,community.joins,Joins,true,40,20,20,100,');
+    expect(lines.find((l) => l.startsWith('community,community.joins,'))).toBe(
+      'community,community.joins,Joins,true,40,20,20,100,',
+    );
   });
 });

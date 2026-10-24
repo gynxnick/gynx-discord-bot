@@ -1,5 +1,20 @@
-import { ButtonStyle, ChannelType, ComponentType, Events, SlashCommandBuilder, type ChatInputCommandInteraction, type SlashCommandStringOption } from 'discord.js';
-import { MODULES, MODULE_LABELS, analytics, brandEmbed, getGuildConfig, type ModuleKey } from '@gynx/services';
+import {
+  ButtonStyle,
+  ChannelType,
+  ComponentType,
+  Events,
+  SlashCommandBuilder,
+  type ChatInputCommandInteraction,
+  type SlashCommandStringOption,
+} from 'discord.js';
+import {
+  MODULES,
+  MODULE_LABELS,
+  analytics,
+  brandEmbed,
+  getGuildConfig,
+  type ModuleKey,
+} from '@gynx/services';
 import { WEEKDAYS, dateKeyInZone, discordTimestamp, isValidTimeZone, truncate } from '@gynx/shared';
 import { respond } from '../../framework/reply';
 import { on, type BotModule, type BotRuntime, type HandlerCtx } from '../../framework/types';
@@ -38,7 +53,8 @@ function startCollection(rt: BotRuntime): CollectionState {
     tz: 'UTC',
     enabled: true,
   };
-  const safe = (p: Promise<unknown>, what: string) => p.catch((err: unknown) => rt.log.warn({ err }, `${what} failed`));
+  const safe = (p: Promise<unknown>, what: string) =>
+    p.catch((err: unknown) => rt.log.warn({ err }, `${what} failed`));
   void safe(refreshConfig(rt, s), 'analytics config refresh');
   void safe(snapshotMemberCount(rt), 'member count snapshot');
   setInterval(() => {
@@ -47,7 +63,8 @@ function startCollection(rt: BotRuntime): CollectionState {
   }, FLUSH_MS).unref();
   setInterval(() => void safe(snapshotMemberCount(rt), 'member count snapshot'), MEMBER_COUNT_MS).unref();
   // Best-effort flush on shutdown: the process may exit before it completes (≤ 60 s of counts lost).
-  for (const sig of ['SIGINT', 'SIGTERM'] as const) process.once(sig, () => void safe(s.collector.flush(), 'shutdown activity flush'));
+  for (const sig of ['SIGINT', 'SIGTERM'] as const)
+    process.once(sig, () => void safe(s.collector.flush(), 'shutdown activity flush'));
   return s;
 }
 
@@ -57,17 +74,35 @@ const periodOption = (o: SlashCommandStringOption) =>
   o
     .setName('period')
     .setDescription('Time range (default 7 days)')
-    .addChoices({ name: 'Last 7 days', value: '7d' }, { name: 'Last 30 days', value: '30d' }, { name: 'Last 90 days', value: '90d' });
+    .addChoices(
+      { name: 'Last 7 days', value: '7d' },
+      { name: 'Last 30 days', value: '30d' },
+      { name: 'Last 90 days', value: '90d' },
+    );
 
-const getPeriod = (i: ChatInputCommandInteraction): analytics.RangePreset => (i.options.getString('period') as analytics.RangePreset | null) ?? '7d';
+const getPeriod = (i: ChatInputCommandInteraction): analytics.RangePreset =>
+  (i.options.getString('period') as analytics.RangePreset | null) ?? '7d';
 
 function dashboardRow(h: HandlerCtx, path: string) {
   const url = h.rt.deps.dashboardUrl;
   if (!url || !/^https?:\/\//.test(url)) return [];
-  return [{ type: ComponentType.ActionRow, components: [{ type: ComponentType.Button, style: ButtonStyle.Link, label: 'Open dashboard', url: `${url}${path}` }] }];
+  return [
+    {
+      type: ComponentType.ActionRow,
+      components: [
+        {
+          type: ComponentType.Button,
+          style: ButtonStyle.Link,
+          label: 'Open dashboard',
+          url: `${url}${path}`,
+        },
+      ],
+    },
+  ];
 }
 
-const rangeLabel = (p: { start: string; end: string }) => `${discordTimestamp(new Date(p.start), 'd')} – ${discordTimestamp(new Date(p.end), 'd')}`;
+const rangeLabel = (p: { start: string; end: string }) =>
+  `${discordTimestamp(new Date(p.start), 'd')} – ${discordTimestamp(new Date(p.end), 'd')}`;
 
 const analyticsCommand = new SlashCommandBuilder()
   .setName('analytics')
@@ -91,8 +126,14 @@ const staffStatsCommand = new SlashCommandBuilder()
   .setDescription('Per-staff activity counts (moderation, reports, incidents, partner reviews)')
   .addStringOption(periodOption);
 
-const CHANNEL_KIND_CHOICES = (Object.keys(analytics.CHANNEL_KINDS) as analytics.ChannelKind[]).map((k) => ({ name: analytics.CHANNEL_KIND_LABELS[k], value: k }));
-const ROLE_KIND_CHOICES = (Object.keys(analytics.ROLE_KINDS) as analytics.RoleKind[]).map((k) => ({ name: analytics.ROLE_KIND_LABELS[k], value: k }));
+const CHANNEL_KIND_CHOICES = (Object.keys(analytics.CHANNEL_KINDS) as analytics.ChannelKind[]).map((k) => ({
+  name: analytics.CHANNEL_KIND_LABELS[k],
+  value: k,
+}));
+const ROLE_KIND_CHOICES = (Object.keys(analytics.ROLE_KINDS) as analytics.RoleKind[]).map((k) => ({
+  name: analytics.ROLE_KIND_LABELS[k],
+  value: k,
+}));
 const MODULE_CHOICES = MODULES.map((m) => ({ name: MODULE_LABELS[m], value: m }));
 const DAY_CHOICES = WEEKDAYS.map((d) => ({ name: d.charAt(0) + d.slice(1).toLowerCase(), value: d }));
 
@@ -104,14 +145,42 @@ const configCommand = new SlashCommandBuilder()
     s
       .setName('timezone')
       .setDescription('Set the server time zone used for schedules and reports')
-      .addStringOption((o) => o.setName('zone').setDescription('IANA time zone, e.g. Europe/London').setRequired(true).setMaxLength(64)),
+      .addStringOption((o) =>
+        o
+          .setName('zone')
+          .setDescription('IANA time zone, e.g. Europe/London')
+          .setRequired(true)
+          .setMaxLength(64),
+      ),
   )
   .addSubcommandGroup((g) =>
     g
       .setName('module')
       .setDescription('Enable or disable a module')
-      .addSubcommand((s) => s.setName('enable').setDescription('Enable a module').addStringOption((o) => o.setName('module').setDescription('Module').setRequired(true).addChoices(...MODULE_CHOICES)))
-      .addSubcommand((s) => s.setName('disable').setDescription('Disable a module').addStringOption((o) => o.setName('module').setDescription('Module').setRequired(true).addChoices(...MODULE_CHOICES))),
+      .addSubcommand((s) =>
+        s
+          .setName('enable')
+          .setDescription('Enable a module')
+          .addStringOption((o) =>
+            o
+              .setName('module')
+              .setDescription('Module')
+              .setRequired(true)
+              .addChoices(...MODULE_CHOICES),
+          ),
+      )
+      .addSubcommand((s) =>
+        s
+          .setName('disable')
+          .setDescription('Disable a module')
+          .addStringOption((o) =>
+            o
+              .setName('module')
+              .setDescription('Module')
+              .setRequired(true)
+              .addChoices(...MODULE_CHOICES),
+          ),
+      ),
   )
   .addSubcommandGroup((g) =>
     g
@@ -121,8 +190,20 @@ const configCommand = new SlashCommandBuilder()
         s
           .setName('set')
           .setDescription('Set a channel')
-          .addStringOption((o) => o.setName('kind').setDescription('Which channel').setRequired(true).addChoices(...CHANNEL_KIND_CHOICES))
-          .addChannelOption((o) => o.setName('channel').setDescription('Channel').setRequired(true).addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)),
+          .addStringOption((o) =>
+            o
+              .setName('kind')
+              .setDescription('Which channel')
+              .setRequired(true)
+              .addChoices(...CHANNEL_KIND_CHOICES),
+          )
+          .addChannelOption((o) =>
+            o
+              .setName('channel')
+              .setDescription('Channel')
+              .setRequired(true)
+              .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement),
+          ),
       ),
   )
   .addSubcommandGroup((g) =>
@@ -133,7 +214,13 @@ const configCommand = new SlashCommandBuilder()
         s
           .setName('set')
           .setDescription('Set a role')
-          .addStringOption((o) => o.setName('kind').setDescription('Which role').setRequired(true).addChoices(...ROLE_KIND_CHOICES))
+          .addStringOption((o) =>
+            o
+              .setName('kind')
+              .setDescription('Which role')
+              .setRequired(true)
+              .addChoices(...ROLE_KIND_CHOICES),
+          )
           .addRoleOption((o) => o.setName('role').setDescription('Role').setRequired(true)),
       ),
   )
@@ -141,7 +228,14 @@ const configCommand = new SlashCommandBuilder()
     g
       .setName('support-url')
       .setDescription('External support system link')
-      .addSubcommand((s) => s.setName('set').setDescription('Set the support URL (https)').addStringOption((o) => o.setName('url').setDescription('https://…').setRequired(true).setMaxLength(500))),
+      .addSubcommand((s) =>
+        s
+          .setName('set')
+          .setDescription('Set the support URL (https)')
+          .addStringOption((o) =>
+            o.setName('url').setDescription('https://…').setRequired(true).setMaxLength(500),
+          ),
+      ),
   )
   .addSubcommandGroup((g) =>
     g
@@ -151,14 +245,31 @@ const configCommand = new SlashCommandBuilder()
         s
           .setName('schedule')
           .setDescription('Set the weekly report day and time (server time zone)')
-          .addStringOption((o) => o.setName('day').setDescription('Weekday').setRequired(true).addChoices(...DAY_CHOICES))
-          .addStringOption((o) => o.setName('time').setDescription('HH:MM, 24-hour').setRequired(true).setMinLength(5).setMaxLength(5)),
+          .addStringOption((o) =>
+            o
+              .setName('day')
+              .setDescription('Weekday')
+              .setRequired(true)
+              .addChoices(...DAY_CHOICES),
+          )
+          .addStringOption((o) =>
+            o
+              .setName('time')
+              .setDescription('HH:MM, 24-hour')
+              .setRequired(true)
+              .setMinLength(5)
+              .setMaxLength(5),
+          ),
       ),
   );
 
 function settingsEmbed(s: analytics.GuildSettings) {
-  const ch = (Object.keys(analytics.CHANNEL_KINDS) as analytics.ChannelKind[]).map((k) => `${analytics.CHANNEL_KIND_LABELS[k]}: ${s.channels[k] ? `<#${s.channels[k]}>` : '_not set_'}`);
-  const roles = (Object.keys(analytics.ROLE_KINDS) as analytics.RoleKind[]).map((k) => `${analytics.ROLE_KIND_LABELS[k]}: ${s.roles[k] ? `<@&${s.roles[k]}>` : '_not set_'}`);
+  const ch = (Object.keys(analytics.CHANNEL_KINDS) as analytics.ChannelKind[]).map(
+    (k) => `${analytics.CHANNEL_KIND_LABELS[k]}: ${s.channels[k] ? `<#${s.channels[k]}>` : '_not set_'}`,
+  );
+  const roles = (Object.keys(analytics.ROLE_KINDS) as analytics.RoleKind[]).map(
+    (k) => `${analytics.ROLE_KIND_LABELS[k]}: ${s.roles[k] ? `<@&${s.roles[k]}>` : '_not set_'}`,
+  );
   const mods = MODULES.map((m) => `${s.enabledModules.includes(m) ? '✅' : '⛔'} ${MODULE_LABELS[m]}`);
   const sched = s.reportSchedule
     ? `${s.reportSchedule.enabled ? 'Enabled' : 'Disabled'} · ${s.reportSchedule.day.toLowerCase()} ${s.reportSchedule.time} (${s.reportSchedule.timezone})${s.reportSchedule.nextRunAt ? `\nNext: ${discordTimestamp(new Date(s.reportSchedule.nextRunAt), 'F')}` : ''}`
@@ -181,7 +292,10 @@ function settingsEmbed(s: analytics.GuildSettings) {
         name: 'Retention',
         value: `Diagnostics ${s.retention.diagnosticHours}h · reports ${s.retention.reportDays}d · audit ${s.retention.auditDays}d · health checks ${s.retention.healthCheckDays}d · activity ${s.retention.activityDays}d`,
       },
-      { name: 'Analytics', value: `Active member = ≥ ${s.activeMemberMinMessages} message(s) in period · reporter updates ${s.reportNotifyReporter ? 'on' : 'off'}` },
+      {
+        name: 'Analytics',
+        value: `Active member = ≥ ${s.activeMemberMinMessages} message(s) in period · reporter updates ${s.reportNotifyReporter ? 'on' : 'off'}`,
+      },
     ],
     footer: 'Change advanced settings in the dashboard.',
   });
@@ -190,10 +304,14 @@ function settingsEmbed(s: analytics.GuildSettings) {
 async function runConfig(i: ChatInputCommandInteraction, h: HandlerCtx): Promise<void> {
   const group = i.options.getSubcommandGroup(false);
   const sub = i.options.getSubcommand(true);
-  const done = async (s: analytics.GuildSettings, message: string) => respond(i, { content: `✅ ${message}`, embeds: [settingsEmbed(s)] });
+  const done = async (s: analytics.GuildSettings, message: string) =>
+    respond(i, { content: `✅ ${message}`, embeds: [settingsEmbed(s)] });
 
   if (!group && sub === 'view') {
-    await respond(i, { embeds: [settingsEmbed(await analytics.getSettings(h.ctx))], components: dashboardRow(h, '/settings') as never });
+    await respond(i, {
+      embeds: [settingsEmbed(await analytics.getSettings(h.ctx))],
+      components: dashboardRow(h, '/settings') as never,
+    });
     return;
   }
   if (!group && sub === 'timezone') {
@@ -205,7 +323,10 @@ async function runConfig(i: ChatInputCommandInteraction, h: HandlerCtx): Promise
   if (group === 'module') {
     const mod = i.options.getString('module', true) as ModuleKey;
     const current = await analytics.getSettings(h.ctx);
-    const next = sub === 'enable' ? [...new Set([...current.enabledModules, mod])] : current.enabledModules.filter((m) => m !== mod);
+    const next =
+      sub === 'enable'
+        ? [...new Set([...current.enabledModules, mod])]
+        : current.enabledModules.filter((m) => m !== mod);
     const s = await analytics.updateSettings(h.ctx, { enabledModules: next as ModuleKey[] });
     await done(s, `${MODULE_LABELS[mod]} ${sub === 'enable' ? 'enabled' : 'disabled'}.`);
     return;
@@ -235,7 +356,10 @@ async function runConfig(i: ChatInputCommandInteraction, h: HandlerCtx): Promise
   }
   if (group === 'report' && sub === 'schedule') {
     const s = await analytics.updateSettings(h.ctx, {
-      reportSchedule: { day: i.options.getString('day', true) as (typeof WEEKDAYS)[number], time: i.options.getString('time', true).trim() },
+      reportSchedule: {
+        day: i.options.getString('day', true) as (typeof WEEKDAYS)[number],
+        time: i.options.getString('time', true).trim(),
+      },
     });
     await done(s, 'Weekly report schedule updated.');
     return;
@@ -252,7 +376,18 @@ async function runAnalytics(i: ChatInputCommandInteraction, h: HandlerCtx): Prom
   if (sectionName === 'overview') {
     const data = await analytics.getOverview(h.ctx, period);
     const [embed] = analytics.reportEmbeds(data, { title: `Analytics · last ${period}` });
-    await respond(i, { embeds: [{ ...embed!, url: undefined, footer: { text: 'Observed message activity only — Discord provides no view data. Comparisons vs previous equal period.' } }], components });
+    await respond(i, {
+      embeds: [
+        {
+          ...embed!,
+          url: undefined,
+          footer: {
+            text: 'Observed message activity only — Discord provides no view data. Comparisons vs previous equal period.',
+          },
+        },
+      ],
+      components,
+    });
     return;
   }
   let fields: Array<{ name: string; value: string; inline?: boolean }>;
@@ -325,7 +460,11 @@ export const analyticsModule: BotModule = {
       if (!state || !state.enabled) return;
       if (!message.inGuild() || message.guildId !== rt.env.DISCORD_GUILD_ID) return;
       if (message.author.bot || message.webhookId || message.system) return;
-      state.collector.record(dateKeyInZone(message.createdAt, state.tz), message.channelId, message.author.id);
+      state.collector.record(
+        dateKeyInZone(message.createdAt, state.tz),
+        message.channelId,
+        message.author.id,
+      );
     }),
   ],
 };

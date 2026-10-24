@@ -23,7 +23,11 @@ export interface RunChecksSummary {
 }
 
 /** Run `fn` over items with at most `limit` in flight. Never rejects: per-item errors are returned. */
-async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<Array<{ ok: true; value: R } | { ok: false; error: unknown }>> {
+async function mapPool<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<Array<{ ok: true; value: R } | { ok: false; error: unknown }>> {
   const out: Array<{ ok: true; value: R } | { ok: false; error: unknown }> = new Array(items.length);
   let next = 0;
   const worker = async () => {
@@ -57,12 +61,19 @@ export const autoIncidentText = (name: string) => ({
  */
 async function onOutage(tx: Prisma.TransactionClient, ctx: Ctx, svc: MonitoredService): Promise<void> {
   const existing = await tx.incident.findFirst({
-    where: { guildId: ctx.guildId, status: { in: ACTIVE_INCIDENT_STATUSES }, services: { some: { id: svc.id } } },
+    where: {
+      guildId: ctx.guildId,
+      status: { in: ACTIVE_INCIDENT_STATUSES },
+      services: { some: { id: svc.id } },
+    },
     orderBy: { startedAt: 'desc' },
   });
   if (existing) {
     if (existing.autoCreated && existing.status === 'MONITORING') {
-      await addIncidentUpdateTx(tx, ctx, existing, { status: 'INVESTIGATING', message: `We're seeing renewed issues affecting ${svc.name} and are investigating.` });
+      await addIncidentUpdateTx(tx, ctx, existing, {
+        status: 'INVESTIGATING',
+        message: `We're seeing renewed issues affecting ${svc.name} and are investigating.`,
+      });
     }
     return;
   }
@@ -80,7 +91,12 @@ async function onOutage(tx: Prisma.TransactionClient, ctx: Ctx, svc: MonitoredSe
 /** Recovery: automatic incidents whose services are all out of OUTAGE move to MONITORING. Staff resolve manually. */
 async function onRecovery(tx: Prisma.TransactionClient, ctx: Ctx, svc: MonitoredService): Promise<void> {
   const incidents = await tx.incident.findMany({
-    where: { guildId: ctx.guildId, autoCreated: true, status: { in: ['INVESTIGATING', 'IDENTIFIED'] }, services: { some: { id: svc.id } } },
+    where: {
+      guildId: ctx.guildId,
+      autoCreated: true,
+      status: { in: ['INVESTIGATING', 'IDENTIFIED'] },
+      services: { some: { id: svc.id } },
+    },
     include: { services: { select: { state: true } } },
   });
   for (const { services, ...incident } of incidents) {
@@ -123,12 +139,20 @@ export async function recordCheck(
 
     if (out.alert) {
       // `from` = what members were last told (null baseline = operational).
-      await enqueueAlert(tx, fresh.guildId, fresh.id, out.alert.state, out.alert.previousAlertState ?? 'OPERATIONAL', out.update.lastStateChangeAt ?? now);
+      await enqueueAlert(
+        tx,
+        fresh.guildId,
+        fresh.id,
+        out.alert.state,
+        out.alert.previousAlertState ?? 'OPERATIONAL',
+        out.update.lastStateChangeAt ?? now,
+      );
     }
     if (out.transition && updated.public) {
       const { from, to } = out.transition;
       if (to === 'OUTAGE') await onOutage(tx, ctx, updated);
-      else if (from === 'OUTAGE' && (to === 'OPERATIONAL' || to === 'DEGRADED')) await onRecovery(tx, ctx, updated);
+      else if (from === 'OUTAGE' && (to === 'OPERATIONAL' || to === 'DEGRADED'))
+        await onRecovery(tx, ctx, updated);
     }
     return out;
   });
@@ -139,20 +163,30 @@ export async function recordCheck(
  * with bounded concurrency. A failing service (or a DB error for it) never
  * affects the others.
  */
-export async function runStatusChecks(deps: ServiceDeps, guildId: string, now: Date, opts: RunChecksOptions = {}): Promise<RunChecksSummary> {
+export async function runStatusChecks(
+  deps: ServiceDeps,
+  guildId: string,
+  now: Date,
+  opts: RunChecksOptions = {},
+): Promise<RunChecksSummary> {
   const cfg = await getGuildConfig(deps.db, guildId);
   const summary: RunChecksSummary = { checked: 0, failures: 0, transitions: 0, alerts: 0, errors: 0 };
   if (!cfg.enabledModules.includes('status')) return summary;
 
   const adapters = opts.adapters ?? defaultAdapters;
-  const services = await deps.db.monitoredService.findMany({ where: { guildId, enabled: true, kind: { not: 'MANUAL' } } });
+  const services = await deps.db.monitoredService.findMany({
+    where: { guildId, enabled: true, kind: { not: 'MANUAL' } },
+  });
   if (services.length === 0) return summary;
   const maintenance = await servicesInMaintenance(deps.db, guildId);
 
   const results = await mapPool(services, Math.max(1, opts.concurrency ?? 5), async (svc) => {
     const adapter = adapters[svc.kind];
     if (!adapter) return null;
-    const window = Math.max(svc.failureThreshold ?? cfg.statusFailureThreshold, svc.recoveryThreshold ?? cfg.statusRecoveryThreshold);
+    const window = Math.max(
+      svc.failureThreshold ?? cfg.statusFailureThreshold,
+      svc.recoveryThreshold ?? cfg.statusRecoveryThreshold,
+    );
     const previous = await deps.db.healthCheck.findMany({
       where: { serviceId: svc.id },
       orderBy: { checkedAt: 'desc' },
@@ -166,7 +200,10 @@ export async function runStatusChecks(deps: ServiceDeps, guildId: string, now: D
       // Adapters shouldn't throw; if one does, record a sanitised failure.
       result = { ok: false, degraded: false, latencyMs: null, errorClass: 'INVALID_RESPONSE' };
     }
-    const out = await recordCheck(deps, svc, result, now, { inMaintenance: maintenance.has(svc.id), previous });
+    const out = await recordCheck(deps, svc, result, now, {
+      inMaintenance: maintenance.has(svc.id),
+      previous,
+    });
     return { result, out };
   });
 
@@ -186,7 +223,11 @@ export async function runStatusChecks(deps: ServiceDeps, guildId: string, now: D
 }
 
 /** Retention: delete HealthCheck rows older than GuildConfig.healthCheckRetentionDays. */
-export async function purgeOldHealthChecks(db: ServiceDeps['db'], guildId: string, now: Date): Promise<number> {
+export async function purgeOldHealthChecks(
+  db: ServiceDeps['db'],
+  guildId: string,
+  now: Date,
+): Promise<number> {
   const cfg = await getGuildConfig(db, guildId);
   const cutoff = new Date(now.getTime() - cfg.healthCheckRetentionDays * 86_400_000);
   const res = await db.healthCheck.deleteMany({ where: { checkedAt: { lt: cutoff }, service: { guildId } } });

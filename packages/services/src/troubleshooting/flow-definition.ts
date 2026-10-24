@@ -13,8 +13,13 @@ import { z } from 'zod';
  */
 
 export const MAX_FLOW_NODES = 50;
-export const nodeIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,32}$/, 'Node ids: 1–32 letters, digits, - or _');
-export const slugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Use lowercase-kebab-case').max(64);
+export const nodeIdSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]{1,32}$/, 'Node ids: 1–32 letters, digits, - or _');
+export const slugSchema = z
+  .string()
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Use lowercase-kebab-case')
+  .max(64);
 
 export const flowOptionSchema = z
   .object({
@@ -62,14 +67,18 @@ export interface FlowValidation {
 export function validateFlowDefinition(raw: unknown): FlowValidation {
   const parsed = flowDefinitionSchema.safeParse(raw);
   if (!parsed.success) {
-    return { ok: false, errors: parsed.error.issues.map((i) => `${i.path.join('.') || 'definition'}: ${i.message}`) };
+    return {
+      ok: false,
+      errors: parsed.error.issues.map((i) => `${i.path.join('.') || 'definition'}: ${i.message}`),
+    };
   }
   const def = parsed.data;
   const ids = Object.keys(def.nodes);
   const errors: string[] = [];
 
   if (ids.length === 0) errors.push('The flow has no nodes.');
-  if (ids.length > MAX_FLOW_NODES) errors.push(`A flow can have at most ${MAX_FLOW_NODES} nodes (has ${ids.length}).`);
+  if (ids.length > MAX_FLOW_NODES)
+    errors.push(`A flow can have at most ${MAX_FLOW_NODES} nodes (has ${ids.length}).`);
   if (!def.nodes[def.start]) errors.push(`Start node "${def.start}" does not exist.`);
 
   for (const [id, node] of Object.entries(def.nodes)) {
@@ -98,7 +107,8 @@ export function validateFlowDefinition(raw: unknown): FlowValidation {
       }
     }
   }
-  for (const id of ids) if (!reachable.has(id)) errors.push(`Node "${id}" is unreachable from the start node.`);
+  for (const id of ids)
+    if (!reachable.has(id)) errors.push(`Node "${id}" is unreachable from the start node.`);
 
   // Every node must be able to reach a terminal option (fixed point).
   const canExit = new Set<string>(ids.filter((id) => def.nodes[id]!.options.some(isTerminal)));
@@ -113,7 +123,8 @@ export function validateFlowDefinition(raw: unknown): FlowValidation {
       }
     }
   }
-  for (const id of ids) if (!canExit.has(id)) errors.push(`Node "${id}" can never reach an outcome (a cycle without an exit).`);
+  for (const id of ids)
+    if (!canExit.has(id)) errors.push(`Node "${id}" can never reach an outcome (a cycle without an exit).`);
 
   return errors.length ? { ok: false, errors } : { ok: true, errors: [], definition: def };
 }
@@ -121,6 +132,7 @@ export function validateFlowDefinition(raw: unknown): FlowValidation {
 /** Article slugs referenced anywhere in the flow. */
 export function referencedArticleSlugs(def: FlowDefinition): string[] {
   const s = new Set<string>();
-  for (const n of Object.values(def.nodes)) for (const o of n.options) if (o.articleSlug) s.add(o.articleSlug);
+  for (const n of Object.values(def.nodes))
+    for (const o of n.options) if (o.articleSlug) s.add(o.articleSlug);
   return [...s];
 }

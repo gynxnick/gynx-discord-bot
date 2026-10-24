@@ -13,12 +13,21 @@ describe('community worker jobs', () => {
   it('posts exactly one counts-only raid alert to the mod-log channel per window', async () => {
     const guildId = await freshGuild();
     const modLogChannelId = '333333333333333333';
-    await testDb().guildConfig.update({ where: { guildId }, data: { modLogChannelId, logChannelId: '444444444444444444' } });
-    await testDb().welcomeConfig.update({ where: { guildId }, data: { raidJoinThreshold: 3, raidWindowSeconds: 600 } });
+    await testDb().guildConfig.update({
+      where: { guildId },
+      data: { modLogChannelId, logChannelId: '444444444444444444' },
+    });
+    await testDb().welcomeConfig.update({
+      where: { guildId },
+      data: { raidJoinThreshold: 3, raidWindowSeconds: 600 },
+    });
 
     const t = Math.ceil(Date.now() / 600_000) * 600_000 + 5_000;
     const deps = testDeps({ now: () => new Date(t) });
-    const runner = new JobRunner({ deps, env: { DISCORD_GUILD_ID: guildId } as WorkerEnv, log: silentLog, workerId: 't' }, [communityJobs]);
+    const runner = new JobRunner(
+      { deps, env: { DISCORD_GUILD_ID: guildId } as WorkerEnv, log: silentLog, workerId: 't' },
+      [communityJobs],
+    );
     const ctx = makeCtx(deps, guildId, systemActor('bot'));
     const joiners: string[] = [];
     for (let n = 0; n < 5; n++) {
@@ -39,12 +48,23 @@ describe('community worker jobs', () => {
 
   it('skips the alert gracefully when no log channel is configured', async () => {
     const guildId = await freshGuild();
-    await testDb().welcomeConfig.update({ where: { guildId }, data: { raidJoinThreshold: 3, raidWindowSeconds: 600 } });
+    await testDb().welcomeConfig.update({
+      where: { guildId },
+      data: { raidJoinThreshold: 3, raidWindowSeconds: 600 },
+    });
     const t = Math.ceil(Date.now() / 600_000) * 600_000 + 5_000;
     const deps = testDeps({ now: () => new Date(t) });
-    const runner = new JobRunner({ deps, env: { DISCORD_GUILD_ID: guildId } as WorkerEnv, log: silentLog, workerId: 't' }, [communityJobs]);
+    const runner = new JobRunner(
+      { deps, env: { DISCORD_GUILD_ID: guildId } as WorkerEnv, log: silentLog, workerId: 't' },
+      [communityJobs],
+    );
     const ctx = makeCtx(deps, guildId, systemActor('bot'));
-    for (let n = 0; n < 3; n++) await community.recordJoin(ctx, { userId: snowflake(), joinedAt: new Date(t), accountCreatedAt: new Date(0) });
+    for (let n = 0; n < 3; n++)
+      await community.recordJoin(ctx, {
+        userId: snowflake(),
+        joinedAt: new Date(t),
+        accountCreatedAt: new Date(0),
+      });
     await runner.tick(new Date(t));
     expect(deps.discord.sent).toHaveLength(0);
     const job = await testDb().scheduledJob.findFirst({ where: { guildId, type: community.RAID_ALERT_JOB } });
@@ -55,15 +75,28 @@ describe('community worker jobs', () => {
     const guildId = await freshGuild();
     await testDb().guildConfig.update({ where: { guildId }, data: { activityRetentionDays: 1 } });
     const userId = snowflake();
-    await testDb().memberEvent.create({ data: { guildId, userId, type: 'JOIN', at: new Date(Date.now() - 3 * 86_400_000) } });
+    await testDb().memberEvent.create({
+      data: { guildId, userId, type: 'JOIN', at: new Date(Date.now() - 3 * 86_400_000) },
+    });
     await testDb().onboardingRecord.create({
-      data: { guildId, userId, joinedAt: new Date(Date.now() - 3 * 86_400_000), accountCreatedAt: new Date(0), leftAt: new Date(Date.now() - 2 * 86_400_000) },
+      data: {
+        guildId,
+        userId,
+        joinedAt: new Date(Date.now() - 3 * 86_400_000),
+        accountCreatedAt: new Date(0),
+        leftAt: new Date(Date.now() - 2 * 86_400_000),
+      },
     });
 
     const deps = testDeps();
-    const runner = new JobRunner({ deps, env: { DISCORD_GUILD_ID: guildId } as WorkerEnv, log: silentLog, workerId: 't' }, [communityJobs]);
+    const runner = new JobRunner(
+      { deps, env: { DISCORD_GUILD_ID: guildId } as WorkerEnv, log: silentLog, workerId: 't' },
+      [communityJobs],
+    );
     // A unique far-future bucket so other test runs' periodic jobs don't collide.
-    await runner.tick(new Date(Date.now() + 1000 * 6 * 60 * 60_000 + Math.floor(Math.random() * 1e6) * 6 * 60 * 60_000));
+    await runner.tick(
+      new Date(Date.now() + 1000 * 6 * 60 * 60_000 + Math.floor(Math.random() * 1e6) * 6 * 60 * 60_000),
+    );
     expect(await testDb().memberEvent.count({ where: { guildId } })).toBe(0);
     expect(await testDb().onboardingRecord.count({ where: { guildId } })).toBe(0);
   });

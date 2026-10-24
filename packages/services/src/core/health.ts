@@ -30,7 +30,9 @@ export function startHealthServer(port: number, checks: Record<string, Readiness
         }),
       );
       const ok = Object.values(results).every(Boolean);
-      res.writeHead(ok ? 200 : 503, { 'content-type': 'application/json' }).end(JSON.stringify({ status: ok ? 'ready' : 'not_ready', checks: results }));
+      res
+        .writeHead(ok ? 200 : 503, { 'content-type': 'application/json' })
+        .end(JSON.stringify({ status: ok ? 'ready' : 'not_ready', checks: results }));
       return;
     }
     res.writeHead(404).end();

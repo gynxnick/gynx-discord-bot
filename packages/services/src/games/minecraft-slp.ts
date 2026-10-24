@@ -57,7 +57,15 @@ function frame(packet: Buffer): Buffer {
 export function buildHandshake(host: string, port: number, protocolVersion = -1): Buffer {
   const portBuf = Buffer.alloc(2);
   portBuf.writeUInt16BE(port);
-  return frame(Buffer.concat([encodeVarInt(0x00), encodeVarInt(protocolVersion), encodeString(host), portBuf, encodeVarInt(1)]));
+  return frame(
+    Buffer.concat([
+      encodeVarInt(0x00),
+      encodeVarInt(protocolVersion),
+      encodeString(host),
+      portBuf,
+      encodeVarInt(1),
+    ]),
+  );
 }
 
 export function buildStatusRequest(): Buffer {
@@ -71,7 +79,8 @@ export function buildStatusRequest(): Buffer {
 export function parseStatusResponse(buf: Buffer, maxBytes = SLP_MAX_RESPONSE_BYTES): string | null {
   const len = decodeVarInt(buf, 0);
   if (!len) return null;
-  if (len.value <= 0 || len.value > maxBytes) throw new AppError('INTEGRATION', 'Server response was too large or malformed.');
+  if (len.value <= 0 || len.value > maxBytes)
+    throw new AppError('INTEGRATION', 'Server response was too large or malformed.');
   if (buf.length < len.size + len.value) return null;
   const body = buf.subarray(len.size, len.size + len.value);
   const id = decodeVarInt(body, 0);
@@ -79,21 +88,24 @@ export function parseStatusResponse(buf: Buffer, maxBytes = SLP_MAX_RESPONSE_BYT
   const strLen = decodeVarInt(body, id.size);
   if (!strLen) throw new AppError('INTEGRATION', 'Malformed server response.');
   const start = id.size + strLen.size;
-  if (strLen.value < 0 || start + strLen.value > body.length) throw new AppError('INTEGRATION', 'Malformed server response.');
+  if (strLen.value < 0 || start + strLen.value > body.length)
+    throw new AppError('INTEGRATION', 'Malformed server response.');
   return body.subarray(start, start + strLen.value).toString('utf8');
 }
 
 /** Remove legacy § formatting codes and collapse whitespace. */
 export function stripFormatting(s: string): string {
-  return s
-    .replace(/§[0-9a-fk-orx]/gi, '')
-    // eslint-disable-next-line no-control-regex
-    .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '')
-    .replace(/[ \t]+/g, ' ')
-    .split('\n')
-    .map((l) => l.trim())
-    .join('\n')
-    .trim();
+  return (
+    s
+      .replace(/§[0-9a-fk-orx]/gi, '')
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '')
+      .replace(/[ \t]+/g, ' ')
+      .split('\n')
+      .map((l) => l.trim())
+      .join('\n')
+      .trim()
+  );
 }
 
 /** Flatten a chat component (string | {text, extra[]} | array) into plain text. */
@@ -147,7 +159,11 @@ export interface SlpOptions {
 }
 
 /** Perform a status ping against a pinned address. */
-export function minecraftPing(address: string, port: number, opts: SlpOptions): Promise<SlpStatus & { latencyMs: number }> {
+export function minecraftPing(
+  address: string,
+  port: number,
+  opts: SlpOptions,
+): Promise<SlpStatus & { latencyMs: number }> {
   const timeoutMs = opts.timeoutMs ?? SLP_DEFAULT_TIMEOUT_MS;
   return new Promise((resolve, reject) => {
     const socket = connect({ host: address, port, family: opts.family });
@@ -162,7 +178,10 @@ export function minecraftPing(address: string, port: number, opts: SlpOptions): 
       if (err) reject(err);
       else resolve(value!);
     };
-    const timer = setTimeout(() => finish(new AppError('INTEGRATION', 'The server did not respond in time.')), timeoutMs);
+    const timer = setTimeout(
+      () => finish(new AppError('INTEGRATION', 'The server did not respond in time.')),
+      timeoutMs,
+    );
 
     socket.once('connect', () => {
       sentAt = Date.now();
@@ -183,6 +202,8 @@ export function minecraftPing(address: string, port: number, opts: SlpOptions): 
       }
     });
     socket.on('error', () => finish(new AppError('INTEGRATION', 'Could not connect to the server.')));
-    socket.once('close', () => finish(new AppError('INTEGRATION', 'The server closed the connection without a status response.')));
+    socket.once('close', () =>
+      finish(new AppError('INTEGRATION', 'The server closed the connection without a status response.')),
+    );
   });
 }

@@ -65,7 +65,10 @@ export const inviteTrackerEvents: EventListener[] = [
       if (!(await isModuleEnabled(rt.deps.db, member.guild.id, 'referrals'))) return;
 
       // Without a trustworthy "before" snapshot we cannot attribute: record UNKNOWN.
-      const diff = after && wasReady ? marketing.diffInviteUses(before, after) : { confidence: 'UNKNOWN' as const, inviteCode: null, changedCodes: [] };
+      const diff =
+        after && wasReady
+          ? marketing.diffInviteUses(before, after)
+          : { confidence: 'UNKNOWN' as const, inviteCode: null, changedCodes: [] };
       const uses = diff.inviteCode ? after?.find((i) => i.code === diff.inviteCode)?.uses : undefined;
       const ctx = makeCtx(rt.deps, member.guild.id, systemActor('bot'), `join:${member.id}`);
       await marketing.recordAttribution(ctx, {
@@ -76,7 +79,11 @@ export const inviteTrackerEvents: EventListener[] = [
         joinedAt: member.joinedAt ?? new Date(),
         accountCreatedAt: member.user.createdAt,
       });
-      if (diff.confidence === 'AMBIGUOUS') rt.log.info({ userId: member.id, changed: diff.changedCodes.length }, 'ambiguous referral attribution');
+      if (diff.confidence === 'AMBIGUOUS')
+        rt.log.info(
+          { userId: member.id, changed: diff.changedCodes.length },
+          'ambiguous referral attribution',
+        );
     });
   }),
 ];

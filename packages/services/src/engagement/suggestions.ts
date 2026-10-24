@@ -18,7 +18,16 @@ import { can, requirePermission, requireRate } from '../core/authz';
 import { requireModule } from '../core/config';
 import type { Ctx } from '../core/context';
 import { enqueueJob } from '../core/jobs';
-import { DM_JOB, JOBS, cleanText, displayText, lockRow, messageLink, refreshBucket, type DmPayload } from './common';
+import {
+  DM_JOB,
+  JOBS,
+  cleanText,
+  displayText,
+  lockRow,
+  messageLink,
+  refreshBucket,
+  type DmPayload,
+} from './common';
 
 export const SUGGESTION_SIMILARITY_THRESHOLD = 0.6;
 export const OPEN_SUGGESTION_STATUSES: SuggestionStatus[] = ['UNDER_REVIEW', 'PLANNED'];
@@ -40,7 +49,10 @@ export interface SimilarityCandidate {
 }
 
 /** Score = max(title-vs-title, full-text) Jaccard similarity. */
-export function suggestionSimilarity(a: { title: string; body: string }, b: { title: string; body: string }): number {
+export function suggestionSimilarity(
+  a: { title: string; body: string },
+  b: { title: string; body: string },
+): number {
   return Math.max(similarity(a.title, b.title), similarity(`${a.title} ${a.body}`, `${b.title} ${b.body}`));
 }
 
@@ -94,10 +106,33 @@ export async function submitSuggestion(ctx: Ctx, raw: SubmitSuggestionInput): Pr
   return ctx.db.$transaction(async (tx) => {
     const number = await nextSequence(tx, ctx.guildId, 'suggestion');
     const s = await tx.suggestion.create({
-      data: { guildId: ctx.guildId, number, ref: formatRef('S', number), authorId: ctx.actor.userId, title, body, channelId: cfg.suggestionChannelId },
+      data: {
+        guildId: ctx.guildId,
+        number,
+        ref: formatRef('S', number),
+        authorId: ctx.actor.userId,
+        title,
+        body,
+        channelId: cfg.suggestionChannelId,
+      },
     });
-    await audit(ctx, { action: 'engagement.suggestion.submit', targetType: 'Suggestion', targetId: s.id, metadata: { ref: s.ref } }, tx);
-    await enqueueJob(tx, { type: JOBS.suggestionPublish, dedupeKey: `${JOBS.suggestionPublish}:${s.id}`, runAt: ctx.now(), guildId: ctx.guildId, payload: { suggestionId: s.id } });
+    await audit(
+      ctx,
+      {
+        action: 'engagement.suggestion.submit',
+        targetType: 'Suggestion',
+        targetId: s.id,
+        metadata: { ref: s.ref },
+      },
+      tx,
+    );
+    await enqueueJob(tx, {
+      type: JOBS.suggestionPublish,
+      dedupeKey: `${JOBS.suggestionPublish}:${s.id}`,
+      runAt: ctx.now(),
+      guildId: ctx.guildId,
+      payload: { suggestionId: s.id },
+    });
     return s;
   });
 }
@@ -107,7 +142,11 @@ export async function submitSuggestion(ctx: Ctx, raw: SubmitSuggestionInput): Pr
  * vote; pressing the other switches it. Denormalised counters change in the same
  * transaction under a row lock, so they always equal the vote rows.
  */
-export async function voteSuggestion(ctx: Ctx, suggestionId: string, value: 1 | -1): Promise<{ vote: 1 | -1 | 0; upvotes: number; downvotes: number }> {
+export async function voteSuggestion(
+  ctx: Ctx,
+  suggestionId: string,
+  value: 1 | -1,
+): Promise<{ vote: 1 | -1 | 0; upvotes: number; downvotes: number }> {
   await requireModule(ctx, 'engagement');
   z.union([z.literal(1), z.literal(-1)]).parse(value);
   await requireRate(ctx, 'engagement.suggestion.vote', 20, 60);
@@ -117,9 +156,12 @@ export async function voteSuggestion(ctx: Ctx, suggestionId: string, value: 1 | 
     if (!(await lockRow(tx, 'Suggestion', suggestionId))) throw notFound('Suggestion');
     const s = await tx.suggestion.findFirst({ where: { id: suggestionId, guildId: ctx.guildId } });
     if (!s || s.hidden) throw notFound('Suggestion');
-    if (!OPEN_SUGGESTION_STATUSES.includes(s.status)) throw invalidState('Voting is closed for this suggestion.');
+    if (!OPEN_SUGGESTION_STATUSES.includes(s.status))
+      throw invalidState('Voting is closed for this suggestion.');
 
-    const existing = await tx.suggestionVote.findUnique({ where: { suggestionId_userId: { suggestionId, userId } } });
+    const existing = await tx.suggestionVote.findUnique({
+      where: { suggestionId_userId: { suggestionId, userId } },
+    });
     const field = (v: number) => (v === 1 ? 'upvotes' : 'downvotes') as 'upvotes' | 'downvotes';
     let vote: 1 | -1 | 0;
     let data: Prisma.SuggestionUpdateInput;
@@ -136,17 +178,28 @@ export async function voteSuggestion(ctx: Ctx, suggestionId: string, value: 1 | 
       data = { [field(value)]: { increment: 1 }, [field(existing.value)]: { decrement: 1 } };
       vote = value;
     }
-    const updated = await tx.suggestion.update({ where: { id: suggestionId }, data, select: { upvotes: true, downvotes: true } });
+    const updated = await tx.suggestion.update({
+      where: { id: suggestionId },
+      data,
+      select: { upvotes: true, downvotes: true },
+    });
     await enqueueSuggestionRefresh(ctx, tx, suggestionId);
     return { vote, ...updated };
   });
 }
 
-export async function enqueueSuggestionRefresh(ctx: Ctx, tx: Db, suggestionId: string, immediate = false): Promise<void> {
+export async function enqueueSuggestionRefresh(
+  ctx: Ctx,
+  tx: Db,
+  suggestionId: string,
+  immediate = false,
+): Promise<void> {
   const { bucket, runAt } = refreshBucket(ctx.now(), 15_000);
   await enqueueJob(tx, {
     type: JOBS.suggestionRefresh,
-    dedupeKey: immediate ? `${JOBS.suggestionRefresh}:${suggestionId}:now:${ctx.now().getTime()}` : `${JOBS.suggestionRefresh}:${suggestionId}:${bucket}`,
+    dedupeKey: immediate
+      ? `${JOBS.suggestionRefresh}:${suggestionId}:now:${ctx.now().getTime()}`
+      : `${JOBS.suggestionRefresh}:${suggestionId}:${bucket}`,
     runAt: immediate ? ctx.now() : runAt,
     guildId: ctx.guildId,
     payload: { suggestionId },
@@ -162,7 +215,10 @@ export const setSuggestionStatusSchema = z
     /** Suggestion id or ref (S-0001) of the original when marking DUPLICATE. */
     duplicateOf: z.string().trim().min(1).max(64).optional(),
   })
-  .refine((v) => v.status !== 'DUPLICATE' || !!v.duplicateOf, { message: 'Say which suggestion this duplicates.', path: ['duplicateOf'] });
+  .refine((v) => v.status !== 'DUPLICATE' || !!v.duplicateOf, {
+    message: 'Say which suggestion this duplicates.',
+    path: ['duplicateOf'],
+  });
 export type SetSuggestionStatusInput = z.input<typeof setSuggestionStatusSchema>;
 
 async function findSuggestion(ctx: Ctx, idOrRef: string, db: Db = ctx.db): Promise<Suggestion | null> {
@@ -170,7 +226,11 @@ async function findSuggestion(ctx: Ctx, idOrRef: string, db: Db = ctx.db): Promi
   return db.suggestion.findFirst({ where: { guildId: ctx.guildId, OR: [{ id: idOrRef }, { ref }] } });
 }
 
-export async function setSuggestionStatus(ctx: Ctx, id: string, raw: SetSuggestionStatusInput): Promise<Suggestion> {
+export async function setSuggestionStatus(
+  ctx: Ctx,
+  id: string,
+  raw: SetSuggestionStatusInput,
+): Promise<Suggestion> {
   await requireModule(ctx, 'engagement');
   await requirePermission(ctx, 'suggestions.manage', 'engagement.suggestion.status');
   const input = setSuggestionStatusSchema.parse(raw);
@@ -184,7 +244,8 @@ export async function setSuggestionStatus(ctx: Ctx, id: string, raw: SetSuggesti
     if (original.id === s.id) throw validation('A suggestion cannot duplicate itself.');
     duplicateOfId = original.id;
   }
-  if (s.status === input.status && duplicateOfId === s.duplicateOfId && !input.response) throw conflict(`It is already ${SUGGESTION_STATUS_LABELS[s.status].toLowerCase()}.`);
+  if (s.status === input.status && duplicateOfId === s.duplicateOfId && !input.response)
+    throw conflict(`It is already ${SUGGESTION_STATUS_LABELS[s.status].toLowerCase()}.`);
 
   return ctx.db.$transaction(async (tx) => {
     const updated = await tx.suggestion.update({
@@ -196,18 +257,43 @@ export async function setSuggestionStatus(ctx: Ctx, id: string, raw: SetSuggesti
         duplicateOfId,
       },
     });
-    await audit(ctx, { action: 'engagement.suggestion.status', targetType: 'Suggestion', targetId: s.id, metadata: { ref: s.ref, from: s.status, to: input.status, duplicateOfId } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'engagement.suggestion.status',
+        targetType: 'Suggestion',
+        targetId: s.id,
+        metadata: { ref: s.ref, from: s.status, to: input.status, duplicateOfId },
+      },
+      tx,
+    );
     await enqueueSuggestionRefresh(ctx, tx, s.id, true);
     if (s.status !== input.status) {
-      const payload: DmPayload = { kind: 'suggestion.status', userId: s.authorId, refId: s.id, guard: input.status };
-      await enqueueJob(tx, { type: DM_JOB, dedupeKey: `${DM_JOB}:suggestion.status:${s.id}:${input.status}:${updated.updatedAt.getTime()}`, runAt: ctx.now(), guildId: ctx.guildId, payload: { ...payload } });
+      const payload: DmPayload = {
+        kind: 'suggestion.status',
+        userId: s.authorId,
+        refId: s.id,
+        guard: input.status,
+      };
+      await enqueueJob(tx, {
+        type: DM_JOB,
+        dedupeKey: `${DM_JOB}:suggestion.status:${s.id}:${input.status}:${updated.updatedAt.getTime()}`,
+        runAt: ctx.now(),
+        guildId: ctx.guildId,
+        payload: { ...payload },
+      });
     }
     return updated;
   });
 }
 
 /** Moderation: hide (or restore) a suggestion. Hidden suggestions disappear from the board and listings. */
-export async function setSuggestionHidden(ctx: Ctx, id: string, hidden: boolean, reason?: string): Promise<Suggestion> {
+export async function setSuggestionHidden(
+  ctx: Ctx,
+  id: string,
+  hidden: boolean,
+  reason?: string,
+): Promise<Suggestion> {
   await requireModule(ctx, 'engagement');
   await requirePermission(ctx, 'suggestions.manage', 'engagement.suggestion.hide');
   const why = z.string().trim().max(500).optional().parse(reason);
@@ -216,7 +302,16 @@ export async function setSuggestionHidden(ctx: Ctx, id: string, hidden: boolean,
   if (s.hidden === hidden) return s;
   return ctx.db.$transaction(async (tx) => {
     const updated = await tx.suggestion.update({ where: { id: s.id }, data: { hidden } });
-    await audit(ctx, { action: hidden ? 'engagement.suggestion.hide' : 'engagement.suggestion.unhide', targetType: 'Suggestion', targetId: s.id, metadata: { ref: s.ref, reason: why ? cleanText(why) : undefined } }, tx);
+    await audit(
+      ctx,
+      {
+        action: hidden ? 'engagement.suggestion.hide' : 'engagement.suggestion.unhide',
+        targetType: 'Suggestion',
+        targetId: s.id,
+        metadata: { ref: s.ref, reason: why ? cleanText(why) : undefined },
+      },
+      tx,
+    );
     await enqueueSuggestionRefresh(ctx, tx, s.id, true);
     return updated;
   });
@@ -231,7 +326,10 @@ export const listSuggestionsSchema = paginationSchema.extend({
 });
 
 /** Listing; hidden suggestions only for `suggestions.manage`. */
-export async function listSuggestions(ctx: Ctx, raw: z.input<typeof listSuggestionsSchema> = {}): Promise<Page<Suggestion>> {
+export async function listSuggestions(
+  ctx: Ctx,
+  raw: z.input<typeof listSuggestionsSchema> = {},
+): Promise<Page<Suggestion>> {
   await requireModule(ctx, 'engagement');
   const f = listSuggestionsSchema.parse(raw);
   const manager = can(ctx, 'suggestions.manage');
@@ -241,7 +339,11 @@ export async function listSuggestions(ctx: Ctx, raw: z.input<typeof listSuggesti
     ...(f.includeHidden && manager ? {} : { hidden: false }),
     ...(f.q ? { OR: [{ ref: f.q.toUpperCase() }, { title: { contains: f.q, mode: 'insensitive' } }] } : {}),
   };
-  const rows = await ctx.db.suggestion.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], ...cursorArgs(f) });
+  const rows = await ctx.db.suggestion.findMany({
+    where,
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    ...cursorArgs(f),
+  });
   return toPage(rows, f.limit);
 }
 

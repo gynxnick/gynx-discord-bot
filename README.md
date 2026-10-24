@@ -6,19 +6,19 @@ The community, status, security and analytics platform for the **GYNX.GG** Disco
 
 ## Features
 
-| Module | What it does | Key commands |
-|---|---|---|
-| Status & incidents | Read-only HTTP/TCP/Statuspage monitoring (SSRF-safe), failure/recovery thresholds, deduplicated alerts with cooldowns, incident lifecycle, maintenance windows, member subscriptions | `/status` `/uptime` `/incidents` `/subscribe-status` |
-| Community | Welcome flow, rules acknowledgement, verification, anti-raid detection, safe self-assignable roles, searchable FAQ and guides | `/help` `/faq` `/guides` `/rules` `/roles` |
-| Moderation | Warnings, timeouts, kicks, (temp) bans with hierarchy checks; automod for spam, mentions, bursts, invites, blocked domains/phrases, phishing; escalation that never auto-bans; appeals | `/warn` `/warnings` `/timeout` `/kick` `/ban` `/appeal` |
-| Security | Private abuse reports with duplicate suppression, staff triage workflow, reporter privacy, full security audit log | `/report-abuse` `/audit-log` |
-| Troubleshooting | Curated knowledge base, guided decision-tree flows, Minecraft crash-log analysis with automatic secret/IP redaction (uploads never stored) | `/troubleshoot` `/diagnose` `/knowledge-search` |
-| Game utilities | Minecraft, Rust, Palworld, Valheim, Garry's Mod: public info, latest versions, live player counts and port checks for authorized GYNX endpoints only | `/gameinfo` `/version` `/playercount` `/minecraft` `/steam` `/portcheck` |
-| Engagement | Events with RSVP, capacity and waitlists; polls (single/multi, anonymous); suggestions board; giveaways with cryptographically secure, auditable draws | `/event` `/poll` `/suggest` `/giveaway` |
-| Announcements | Drafts, templates, previews, scheduled publishing in the guild time zone, at-most-once delivery, mass-mention confirmation, tracked links | `/announce` `/schedule-announcement` |
-| Referrals & partners | Tracked invites with honest attribution (confirmed / ambiguous / unknown), abuse flags, leaderboards, partner applications and campaigns | `/referral` `/partners` |
-| Analytics | Observed activity, growth, moderation, infrastructure and marketing metrics with period comparisons; automated weekly CEO report | `/analytics` `/staff-stats` |
-| Administration | Per-guild configuration, module toggles, channels, roles, retention | `/config` |
+| Module               | What it does                                                                                                                                                                           | Key commands                                                             |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Status & incidents   | Read-only HTTP/TCP/Statuspage monitoring (SSRF-safe), failure/recovery thresholds, deduplicated alerts with cooldowns, incident lifecycle, maintenance windows, member subscriptions   | `/status` `/uptime` `/incidents` `/subscribe-status`                     |
+| Community            | Welcome flow, rules acknowledgement, verification, anti-raid detection, safe self-assignable roles, searchable FAQ and guides                                                          | `/help` `/faq` `/guides` `/rules` `/roles`                               |
+| Moderation           | Warnings, timeouts, kicks, (temp) bans with hierarchy checks; automod for spam, mentions, bursts, invites, blocked domains/phrases, phishing; escalation that never auto-bans; appeals | `/warn` `/warnings` `/timeout` `/kick` `/ban` `/appeal`                  |
+| Security             | Private abuse reports with duplicate suppression, staff triage workflow, reporter privacy, full security audit log                                                                     | `/report-abuse` `/audit-log`                                             |
+| Troubleshooting      | Curated knowledge base, guided decision-tree flows, Minecraft crash-log analysis with automatic secret/IP redaction (uploads never stored)                                             | `/troubleshoot` `/diagnose` `/knowledge-search`                          |
+| Game utilities       | Minecraft, Rust, Palworld, Valheim, Garry's Mod: public info, latest versions, live player counts and port checks for authorized GYNX endpoints only                                   | `/gameinfo` `/version` `/playercount` `/minecraft` `/steam` `/portcheck` |
+| Engagement           | Events with RSVP, capacity and waitlists; polls (single/multi, anonymous); suggestions board; giveaways with cryptographically secure, auditable draws                                 | `/event` `/poll` `/suggest` `/giveaway`                                  |
+| Announcements        | Drafts, templates, previews, scheduled publishing in the guild time zone, at-most-once delivery, mass-mention confirmation, tracked links                                              | `/announce` `/schedule-announcement`                                     |
+| Referrals & partners | Tracked invites with honest attribution (confirmed / ambiguous / unknown), abuse flags, leaderboards, partner applications and campaigns                                               | `/referral` `/partners`                                                  |
+| Analytics            | Observed activity, growth, moderation, infrastructure and marketing metrics with period comparisons; automated weekly CEO report                                                       | `/analytics` `/staff-stats`                                              |
+| Administration       | Per-guild configuration, module toggles, channels, roles, retention                                                                                                                    | `/config`                                                                |
 
 The **dashboard** (Discord OAuth2, staff only) covers configuration, permissions, incidents and monitoring, moderation records and automod, abuse reports, the audit log, knowledge base and flows, announcements, events, polls, giveaways, referrals, partners, analytics and reports, plus dead-letter job recovery.
 
@@ -41,7 +41,8 @@ pnpm dev:dashboard                     # terminal 3 → http://localhost:3000
 ```
 
 Then in Discord, as the server owner:
-1. Run `/config view`, then set channels with `/config channel set`: for example kind *Status board* → `#status`, *Security (private)* → `#staff-security`, *CEO reports (private)* → `#leadership`.
+
+1. Run `/config view`, then set channels with `/config channel set`: for example kind _Status board_ → `#status`, _Security (private)_ → `#staff-security`, _CEO reports (private)_ → `#leadership`.
 2. Run `/config support-url set url:https://…` to point at your support system.
 3. In the dashboard, open **Settings → Permissions** and map your staff roles to presets (`SUPPORT_STAFF`, `MODERATOR`, …).
 4. Open **Status → Services** and add the public services to monitor.

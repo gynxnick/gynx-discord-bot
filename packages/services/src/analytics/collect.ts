@@ -134,24 +134,39 @@ const exists = async (p: Promise<unknown>) => (await p) !== null;
 
 export async function sourcePresence(db: Db, guildId: string): Promise<SourcePresence> {
   const w = { where: { guildId }, select: { guildId: true } } as const;
-  const [memberEvents, activity, referrals, moderation, automod, abuseReports, incidents, services, announcements, trackedLinks, partnerApps, events, giveaways, polls, suggestions] =
-    await Promise.all([
-      exists(db.memberEvent.findFirst(w)),
-      exists(db.userActivityDaily.findFirst(w)),
-      exists(db.referralAttribution.findFirst(w)),
-      exists(db.moderationAction.findFirst(w)),
-      exists(db.automodEvent.findFirst(w)),
-      exists(db.abuseReport.findFirst(w)),
-      exists(db.incident.findFirst(w)),
-      exists(db.monitoredService.findFirst(w)),
-      exists(db.announcement.findFirst(w)),
-      exists(db.trackedLink.findFirst(w)),
-      exists(db.partnerApplication.findFirst(w)),
-      exists(db.communityEvent.findFirst(w)),
-      exists(db.giveaway.findFirst(w)),
-      exists(db.poll.findFirst(w)),
-      exists(db.suggestion.findFirst(w)),
-    ]);
+  const [
+    memberEvents,
+    activity,
+    referrals,
+    moderation,
+    automod,
+    abuseReports,
+    incidents,
+    services,
+    announcements,
+    trackedLinks,
+    partnerApps,
+    events,
+    giveaways,
+    polls,
+    suggestions,
+  ] = await Promise.all([
+    exists(db.memberEvent.findFirst(w)),
+    exists(db.userActivityDaily.findFirst(w)),
+    exists(db.referralAttribution.findFirst(w)),
+    exists(db.moderationAction.findFirst(w)),
+    exists(db.automodEvent.findFirst(w)),
+    exists(db.abuseReport.findFirst(w)),
+    exists(db.incident.findFirst(w)),
+    exists(db.monitoredService.findFirst(w)),
+    exists(db.announcement.findFirst(w)),
+    exists(db.trackedLink.findFirst(w)),
+    exists(db.partnerApplication.findFirst(w)),
+    exists(db.communityEvent.findFirst(w)),
+    exists(db.giveaway.findFirst(w)),
+    exists(db.poll.findFirst(w)),
+    exists(db.suggestion.findFirst(w)),
+  ]);
   return {
     memberEvents,
     activity,
@@ -196,7 +211,10 @@ export function activityKeys(p: Period, tz: string): { keys: string[]; startKey:
   return { keys: dateKeysBetween(startKey, endKey), startKey, endKey };
 }
 
-function countsBy<T extends string>(rows: ReadonlyArray<Record<string, unknown> & { _count: { _all: number } }>, key: string): Record<T, number> {
+function countsBy<T extends string>(
+  rows: ReadonlyArray<Record<string, unknown> & { _count: { _all: number } }>,
+  key: string,
+): Record<T, number> {
   const out = {} as Record<T, number>;
   for (const r of rows) out[r[key] as T] = r._count._all;
   return out;
@@ -211,15 +229,31 @@ interface DailySnapshot {
 }
 
 async function dailySnapshot(db: Db, guildId: string, date: string): Promise<DailySnapshot | null> {
-  const row = await db.analyticsDaily.findUnique({ where: { guildId_date: { guildId, date } }, select: { metrics: true } });
+  const row = await db.analyticsDaily.findUnique({
+    where: { guildId_date: { guildId, date } },
+    select: { metrics: true },
+  });
   return row ? (row.metrics as DailySnapshot) : null;
 }
 
-async function memberCountMetric(db: Db, guildId: string, p: Period, opts: CollectOptions, lastKey: string | undefined): Promise<Metric<number>> {
-  const guild = await db.guild.findUnique({ where: { id: guildId }, select: { memberCount: true, memberCountAt: true } });
+async function memberCountMetric(
+  db: Db,
+  guildId: string,
+  p: Period,
+  opts: CollectOptions,
+  lastKey: string | undefined,
+): Promise<Metric<number>> {
+  const guild = await db.guild.findUnique({
+    where: { id: guildId },
+    select: { memberCount: true, memberCountAt: true },
+  });
   const asOf = asOfFor(p, opts.now);
   // Live snapshot when it's fresh relative to the period end.
-  if (guild?.memberCountAt && guild.memberCountAt <= asOf && asOf.getTime() - guild.memberCountAt.getTime() <= 36 * 3_600_000) {
+  if (
+    guild?.memberCountAt &&
+    guild.memberCountAt <= asOf &&
+    asOf.getTime() - guild.memberCountAt.getTime() <= 36 * 3_600_000
+  ) {
     return available(guild.memberCount, `snapshot at ${formatInZone(guild.memberCountAt, opts.tz)}`);
   }
   if (lastKey) {
@@ -239,7 +273,13 @@ async function memberCountMetric(db: Db, guildId: string, p: Period, opts: Colle
   return unavailable('no member-count snapshot was recorded for this period');
 }
 
-export async function collectCommunity(db: Db, guildId: string, p: Period, opts: CollectOptions, src: SourcePresence): Promise<CommunitySection> {
+export async function collectCommunity(
+  db: Db,
+  guildId: string,
+  p: Period,
+  opts: CollectOptions,
+  src: SourcePresence,
+): Promise<CommunitySection> {
   const { keys, startKey, endKey } = activityKeys(p, opts.tz);
   const lastKey = keys[keys.length - 1];
   const threshold = Math.max(1, opts.activeMemberMinMessages);
@@ -251,10 +291,24 @@ export async function collectCommunity(db: Db, guildId: string, p: Period, opts:
     memberCountMetric(db, guildId, p, opts, lastKey),
     db.memberEvent.groupBy({ by: ['type'], where: { guildId, at: inPeriod(p) }, _count: { _all: true } }),
     db.userActivityDaily.groupBy({ by: ['userId'], where: activityWhere, _sum: { messageCount: true } }),
-    db.channelActivityDaily.groupBy({ by: ['channelId'], where: activityWhere, _sum: { messageCount: true } }),
-    db.userActivityDaily.groupBy({ by: ['date'], where: { ...activityWhere, messageCount: { gt: 0 } }, _count: { _all: true } }),
-    db.userActivityDaily.groupBy({ by: ['userId'], where: { guildId, date: { gte: wauStart, lt: endKey }, messageCount: { gt: 0 } } }),
-    db.userActivityDaily.groupBy({ by: ['userId'], where: { guildId, date: { gte: mauStart, lt: endKey }, messageCount: { gt: 0 } } }),
+    db.channelActivityDaily.groupBy({
+      by: ['channelId'],
+      where: activityWhere,
+      _sum: { messageCount: true },
+    }),
+    db.userActivityDaily.groupBy({
+      by: ['date'],
+      where: { ...activityWhere, messageCount: { gt: 0 } },
+      _count: { _all: true },
+    }),
+    db.userActivityDaily.groupBy({
+      by: ['userId'],
+      where: { guildId, date: { gte: wauStart, lt: endKey }, messageCount: { gt: 0 } },
+    }),
+    db.userActivityDaily.groupBy({
+      by: ['userId'],
+      where: { guildId, date: { gte: mauStart, lt: endKey }, messageCount: { gt: 0 } },
+    }),
   ]);
 
   const flow = memberFlow(flowRows.map((r) => ({ type: r.type, count: r._count._all })));
@@ -269,12 +323,18 @@ export async function collectCommunity(db: Db, guildId: string, p: Period, opts:
     leaves: fromSource(src.memberEvents, flow.leaves, REASONS.memberEvents),
     netGrowth: fromSource(src.memberEvents, flow.net, REASONS.memberEvents),
     activeMembers: act(
-      countActiveMembers(perUser.map((r) => ({ userId: r.userId, messages: r._sum.messageCount ?? 0 })), threshold),
+      countActiveMembers(
+        perUser.map((r) => ({ userId: r.userId, messages: r._sum.messageCount ?? 0 })),
+        threshold,
+      ),
       `${note}; at least ${threshold} message${threshold === 1 ? '' : 's'}`,
     ),
     messages: act(messages),
     topChannels: act(topN(channelCounts, 5).map((e) => ({ channelId: e.id, messages: e.count }))),
-    dau: act(averageDaily(new Map(perDay.map((r) => [r.date, r._count._all])), keys), `${note}; daily average`),
+    dau: act(
+      averageDaily(new Map(perDay.map((r) => [r.date, r._count._all])), keys),
+      `${note}; daily average`,
+    ),
     wau: act(wauRows.length, `${note}; last 7 days of period`),
     mau: act(mauRows.length, `${note}; last 30 days of period`),
     activeMemberThreshold: threshold,
@@ -284,7 +344,13 @@ export async function collectCommunity(db: Db, guildId: string, p: Period, opts:
 
 // ── Referrals ──────────────────────────────────────────────────────────────
 
-export async function collectReferrals(db: Db, guildId: string, p: Period, _opts: CollectOptions, src: SourcePresence): Promise<ReferralSection> {
+export async function collectReferrals(
+  db: Db,
+  guildId: string,
+  p: Period,
+  _opts: CollectOptions,
+  src: SourcePresence,
+): Promise<ReferralSection> {
   const where = { guildId, joinedAt: inPeriod(p) };
   const [byConfidence, flagged, top] = await Promise.all([
     db.referralAttribution.groupBy({ by: ['confidence'], where, _count: { _all: true } }),
@@ -311,19 +377,44 @@ export async function collectReferrals(db: Db, guildId: string, p: Period, _opts
 
 // ── Moderation & security ──────────────────────────────────────────────────
 
-export async function collectModeration(db: Db, guildId: string, p: Period, opts: CollectOptions, src: SourcePresence): Promise<ModerationSection> {
+export async function collectModeration(
+  db: Db,
+  guildId: string,
+  p: Period,
+  opts: CollectOptions,
+  src: SourcePresence,
+): Promise<ModerationSection> {
   const asOf = asOfFor(p, opts.now);
-  const [actions, rules, falsePositives, received, resolved, dismissed, categories, backlog] = await Promise.all([
-    db.moderationAction.groupBy({ by: ['type'], where: { guildId, createdAt: inPeriod(p), status: { not: 'FAILED' } }, _count: { _all: true } }),
-    db.automodEvent.groupBy({ by: ['rule'], where: { guildId, createdAt: inPeriod(p) }, _count: { _all: true } }),
-    db.automodEvent.count({ where: { guildId, createdAt: inPeriod(p), falsePositive: true } }),
-    db.abuseReport.count({ where: { guildId, createdAt: inPeriod(p) } }),
-    db.abuseReport.count({ where: { guildId, status: 'RESOLVED', resolvedAt: inPeriod(p) } }),
-    db.abuseReport.count({ where: { guildId, status: 'DISMISSED', resolvedAt: inPeriod(p) } }),
-    db.abuseReport.groupBy({ by: ['category'], where: { guildId, createdAt: inPeriod(p) }, _count: { _all: true } }),
-    // Open as of `asOf`: created before it and not closed before it.
-    db.abuseReport.count({ where: { guildId, createdAt: { lt: asOf }, OR: [{ resolvedAt: null }, { resolvedAt: { gte: asOf } }] } }),
-  ]);
+  const [actions, rules, falsePositives, received, resolved, dismissed, categories, backlog] =
+    await Promise.all([
+      db.moderationAction.groupBy({
+        by: ['type'],
+        where: { guildId, createdAt: inPeriod(p), status: { not: 'FAILED' } },
+        _count: { _all: true },
+      }),
+      db.automodEvent.groupBy({
+        by: ['rule'],
+        where: { guildId, createdAt: inPeriod(p) },
+        _count: { _all: true },
+      }),
+      db.automodEvent.count({ where: { guildId, createdAt: inPeriod(p), falsePositive: true } }),
+      db.abuseReport.count({ where: { guildId, createdAt: inPeriod(p) } }),
+      db.abuseReport.count({ where: { guildId, status: 'RESOLVED', resolvedAt: inPeriod(p) } }),
+      db.abuseReport.count({ where: { guildId, status: 'DISMISSED', resolvedAt: inPeriod(p) } }),
+      db.abuseReport.groupBy({
+        by: ['category'],
+        where: { guildId, createdAt: inPeriod(p) },
+        _count: { _all: true },
+      }),
+      // Open as of `asOf`: created before it and not closed before it.
+      db.abuseReport.count({
+        where: {
+          guildId,
+          createdAt: { lt: asOf },
+          OR: [{ resolvedAt: null }, { resolvedAt: { gte: asOf } }],
+        },
+      }),
+    ]);
   const byType = countsBy<string>(actions, 'type');
   const byRule = countsBy<string>(rules, 'rule');
   const sum = (r: Record<string, number>) => Object.values(r).reduce((a, b) => a + b, 0);
@@ -346,18 +437,43 @@ export async function collectModeration(db: Db, guildId: string, p: Period, opts
 
 // ── Infrastructure ─────────────────────────────────────────────────────────
 
-export async function collectInfrastructure(db: Db, guildId: string, p: Period, opts: CollectOptions, src: SourcePresence): Promise<InfrastructureSection> {
+export async function collectInfrastructure(
+  db: Db,
+  guildId: string,
+  p: Period,
+  opts: CollectOptions,
+  src: SourcePresence,
+): Promise<InfrastructureSection> {
   const asOf = asOfFor(p, opts.now);
   const [opened, resolved, overlapping, services, checks, checksOk] = await Promise.all([
-    db.incident.findMany({ where: { guildId, startedAt: inPeriod(p) }, select: { severity: true, autoCreated: true } }),
+    db.incident.findMany({
+      where: { guildId, startedAt: inPeriod(p) },
+      select: { severity: true, autoCreated: true },
+    }),
     db.incident.count({ where: { guildId, resolvedAt: inPeriod(p) } }),
     db.incident.findMany({
-      where: { guildId, startedAt: { lt: p.end }, OR: [{ resolvedAt: null }, { resolvedAt: { gt: p.start } }] },
+      where: {
+        guildId,
+        startedAt: { lt: p.end },
+        OR: [{ resolvedAt: null }, { resolvedAt: { gt: p.start } }],
+      },
       select: { startedAt: true, resolvedAt: true },
     }),
-    db.monitoredService.findMany({ where: { guildId, public: true, enabled: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }], select: { id: true, name: true } }),
-    db.healthCheck.groupBy({ by: ['serviceId'], where: { service: { guildId }, checkedAt: inPeriod(p) }, _count: { _all: true } }),
-    db.healthCheck.groupBy({ by: ['serviceId'], where: { service: { guildId }, checkedAt: inPeriod(p), ok: true }, _count: { _all: true } }),
+    db.monitoredService.findMany({
+      where: { guildId, public: true, enabled: true },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      select: { id: true, name: true },
+    }),
+    db.healthCheck.groupBy({
+      by: ['serviceId'],
+      where: { service: { guildId }, checkedAt: inPeriod(p) },
+      _count: { _all: true },
+    }),
+    db.healthCheck.groupBy({
+      by: ['serviceId'],
+      where: { service: { guildId }, checkedAt: inPeriod(p), ok: true },
+      _count: { _all: true },
+    }),
   ]);
   const severity: Record<string, number> = {};
   let auto = 0;
@@ -372,7 +488,10 @@ export async function collectInfrastructure(db: Db, guildId: string, p: Period, 
     incidentsOpened: m(opened.length),
     incidentsResolved: m(resolved),
     incidentsBySeverity: m(severity),
-    incidentMinutes: m(Math.round(incidentDurationMs(overlapping, p, asOf) / 60_000), 'total incident time within period'),
+    incidentMinutes: m(
+      Math.round(incidentDurationMs(overlapping, p, asOf) / 60_000),
+      'total incident time within period',
+    ),
     autoIncidents: m(auto),
     manualIncidents: m(opened.length - auto),
     uptime: services.map((s) => ({
@@ -391,14 +510,42 @@ export async function liveTrackedLinkClicks(db: Db, guildId: string): Promise<nu
   return r._sum.clicks ?? 0;
 }
 
-export async function collectMarketing(db: Db, guildId: string, p: Period, opts: CollectOptions, src: SourcePresence): Promise<MarketingSection> {
+export async function collectMarketing(
+  db: Db,
+  guildId: string,
+  p: Period,
+  opts: CollectOptions,
+  src: SourcePresence,
+): Promise<MarketingSection> {
   const { startKey, endKey, keys } = activityKeys(p, opts.tz);
   const lastKey = keys[keys.length - 1];
-  const publishedWhere: Prisma.AnnouncementWhereInput = { guildId, status: 'PUBLISHED', publishedAt: inPeriod(p) };
-  const [published, deliveries, partnerByStatus, rsvps, entries, ballots, suggestions, baselineSnap, endSnap] = await Promise.all([
+  const publishedWhere: Prisma.AnnouncementWhereInput = {
+    guildId,
+    status: 'PUBLISHED',
+    publishedAt: inPeriod(p),
+  };
+  const [
+    published,
+    deliveries,
+    partnerByStatus,
+    rsvps,
+    entries,
+    ballots,
+    suggestions,
+    baselineSnap,
+    endSnap,
+  ] = await Promise.all([
     db.announcement.count({ where: publishedWhere }),
-    db.announcementDelivery.aggregate({ where: { success: true, announcement: publishedWhere }, _sum: { reactionCount: true }, _count: { _all: true } }),
-    db.partnerApplication.groupBy({ by: ['status'], where: { guildId, createdAt: inPeriod(p) }, _count: { _all: true } }),
+    db.announcementDelivery.aggregate({
+      where: { success: true, announcement: publishedWhere },
+      _sum: { reactionCount: true },
+      _count: { _all: true },
+    }),
+    db.partnerApplication.groupBy({
+      by: ['status'],
+      where: { guildId, createdAt: inPeriod(p) },
+      _count: { _all: true },
+    }),
     db.eventRsvp.count({ where: { status: 'GOING', createdAt: inPeriod(p), event: { guildId } } }),
     db.giveawayEntry.count({ where: { createdAt: inPeriod(p), giveaway: { guildId } } }),
     db.pollBallot.count({ where: { createdAt: inPeriod(p), poll: { guildId } } }),
@@ -440,7 +587,13 @@ export async function collectMarketing(db: Db, guildId: string, p: Period, opts:
 
 export async function collectOutstanding(db: Db, guildId: string, asOf: Date): Promise<OutstandingSection> {
   const [staleReports, active, dead, flagged, stalePartners] = await Promise.all([
-    db.abuseReport.count({ where: { guildId, status: { in: ['NEW', 'TRIAGED', 'INVESTIGATING'] }, createdAt: { lt: new Date(asOf.getTime() - 72 * 3_600_000) } } }),
+    db.abuseReport.count({
+      where: {
+        guildId,
+        status: { in: ['NEW', 'TRIAGED', 'INVESTIGATING'] },
+        createdAt: { lt: new Date(asOf.getTime() - 72 * 3_600_000) },
+      },
+    }),
     db.incident.findMany({
       where: { guildId, status: { not: 'RESOLVED' } },
       orderBy: { startedAt: 'asc' },
@@ -449,12 +602,19 @@ export async function collectOutstanding(db: Db, guildId: string, asOf: Date): P
     }),
     db.scheduledJob.count({ where: { status: 'DEAD', OR: [{ guildId }, { guildId: null }] } }),
     db.referralAttribution.count({ where: { guildId, status: 'FLAGGED' } }),
-    db.partnerApplication.count({ where: { guildId, status: 'PENDING', createdAt: { lt: new Date(asOf.getTime() - 7 * 86_400_000) } } }),
+    db.partnerApplication.count({
+      where: { guildId, status: 'PENDING', createdAt: { lt: new Date(asOf.getTime() - 7 * 86_400_000) } },
+    }),
   ]);
   return {
     asOf: asOf.toISOString(),
     staleAbuseReports: staleReports,
-    activeIncidents: active.map((i) => ({ ref: i.ref, title: i.title, severity: i.severity, startedAt: i.startedAt.toISOString() })),
+    activeIncidents: active.map((i) => ({
+      ref: i.ref,
+      title: i.title,
+      severity: i.severity,
+      startedAt: i.startedAt.toISOString(),
+    })),
     deadJobs: dead,
     flaggedReferrals: flagged,
     stalePartnerApplications: stalePartners,
@@ -463,7 +623,8 @@ export async function collectOutstanding(db: Db, guildId: string, asOf: Date): P
 
 // ── Merging current + previous ─────────────────────────────────────────────
 
-const isMetric = (v: unknown): v is Metric<unknown> => typeof v === 'object' && v !== null && 'available' in v;
+const isMetric = (v: unknown): v is Metric<unknown> =>
+  typeof v === 'object' && v !== null && 'available' in v;
 
 /**
  * Attach previous-period values to every Metric field of a section (scalars and

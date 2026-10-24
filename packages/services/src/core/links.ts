@@ -12,7 +12,13 @@ export function signResourceLink(secret: string, resource: string, expiresAt: Da
   return `exp=${exp}&sig=${sig}`;
 }
 
-export function verifyResourceLink(secret: string, resource: string, exp: string | null, sig: string | null, now: Date): boolean {
+export function verifyResourceLink(
+  secret: string,
+  resource: string,
+  exp: string | null,
+  sig: string | null,
+  now: Date,
+): boolean {
   if (!exp || !sig || !/^\d+$/.test(exp)) return false;
   if (Number(exp) * 1000 < now.getTime()) return false;
   return safeEqual(hmacSha256(secret, `${resource}:${exp}`), sig);

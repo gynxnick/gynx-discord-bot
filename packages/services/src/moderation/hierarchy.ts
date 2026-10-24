@@ -41,7 +41,8 @@ export const STAFF_PERMISSIONS: readonly PermissionKey[] = [
   'permissions.manage',
 ];
 
-export const isStaffPermissionSet = (perms: ReadonlySet<PermissionKey>): boolean => STAFF_PERMISSIONS.some((k) => perms.has(k));
+export const isStaffPermissionSet = (perms: ReadonlySet<PermissionKey>): boolean =>
+  STAFF_PERMISSIONS.some((k) => perms.has(k));
 
 export function checkHierarchy(i: HierarchyInput): HierarchyResult {
   if (i.actorId === i.targetId) return { ok: false, reason: 'You cannot moderate yourself.' };
@@ -57,7 +58,10 @@ export function checkHierarchy(i: HierarchyInput): HierarchyResult {
     }
   }
   if (i.targetIsStaff && !actorIsOwner && !i.actorCanBan) {
-    return { ok: false, reason: 'That member is staff. Only senior moderators (with ban permission) can moderate staff.' };
+    return {
+      ok: false,
+      reason: 'That member is staff. Only senior moderators (with ban permission) can moderate staff.',
+    };
   }
   return { ok: true };
 }

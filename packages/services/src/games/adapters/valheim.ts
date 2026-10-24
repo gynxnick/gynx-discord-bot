@@ -20,7 +20,9 @@ export const valheimAdapter: GameAdapter = {
     { port: 2456, proto: 'udp', purpose: 'Game (connect port)' },
     { port: 2457, proto: 'udp', purpose: 'Steam query (game port + 1)' },
   ],
-  docsLinks: [{ label: 'Dedicated servers (Valheim wiki)', url: 'https://valheim.fandom.com/wiki/Dedicated_servers' }],
+  docsLinks: [
+    { label: 'Dedicated servers (Valheim wiki)', url: 'https://valheim.fandom.com/wiki/Dedicated_servers' },
+  ],
   notes: [
     'The Steam query port is always the game port + 1 — /playercount does this for you.',
     'Crossplay servers are joined via join code and may not answer Steam queries.',

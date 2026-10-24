@@ -38,7 +38,11 @@ export interface JoinResult {
 }
 
 /** Verification is required when enabled, during a REQUIRE_VERIFICATION raid, or for accounts younger than the minimum age. */
-export function verificationRequired(welcome: WelcomeConfig, record: Pick<OnboardingRecord, 'raidFlagged' | 'accountCreatedAt'>, now: Date): boolean {
+export function verificationRequired(
+  welcome: WelcomeConfig,
+  record: Pick<OnboardingRecord, 'raidFlagged' | 'accountCreatedAt'>,
+  now: Date,
+): boolean {
   if (welcome.verificationEnabled) return true;
   if (record.raidFlagged && welcome.raidAction === 'REQUIRE_VERIFICATION') return true;
   return isNewAccount(record.accountCreatedAt, now, welcome.minAccountAgeDays);
@@ -61,23 +65,42 @@ export async function recordJoin(ctx: Ctx, raw: z.input<typeof recordJoinSchema>
   let record = await ctx.db.$transaction(async (tx) => {
     const rec = await tx.onboardingRecord.upsert({
       where: { guildId_userId: { guildId: ctx.guildId, userId: input.userId } },
-      create: { guildId: ctx.guildId, userId: input.userId, joinedAt: input.joinedAt, accountCreatedAt: input.accountCreatedAt },
+      create: {
+        guildId: ctx.guildId,
+        userId: input.userId,
+        joinedAt: input.joinedAt,
+        accountCreatedAt: input.accountCreatedAt,
+      },
       // Rejoining: Discord dropped their roles, so verification starts over (rules acceptance is kept).
-      update: { joinedAt: input.joinedAt, accountCreatedAt: input.accountCreatedAt, leftAt: null, verifiedAt: null, raidFlagged: false },
+      update: {
+        joinedAt: input.joinedAt,
+        accountCreatedAt: input.accountCreatedAt,
+        leftAt: null,
+        verifiedAt: null,
+        raidFlagged: false,
+      },
     });
     // Clamp to now so clock skew can't push a join outside the raid window.
     const at = input.joinedAt > now ? now : input.joinedAt;
     await tx.memberEvent.create({ data: { guildId: ctx.guildId, userId: input.userId, type: 'JOIN', at } });
     if (input.memberCount !== undefined) {
-      await tx.guild.update({ where: { id: ctx.guildId }, data: { memberCount: input.memberCount, memberCountAt: now } });
+      await tx.guild.update({
+        where: { id: ctx.guildId },
+        data: { memberCount: input.memberCount, memberCountAt: now },
+      });
     }
     return rec;
   });
 
-  let raid: RaidDetection = { isRaid: false, joinsInWindow: 0, windowStart: new Date(now.getTime() - welcome.raidWindowSeconds * 1000) };
+  let raid: RaidDetection = {
+    isRaid: false,
+    joinsInWindow: 0,
+    windowStart: new Date(now.getTime() - welcome.raidWindowSeconds * 1000),
+  };
   if (moduleEnabled) {
     raid = await evaluateRaid(ctx, welcome, now);
-    if (raid.isRaid) record = (await ctx.db.onboardingRecord.findUnique({ where: { id: record.id } })) ?? record;
+    if (raid.isRaid)
+      record = (await ctx.db.onboardingRecord.findUnique({ where: { id: record.id } })) ?? record;
   }
 
   return {
@@ -130,14 +153,26 @@ async function evaluateRaid(ctx: Ctx, welcome: WelcomeConfig, now: Date): Promis
     });
     await audit(
       ctx,
-      { action: 'community.raid.detected', targetType: 'Guild', targetId: ctx.guildId, metadata: { joinsInWindow: raid.joinsInWindow, windowSeconds: welcome.raidWindowSeconds, action: welcome.raidAction } },
+      {
+        action: 'community.raid.detected',
+        targetType: 'Guild',
+        targetId: ctx.guildId,
+        metadata: {
+          joinsInWindow: raid.joinsInWindow,
+          windowSeconds: welcome.raidWindowSeconds,
+          action: welcome.raidAction,
+        },
+      },
       tx,
     );
   });
   return raid;
 }
 
-export const recordLeaveSchema = z.object({ userId: snowflakeSchema, memberCount: z.number().int().min(0).optional() });
+export const recordLeaveSchema = z.object({
+  userId: snowflakeSchema,
+  memberCount: z.number().int().min(0).optional(),
+});
 
 /** Record a member leaving (gateway listener). */
 export async function recordLeave(ctx: Ctx, raw: z.input<typeof recordLeaveSchema>): Promise<void> {
@@ -145,10 +180,18 @@ export async function recordLeave(ctx: Ctx, raw: z.input<typeof recordLeaveSchem
   const now = ctx.now();
   await getGuildConfig(ctx.db, ctx.guildId);
   await ctx.db.$transaction(async (tx) => {
-    await tx.onboardingRecord.updateMany({ where: { guildId: ctx.guildId, userId: input.userId, leftAt: null }, data: { leftAt: now } });
-    await tx.memberEvent.create({ data: { guildId: ctx.guildId, userId: input.userId, type: 'LEAVE', at: now } });
+    await tx.onboardingRecord.updateMany({
+      where: { guildId: ctx.guildId, userId: input.userId, leftAt: null },
+      data: { leftAt: now },
+    });
+    await tx.memberEvent.create({
+      data: { guildId: ctx.guildId, userId: input.userId, type: 'LEAVE', at: now },
+    });
     if (input.memberCount !== undefined) {
-      await tx.guild.update({ where: { id: ctx.guildId }, data: { memberCount: input.memberCount, memberCountAt: now } });
+      await tx.guild.update({
+        where: { id: ctx.guildId },
+        data: { memberCount: input.memberCount, memberCountAt: now },
+      });
     }
   });
 }
@@ -191,7 +234,10 @@ export async function getOnboardingStatus(ctx: Ctx, facts: MemberFacts = {}): Pr
 }
 
 /** Member accepts the rules. Idempotent. */
-export async function acceptRules(ctx: Ctx, facts: MemberFacts = {}): Promise<{ alreadyAccepted: boolean; status: OnboardingStatus }> {
+export async function acceptRules(
+  ctx: Ctx,
+  facts: MemberFacts = {},
+): Promise<{ alreadyAccepted: boolean; status: OnboardingStatus }> {
   await requireModule(ctx, 'community');
   await requireRate(ctx, 'community.rules.accept', 5, 60);
   const rec = await ensureOwnRecord(ctx, facts);
@@ -199,7 +245,11 @@ export async function acceptRules(ctx: Ctx, facts: MemberFacts = {}): Promise<{ 
   if (!alreadyAccepted) {
     await ctx.db.$transaction(async (tx) => {
       await tx.onboardingRecord.update({ where: { id: rec.id }, data: { rulesAcceptedAt: ctx.now() } });
-      await audit(ctx, { action: 'community.onboarding.rules_accept', targetType: 'User', targetId: ctx.actor.userId }, tx);
+      await audit(
+        ctx,
+        { action: 'community.onboarding.rules_accept', targetType: 'User', targetId: ctx.actor.userId },
+        tx,
+      );
     });
   }
   return { alreadyAccepted, status: await getOnboardingStatus(ctx, facts) };
@@ -210,7 +260,10 @@ export async function acceptRules(ctx: Ctx, facts: MemberFacts = {}): Promise<{ 
  * rules, so clicking it also records rules acceptance. Returns the role the
  * bot should apply (null when no verified role is configured).
  */
-export async function completeVerification(ctx: Ctx, facts: MemberFacts = {}): Promise<{ verifiedRoleId: string | null; alreadyVerified: boolean }> {
+export async function completeVerification(
+  ctx: Ctx,
+  facts: MemberFacts = {},
+): Promise<{ verifiedRoleId: string | null; alreadyVerified: boolean }> {
   await requireModule(ctx, 'community');
   await requireRate(ctx, 'community.verify', 5, 60);
   const welcome = await loadWelcomeConfig(ctx.db, ctx.guildId);
@@ -219,8 +272,20 @@ export async function completeVerification(ctx: Ctx, facts: MemberFacts = {}): P
   if (!alreadyVerified) {
     const now = ctx.now();
     await ctx.db.$transaction(async (tx) => {
-      await tx.onboardingRecord.update({ where: { id: rec.id }, data: { verifiedAt: now, rulesAcceptedAt: rec.rulesAcceptedAt ?? now } });
-      await audit(ctx, { action: 'community.onboarding.verify', targetType: 'User', targetId: ctx.actor.userId, metadata: { raidFlagged: rec.raidFlagged } }, tx);
+      await tx.onboardingRecord.update({
+        where: { id: rec.id },
+        data: { verifiedAt: now, rulesAcceptedAt: rec.rulesAcceptedAt ?? now },
+      });
+      await audit(
+        ctx,
+        {
+          action: 'community.onboarding.verify',
+          targetType: 'User',
+          targetId: ctx.actor.userId,
+          metadata: { raidFlagged: rec.raidFlagged },
+        },
+        tx,
+      );
     });
   }
   return { verifiedRoleId: welcome.verifiedRoleId, alreadyVerified };
@@ -246,7 +311,9 @@ export async function selectInterests(
   await requireModule(ctx, 'community');
   await requireRate(ctx, 'community.interests', 5, 60);
   const selected = [...new Set(z.array(snowflakeSchema).max(25).parse(selectedRoleIds))];
-  const games = await ctx.db.selfAssignableRole.findMany({ where: { guildId: ctx.guildId, group: 'games', enabled: true } });
+  const games = await ctx.db.selfAssignableRole.findMany({
+    where: { guildId: ctx.guildId, group: 'games', enabled: true },
+  });
   const allowed = new Map(games.map((g) => [g.roleId, g]));
   const invalid = selected.filter((id) => !allowed.has(id));
   if (invalid.length) throw forbidden('One or more of those roles is not a selectable game role.');
@@ -278,7 +345,11 @@ export async function countRaidFlaggedSince(db: Db, guildId: string, since: Date
  * Retention: delete MemberEvents older than `activityRetentionDays` and the
  * onboarding records of members who left longer ago than that.
  */
-export async function purgeCommunityData(db: Db, guildId: string, now: Date): Promise<{ memberEvents: number; onboardingRecords: number }> {
+export async function purgeCommunityData(
+  db: Db,
+  guildId: string,
+  now: Date,
+): Promise<{ memberEvents: number; onboardingRecords: number }> {
   const cfg = await getGuildConfig(db, guildId);
   const cutoff = new Date(now.getTime() - cfg.activityRetentionDays * 86_400_000);
   const [events, records] = await Promise.all([

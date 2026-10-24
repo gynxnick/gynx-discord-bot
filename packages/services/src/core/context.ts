@@ -50,7 +50,11 @@ export function systemActor(source: Actor['source'] = 'worker'): Actor {
   };
 }
 
-export function memberActor(userId: string, roleIds: readonly string[] = [], source: Actor['source'] = 'bot'): Actor {
+export function memberActor(
+  userId: string,
+  roleIds: readonly string[] = [],
+  source: Actor['source'] = 'bot',
+): Actor {
   return { userId, roleIds, permissions: new Set(), isSystem: false, source };
 }
 

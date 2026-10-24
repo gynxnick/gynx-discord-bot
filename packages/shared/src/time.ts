@@ -3,7 +3,15 @@
  * computing schedules and formatting for display. Uses Intl only (no deps).
  */
 
-export const WEEKDAYS = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'] as const;
+export const WEEKDAYS = [
+  'SUNDAY',
+  'MONDAY',
+  'TUESDAY',
+  'WEDNESDAY',
+  'THURSDAY',
+  'FRIDAY',
+  'SATURDAY',
+] as const;
 export type Weekday = (typeof WEEKDAYS)[number];
 
 export function isValidTimeZone(tz: string): boolean {
@@ -48,7 +56,11 @@ function formatter(tz: string): Intl.DateTimeFormat {
 const WD_SHORT: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 
 export function zonedParts(date: Date, tz: string): ZonedParts {
-  const parts = Object.fromEntries(formatter(tz).formatToParts(date).map((p) => [p.type, p.value]));
+  const parts = Object.fromEntries(
+    formatter(tz)
+      .formatToParts(date)
+      .map((p) => [p.type, p.value]),
+  );
   return {
     year: Number(parts.year),
     month: Number(parts.month),
@@ -68,7 +80,14 @@ export function tzOffsetMinutes(date: Date, tz: string): number {
 }
 
 /** Convert a wall-clock time in `tz` to a UTC Date (handles DST by re-checking the offset). */
-export function zonedToUtc(year: number, month: number, day: number, hour: number, minute: number, tz: string): Date {
+export function zonedToUtc(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  tz: string,
+): Date {
   const guess = Date.UTC(year, month - 1, day, hour, minute);
   let offset = tzOffsetMinutes(new Date(guess), tz);
   let result = guess - offset * 60000;
@@ -102,7 +121,14 @@ export function nextWeeklyOccurrence(now: Date, weekday: Weekday, time: string, 
   for (let addDays = 0; addDays <= 7; addDays++) {
     const base = new Date(Date.UTC(p.year, p.month - 1, p.day + addDays));
     if (base.getUTCDay() !== target) continue;
-    const candidate = zonedToUtc(base.getUTCFullYear(), base.getUTCMonth() + 1, base.getUTCDate(), hh, mm, tz);
+    const candidate = zonedToUtc(
+      base.getUTCFullYear(),
+      base.getUTCMonth() + 1,
+      base.getUTCDate(),
+      hh,
+      mm,
+      tz,
+    );
     if (candidate.getTime() > now.getTime()) return candidate;
   }
   // Same weekday, time already passed → one week later

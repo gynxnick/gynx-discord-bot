@@ -29,9 +29,15 @@ export const partnersCommand: SlashCommand = {
       const select = new StringSelectMenuBuilder()
         .setCustomId('partner:cat')
         .setPlaceholder('What kind of partner are you?')
-        .addOptions(marketing.PARTNER_CATEGORIES.map((c) => ({ label: marketing.PARTNER_CATEGORY_LABELS[c], value: c })));
+        .addOptions(
+          marketing.PARTNER_CATEGORIES.map((c) => ({
+            label: marketing.PARTNER_CATEGORY_LABELS[c],
+            value: c,
+          })),
+        );
       await respond(i, {
-        content: 'Choose the category that fits you best. Never include passwords or private account details in your answers.',
+        content:
+          'Choose the category that fits you best. Never include passwords or private account details in your answers.',
         components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)],
       });
       return;
@@ -39,9 +45,17 @@ export const partnersCommand: SlashCommand = {
     if (sub === 'status') {
       const apps = await marketing.myPartnerApplications(h.ctx);
       const lines = apps.map(
-        (a) => `**${a.ref}** · ${marketing.PARTNER_CATEGORY_LABELS[a.category]} · ${a.status.replace('_', ' ').toLowerCase()} · ${discordTimestamp(a.createdAt, 'R')}${a.decisionNote ? `\n> ${neutraliseMentions(truncate(a.decisionNote, 300))}` : ''}`,
+        (a) =>
+          `**${a.ref}** · ${marketing.PARTNER_CATEGORY_LABELS[a.category]} · ${a.status.replace('_', ' ').toLowerCase()} · ${discordTimestamp(a.createdAt, 'R')}${a.decisionNote ? `\n> ${neutraliseMentions(truncate(a.decisionNote, 300))}` : ''}`,
       );
-      await respond(i, { embeds: [brandEmbed({ title: 'Your partner applications', description: lines.join('\n') || 'You have not applied yet. Use `/partners apply`.' })] });
+      await respond(i, {
+        embeds: [
+          brandEmbed({
+            title: 'Your partner applications',
+            description: lines.join('\n') || 'You have not applied yet. Use `/partners apply`.',
+          }),
+        ],
+      });
       return;
     }
     if (sub === 'review-queue') {
@@ -51,17 +65,24 @@ export const partnersCommand: SlashCommand = {
       ]);
       const items = [...review.items, ...pending.items].slice(0, 5);
       const lines = items.map(
-        (a) => `**${a.ref}** · ${marketing.PARTNER_CATEGORY_LABELS[a.category]} · <@${a.applicantId}> · ${a.status === 'UNDER_REVIEW' ? `in review by <@${a.reviewerId}>` : 'pending'} · ${discordTimestamp(a.createdAt, 'R')}`,
+        (a) =>
+          `**${a.ref}** · ${marketing.PARTNER_CATEGORY_LABELS[a.category]} · <@${a.applicantId}> · ${a.status === 'UNDER_REVIEW' ? `in review by <@${a.reviewerId}>` : 'pending'} · ${discordTimestamp(a.createdAt, 'R')}`,
       );
       await respond(i, {
-        embeds: [brandEmbed({ title: 'Partner review queue', description: lines.join('\n') || 'No open applications.' })],
+        embeds: [
+          brandEmbed({
+            title: 'Partner review queue',
+            description: lines.join('\n') || 'No open applications.',
+          }),
+        ],
         components: items.map((a) => marketing.partnerStaffButtons(a)[0]!),
       });
     }
   },
 };
 
-const isCategory = (v: string | undefined): v is Category => !!v && (marketing.PARTNER_CATEGORIES as readonly string[]).includes(v);
+const isCategory = (v: string | undefined): v is Category =>
+  !!v && (marketing.PARTNER_CATEGORIES as readonly string[]).includes(v);
 
 export const partnerComponents: ComponentHandler = {
   prefix: 'partner',
@@ -72,7 +93,9 @@ export const partnerComponents: ComponentHandler = {
     if (action === 'cat' && i.isStringSelectMenu()) {
       const category = i.values[0];
       if (!isCategory(category)) throw new AppError('VALIDATION', 'Unknown category.');
-      const modal = new ModalBuilder().setCustomId(`partner:apply:${category}`).setTitle(`Partner application · ${marketing.PARTNER_CATEGORY_LABELS[category]}`.slice(0, 45));
+      const modal = new ModalBuilder()
+        .setCustomId(`partner:apply:${category}`)
+        .setTitle(`Partner application · ${marketing.PARTNER_CATEGORY_LABELS[category]}`.slice(0, 45));
       for (const q of marketing.PARTNER_QUESTIONS[category]) {
         modal.addComponents(
           new ActionRowBuilder<TextInputBuilder>().addComponents(
@@ -93,9 +116,15 @@ export const partnerComponents: ComponentHandler = {
     if (action === 'apply' && i.isModalSubmit()) {
       const category = rest[0];
       if (!isCategory(category)) throw new AppError('VALIDATION', 'Unknown category.');
-      const answers = Object.fromEntries(marketing.PARTNER_QUESTIONS[category].map((q) => [q.id, i.fields.getTextInputValue(q.id)]));
+      const answers = Object.fromEntries(
+        marketing.PARTNER_QUESTIONS[category].map((q) => [q.id, i.fields.getTextInputValue(q.id)]),
+      );
       const app = await marketing.submitPartnerApplication(h.ctx, { category, answers });
-      await replySuccess(i, `Application ${app.ref} received`, 'Thanks for applying! Our team will review it and you will get a DM with the outcome. Check progress with `/partners status`.');
+      await replySuccess(
+        i,
+        `Application ${app.ref} received`,
+        'Thanks for applying! Our team will review it and you will get a DM with the outcome. Check progress with `/partners status`.',
+      );
       return;
     }
 
@@ -108,23 +137,40 @@ export const partnerComponents: ComponentHandler = {
 
     if ((action === 'approve' || action === 'reject') && i.isButton()) {
       // Permission re-checked on submit by the service; fail early for clarity.
-      if (!h.ctx.actor.permissions.has('partners.review')) throw new AppError('FORBIDDEN', 'You do not have permission to do that.');
+      if (!h.ctx.actor.permissions.has('partners.review'))
+        throw new AppError('FORBIDDEN', 'You do not have permission to do that.');
       const approve = action === 'approve';
       const modal = new ModalBuilder()
         .setCustomId(`partner:decide:${id}:${approve ? 'A' : 'R'}`)
         .setTitle(approve ? 'Approve application' : 'Reject application')
         .addComponents(
           new ActionRowBuilder<TextInputBuilder>().addComponents(
-            new TextInputBuilder().setCustomId('note').setLabel('Message to the applicant').setStyle(TextInputStyle.Paragraph).setMinLength(3).setMaxLength(1000).setRequired(true),
+            new TextInputBuilder()
+              .setCustomId('note')
+              .setLabel('Message to the applicant')
+              .setStyle(TextInputStyle.Paragraph)
+              .setMinLength(3)
+              .setMaxLength(1000)
+              .setRequired(true),
           ),
           new ActionRowBuilder<TextInputBuilder>().addComponents(
-            new TextInputBuilder().setCustomId('internal').setLabel('Internal notes (staff only)').setStyle(TextInputStyle.Paragraph).setMaxLength(2000).setRequired(false),
+            new TextInputBuilder()
+              .setCustomId('internal')
+              .setLabel('Internal notes (staff only)')
+              .setStyle(TextInputStyle.Paragraph)
+              .setMaxLength(2000)
+              .setRequired(false),
           ),
         );
       if (approve) {
         modal.addComponents(
           new ActionRowBuilder<TextInputBuilder>().addComponents(
-            new TextInputBuilder().setCustomId('campaign').setLabel('Campaign name (optional)').setStyle(TextInputStyle.Short).setMaxLength(80).setRequired(false),
+            new TextInputBuilder()
+              .setCustomId('campaign')
+              .setLabel('Campaign name (optional)')
+              .setStyle(TextInputStyle.Short)
+              .setMaxLength(80)
+              .setRequired(false),
           ),
         );
       }

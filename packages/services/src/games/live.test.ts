@@ -16,7 +16,9 @@ describe('PORTCHECK_ALLOWED_SUFFIXES parsing', () => {
 
 describe('resolveGameTarget (SSRF guard for live queries and /portcheck)', () => {
   it('is disabled entirely when no suffixes are configured', async () => {
-    await expect(resolveGameTarget('mc.gynx.gg', { allowedSuffixes: [], resolver: publicResolver })).rejects.toMatchObject({
+    await expect(
+      resolveGameTarget('mc.gynx.gg', { allowedSuffixes: [], resolver: publicResolver }),
+    ).rejects.toMatchObject({
       code: 'INVALID_STATE',
       message: LIVE_DISABLED_MESSAGE,
     });
@@ -24,7 +26,9 @@ describe('resolveGameTarget (SSRF guard for live queries and /portcheck)', () =>
 
   it('rejects hosts outside the authorized suffixes, including look-alikes', async () => {
     for (const host of ['example.com', 'gynx.gg.evil.com', 'evilgynx.gg', 'mc.gynx.gg@evil.com']) {
-      await expect(resolveGameTarget(host, { allowedSuffixes: SUFFIXES, resolver: publicResolver })).rejects.toThrow();
+      await expect(
+        resolveGameTarget(host, { allowedSuffixes: SUFFIXES, resolver: publicResolver }),
+      ).rejects.toThrow();
     }
   });
 
@@ -37,18 +41,25 @@ describe('resolveGameTarget (SSRF guard for live queries and /portcheck)', () =>
   it('rejects an authorized hostname that resolves to a private / metadata address (DNS rebinding)', async () => {
     for (const address of ['10.1.2.3', '127.0.0.1', '169.254.169.254', '192.168.1.10', 'fd00::1']) {
       const resolver = async () => [{ address, family: address.includes(':') ? 6 : 4 }];
-      await expect(resolveGameTarget('mc.gynx.gg', { allowedSuffixes: SUFFIXES, resolver })).rejects.toThrow(/not allowed/);
+      await expect(resolveGameTarget('mc.gynx.gg', { allowedSuffixes: SUFFIXES, resolver })).rejects.toThrow(
+        /not allowed/,
+      );
     }
     // One bad address among good ones is still rejected.
     const mixed = async () => [
       { address: '203.0.114.10', family: 4 },
       { address: '10.0.0.1', family: 4 },
     ];
-    await expect(resolveGameTarget('mc.gynx.gg', { allowedSuffixes: SUFFIXES, resolver: mixed })).rejects.toThrow(/not allowed/);
+    await expect(
+      resolveGameTarget('mc.gynx.gg', { allowedSuffixes: SUFFIXES, resolver: mixed }),
+    ).rejects.toThrow(/not allowed/);
   });
 
   it('returns a pinned public address for an authorized host', async () => {
-    const t = await resolveGameTarget('Play.GYNX.gg', { allowedSuffixes: SUFFIXES, resolver: publicResolver });
+    const t = await resolveGameTarget('Play.GYNX.gg', {
+      allowedSuffixes: SUFFIXES,
+      resolver: publicResolver,
+    });
     expect(t).toEqual({ hostname: 'play.gynx.gg', address: '203.0.114.10', family: 4 });
   });
 });
@@ -59,7 +70,9 @@ describe('tcpProbe', () => {
       s.on('error', () => undefined);
       s.end();
     });
-    const port = await new Promise<number>((r) => server.listen(0, '127.0.0.1', () => r((server.address() as { port: number }).port)));
+    const port = await new Promise<number>((r) =>
+      server.listen(0, '127.0.0.1', () => r((server.address() as { port: number }).port)),
+    );
     const open = await tcpProbe('127.0.0.1', port, 1000);
     expect(open.result).toBe('open');
     expect(open.latencyMs).not.toBeNull();

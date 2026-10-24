@@ -22,7 +22,10 @@ export async function liveRoleContext(guild: Guild, roleId: string): Promise<com
   return { role: roleMeta(role), botHighestPosition: await botHighestPosition(guild) };
 }
 
-export async function liveRolesContext(guild: Guild, roleIds: readonly string[]): Promise<{ roles: community.RoleMeta[]; botHighestPosition: number }> {
+export async function liveRolesContext(
+  guild: Guild,
+  roleIds: readonly string[],
+): Promise<{ roles: community.RoleMeta[]; botHighestPosition: number }> {
   const roles = roleIds.flatMap((id) => {
     const r = guild.roles.cache.get(id);
     return r ? [roleMeta(r)] : [];
@@ -48,17 +51,29 @@ export async function applyRoleChange(
   if (!role) return { ok: false, message: 'That role no longer exists.' };
   const highest = await botHighestPosition(guild);
   if (role.position >= highest || role.managed || role.id === guild.id) {
-    log.warn({ roleId: role.id, rolePosition: role.position, botHighest: highest }, 'refusing role change: hierarchy');
-    return { ok: false, message: `I can't manage **${role.name}** because it is above my highest role. Please let the staff team know.` };
+    log.warn(
+      { roleId: role.id, rolePosition: role.position, botHighest: highest },
+      'refusing role change: hierarchy',
+    );
+    return {
+      ok: false,
+      message: `I can't manage **${role.name}** because it is above my highest role. Please let the staff team know.`,
+    };
   }
   try {
     if (change.action === 'add') await member.roles.add(role, reason);
     else await member.roles.remove(role, reason);
     return { ok: true };
   } catch (err) {
-    if (err instanceof DiscordAPIError && (err.code === RESTJSONErrorCodes.MissingPermissions || err.status === 403)) {
+    if (
+      err instanceof DiscordAPIError &&
+      (err.code === RESTJSONErrorCodes.MissingPermissions || err.status === 403)
+    ) {
       log.warn({ roleId: role.id, code: err.code }, 'missing permissions to change role');
-      return { ok: false, message: `I don't have permission to change **${role.name}** right now. Please let the staff team know.` };
+      return {
+        ok: false,
+        message: `I don't have permission to change **${role.name}** right now. Please let the staff team know.`,
+      };
     }
     if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownRole) {
       return { ok: false, message: 'That role no longer exists.' };

@@ -25,9 +25,13 @@ export interface InviteDiffResult {
  * Invites that vanished from the fresh list are never guessed at: a deleted
  * invite is indistinguishable from one that hit its max uses.
  */
-export function diffInviteUses(before: ReadonlyMap<string, number>, after: readonly InviteSnapshot[]): InviteDiffResult {
+export function diffInviteUses(
+  before: ReadonlyMap<string, number>,
+  after: readonly InviteSnapshot[],
+): InviteDiffResult {
   const changedCodes = after.filter((i) => i.uses > (before.get(i.code) ?? 0)).map((i) => i.code);
-  if (changedCodes.length === 1) return { confidence: 'CONFIRMED', inviteCode: changedCodes[0]!, changedCodes };
+  if (changedCodes.length === 1)
+    return { confidence: 'CONFIRMED', inviteCode: changedCodes[0]!, changedCodes };
   if (changedCodes.length > 1) return { confidence: 'AMBIGUOUS', inviteCode: null, changedCodes };
   return { confidence: 'UNKNOWN', inviteCode: null, changedCodes };
 }
@@ -60,7 +64,8 @@ export interface AbuseCheckInput {
 
 export function detectReferralAbuse(i: AbuseCheckInput): AbuseFlag[] {
   const flags: AbuseFlag[] = [];
-  if (i.joinedAt.getTime() - i.accountCreatedAt.getTime() < MIN_ACCOUNT_AGE_DAYS * 86_400_000) flags.push('NEW_ACCOUNT');
+  if (i.joinedAt.getTime() - i.accountCreatedAt.getTime() < MIN_ACCOUNT_AGE_DAYS * 86_400_000)
+    flags.push('NEW_ACCOUNT');
   if (i.previouslyAttributed) flags.push('REJOIN');
   if (i.referrerId && i.referrerId === i.joinedUserId) flags.push('SELF_REFERRAL');
   if (i.recentJoinsViaInvite + 1 > (i.burstThreshold ?? BURST_THRESHOLD)) flags.push('BURST');

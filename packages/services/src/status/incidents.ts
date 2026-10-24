@@ -1,6 +1,24 @@
 import { z } from 'zod';
-import { nextSequence, type Incident, type IncidentSeverity, type IncidentStatus, type IncidentUpdate, type Prisma } from '@gynx/database';
-import { cursorArgs, formatRef, invalidState, neutraliseMentions, notFound, paginationSchema, redactSecrets, toPage, validation, type Page } from '@gynx/shared';
+import {
+  nextSequence,
+  type Incident,
+  type IncidentSeverity,
+  type IncidentStatus,
+  type IncidentUpdate,
+  type Prisma,
+} from '@gynx/database';
+import {
+  cursorArgs,
+  formatRef,
+  invalidState,
+  neutraliseMentions,
+  notFound,
+  paginationSchema,
+  redactSecrets,
+  toPage,
+  validation,
+  type Page,
+} from '@gynx/shared';
 import { audit } from '../core/audit';
 import { requireAny, requirePermission } from '../core/authz';
 import { requireModule } from '../core/config';
@@ -49,16 +67,29 @@ export const incidentUpdateSchema = z.object({
 });
 export type IncidentUpdateInput = z.input<typeof incidentUpdateSchema>;
 
-async function resolveServiceIds(tx: Prisma.TransactionClient, guildId: string, slugs: string[]): Promise<string[]> {
+async function resolveServiceIds(
+  tx: Prisma.TransactionClient,
+  guildId: string,
+  slugs: string[],
+): Promise<string[]> {
   if (slugs.length === 0) return [];
   const unique = [...new Set(slugs)];
-  const rows = await tx.monitoredService.findMany({ where: { guildId, slug: { in: unique } }, select: { id: true, slug: true } });
+  const rows = await tx.monitoredService.findMany({
+    where: { guildId, slug: { in: unique } },
+    select: { id: true, slug: true },
+  });
   const missing = unique.filter((s) => !rows.some((r) => r.slug === s));
   if (missing.length) throw validation(`Unknown service(s): ${missing.join(', ')}`);
   return rows.map((r) => r.id);
 }
 
-export async function enqueueIncidentNotify(tx: Prisma.TransactionClient, guildId: string, incidentId: string, updateId: string, runAt: Date) {
+export async function enqueueIncidentNotify(
+  tx: Prisma.TransactionClient,
+  guildId: string,
+  incidentId: string,
+  updateId: string,
+  runAt: Date,
+) {
   await enqueueJob(tx, {
     type: 'status.incident.notify',
     dedupeKey: `status.incident.notify:${updateId}`,
@@ -79,7 +110,11 @@ interface CreateIncidentData {
 }
 
 /** Shared by staff creation and the monitor's automatic incidents. Caller owns the transaction. */
-export async function createIncidentTx(tx: Prisma.TransactionClient, ctx: Ctx, d: CreateIncidentData): Promise<{ incident: Incident; update: IncidentUpdate }> {
+export async function createIncidentTx(
+  tx: Prisma.TransactionClient,
+  ctx: Ctx,
+  d: CreateIncidentData,
+): Promise<{ incident: Incident; update: IncidentUpdate }> {
   const number = await nextSequence(tx, ctx.guildId, 'incident');
   const now = ctx.now();
   const incident = await tx.incident.create({
@@ -99,9 +134,30 @@ export async function createIncidentTx(tx: Prisma.TransactionClient, ctx: Ctx, d
     },
   });
   const update = await tx.incidentUpdate.create({
-    data: { incidentId: incident.id, status: d.status, message: d.description, authorId: ctx.actor.userId, createdAt: now },
+    data: {
+      incidentId: incident.id,
+      status: d.status,
+      message: d.description,
+      authorId: ctx.actor.userId,
+      createdAt: now,
+    },
   });
-  await audit(ctx, { action: 'status.incident.create', targetType: 'Incident', targetId: incident.id, metadata: { ref: incident.ref, severity: d.severity, status: d.status, autoCreated: d.autoCreated, services: d.serviceIds.length } }, tx);
+  await audit(
+    ctx,
+    {
+      action: 'status.incident.create',
+      targetType: 'Incident',
+      targetId: incident.id,
+      metadata: {
+        ref: incident.ref,
+        severity: d.severity,
+        status: d.status,
+        autoCreated: d.autoCreated,
+        services: d.serviceIds.length,
+      },
+    },
+    tx,
+  );
   await enqueueIncidentNotify(tx, ctx.guildId, incident.id, update.id, now);
   return { incident, update };
 }
@@ -111,10 +167,17 @@ export async function addIncidentUpdateTx(
   tx: Prisma.TransactionClient,
   ctx: Ctx,
   incident: Incident,
-  d: { status: IncidentStatus; message: string; resolutionSummary?: string | null; severity?: IncidentSeverity },
+  d: {
+    status: IncidentStatus;
+    message: string;
+    resolutionSummary?: string | null;
+    severity?: IncidentSeverity;
+  },
 ): Promise<{ incident: Incident; update: IncidentUpdate }> {
-  if (!canTransitionIncident(incident.status, d.status)) throw invalidState('This incident is resolved and can no longer be updated.');
-  if (d.status === 'RESOLVED' && !d.resolutionSummary) throw validation('A resolution summary is required to resolve an incident.');
+  if (!canTransitionIncident(incident.status, d.status))
+    throw invalidState('This incident is resolved and can no longer be updated.');
+  if (d.status === 'RESOLVED' && !d.resolutionSummary)
+    throw validation('A resolution summary is required to resolve an incident.');
   const now = ctx.now();
   // Conditional update: a concurrent resolve can't be overwritten.
   const res = await tx.incident.updateMany({
@@ -127,9 +190,29 @@ export async function addIncidentUpdateTx(
   });
   if (res.count === 0) throw invalidState('This incident is resolved and can no longer be updated.');
   const update = await tx.incidentUpdate.create({
-    data: { incidentId: incident.id, status: d.status, message: d.message, authorId: ctx.actor.userId, createdAt: now },
+    data: {
+      incidentId: incident.id,
+      status: d.status,
+      message: d.message,
+      authorId: ctx.actor.userId,
+      createdAt: now,
+    },
   });
-  await audit(ctx, { action: 'status.incident.update', targetType: 'Incident', targetId: incident.id, metadata: { ref: incident.ref, from: incident.status, to: d.status, severity: d.severity ?? incident.severity } }, tx);
+  await audit(
+    ctx,
+    {
+      action: 'status.incident.update',
+      targetType: 'Incident',
+      targetId: incident.id,
+      metadata: {
+        ref: incident.ref,
+        from: incident.status,
+        to: d.status,
+        severity: d.severity ?? incident.severity,
+      },
+    },
+    tx,
+  );
   await enqueueIncidentNotify(tx, ctx.guildId, incident.id, update.id, now);
   return { incident: await tx.incident.findUniqueOrThrow({ where: { id: incident.id } }), update };
 }
@@ -176,13 +259,19 @@ export const editIncidentSchema = z.object({
 });
 
 /** Edit metadata (title / affected services / regions) without posting a status update. */
-export async function editIncident(ctx: Ctx, incidentId: string, raw: z.input<typeof editIncidentSchema>): Promise<Incident> {
+export async function editIncident(
+  ctx: Ctx,
+  incidentId: string,
+  raw: z.input<typeof editIncidentSchema>,
+): Promise<Incident> {
   await requirePermission(ctx, 'incidents.manage', 'status.incident.edit');
   const input = editIncidentSchema.parse(raw);
   const incident = await ctx.db.incident.findFirst({ where: { id: incidentId, guildId: ctx.guildId } });
   if (!incident) throw notFound('Incident');
   return ctx.db.$transaction(async (tx) => {
-    const serviceIds = input.serviceSlugs ? await resolveServiceIds(tx, ctx.guildId, input.serviceSlugs) : undefined;
+    const serviceIds = input.serviceSlugs
+      ? await resolveServiceIds(tx, ctx.guildId, input.serviceSlugs)
+      : undefined;
     const updated = await tx.incident.update({
       where: { id: incidentId },
       data: {
@@ -191,7 +280,16 @@ export async function editIncident(ctx: Ctx, incidentId: string, raw: z.input<ty
         services: serviceIds ? { set: serviceIds.map((id) => ({ id })) } : undefined,
       },
     });
-    await audit(ctx, { action: 'status.incident.edit', targetType: 'Incident', targetId: incidentId, metadata: { ref: incident.ref, fields: Object.keys(input) } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'status.incident.edit',
+        targetType: 'Incident',
+        targetId: incidentId,
+        metadata: { ref: incident.ref, fields: Object.keys(input) },
+      },
+      tx,
+    );
     return updated;
   });
 }
@@ -202,11 +300,17 @@ export const staffIncidentListSchema = paginationSchema.extend({
 });
 
 /** Staff list with full rows (includes createdById/message IDs). */
-export async function listIncidents(ctx: Ctx, raw: z.input<typeof staffIncidentListSchema> = {}): Promise<Page<Incident & { services: Array<{ id: string; slug: string; name: string }> }>> {
+export async function listIncidents(
+  ctx: Ctx,
+  raw: z.input<typeof staffIncidentListSchema> = {},
+): Promise<Page<Incident & { services: Array<{ id: string; slug: string; name: string }> }>> {
   await requireAny(ctx, ['incidents.view', 'incidents.manage'], 'status.incident.list');
   const q = staffIncidentListSchema.parse(raw);
   const rows = await ctx.db.incident.findMany({
-    where: { guildId: ctx.guildId, status: q.status ?? (q.active ? { in: ACTIVE_INCIDENT_STATUSES } : undefined) },
+    where: {
+      guildId: ctx.guildId,
+      status: q.status ?? (q.active ? { in: ACTIVE_INCIDENT_STATUSES } : undefined),
+    },
     include: { services: { select: { id: true, slug: true, name: true } } },
     orderBy: [{ startedAt: 'desc' }, { id: 'desc' }],
     ...cursorArgs(q),
@@ -218,7 +322,10 @@ export async function getIncident(ctx: Ctx, id: string) {
   await requireAny(ctx, ['incidents.view', 'incidents.manage'], 'status.incident.view');
   const i = await ctx.db.incident.findFirst({
     where: { id, guildId: ctx.guildId },
-    include: { services: { select: { id: true, slug: true, name: true, public: true } }, updates: { orderBy: { createdAt: 'asc' } } },
+    include: {
+      services: { select: { id: true, slug: true, name: true, public: true } },
+      updates: { orderBy: { createdAt: 'asc' } },
+    },
   });
   if (!i) throw notFound('Incident');
   return i;

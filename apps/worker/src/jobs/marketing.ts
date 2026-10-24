@@ -25,13 +25,20 @@ export function createReactionFetcher(token: string): ReactionFetcher {
 
 function fetcherFor(w: WorkerCtx): ReactionFetcher {
   if (!defaultFetcher || defaultFetcher.token !== w.env.DISCORD_BOT_TOKEN) {
-    defaultFetcher = { token: w.env.DISCORD_BOT_TOKEN, fetch: createReactionFetcher(w.env.DISCORD_BOT_TOKEN) };
+    defaultFetcher = {
+      token: w.env.DISCORD_BOT_TOKEN,
+      fetch: createReactionFetcher(w.env.DISCORD_BOT_TOKEN),
+    };
   }
   return defaultFetcher.fetch;
 }
 
 /** Refresh reaction totals for announcements published in the last 14 days. Exposed for tests. */
-export async function refreshEngagement(w: WorkerCtx, now: Date, fetchReactions?: ReactionFetcher): Promise<number> {
+export async function refreshEngagement(
+  w: WorkerCtx,
+  now: Date,
+  fetchReactions?: ReactionFetcher,
+): Promise<number> {
   const deliveries = await marketing.deliveriesForEngagementRefresh(w.deps.db, w.env.DISCORD_GUILD_ID, now);
   if (deliveries.length === 0) return 0;
   const fetch = fetchReactions ?? fetcherFor(w);
@@ -54,17 +61,25 @@ export const marketingJobs: WorkerModule = {
   handlers: {
     /** Publish an announcement version. At-most-once; see marketing.deliverAnnouncement. */
     async 'marketing.announcement.publish'(job, w) {
-      const outcome = await marketing.deliverAnnouncement(w.deps, job.payload as { announcementId?: string; version?: number });
+      const outcome = await marketing.deliverAnnouncement(
+        w.deps,
+        job.payload as { announcementId?: string; version?: number },
+      );
       w.log.info({ outcome, payload: job.payload }, 'announcement delivery');
     },
 
     /** Notify the partner review channel about a new application. */
     async 'marketing.partner.notify'(job, w) {
-      const app = await w.deps.db.partnerApplication.findUnique({ where: { id: applicationId(job.payload) } });
+      const app = await w.deps.db.partnerApplication.findUnique({
+        where: { id: applicationId(job.payload) },
+      });
       if (!app || app.status !== 'PENDING') return; // already picked up or decided
       const cfg = await getGuildConfig(w.deps.db, app.guildId);
       if (!cfg.partnerReviewChannelId) {
-        w.log.warn({ guildId: app.guildId }, 'no partner review channel configured; application visible in dashboard only');
+        w.log.warn(
+          { guildId: app.guildId },
+          'no partner review channel configured; application visible in dashboard only',
+        );
         return;
       }
       await w.deps.discord.sendMessage(cfg.partnerReviewChannelId, {
@@ -79,7 +94,9 @@ export const marketingJobs: WorkerModule = {
      * the DM is guarded by an audit marker.
      */
     async 'marketing.partner.decision'(job, w) {
-      const app = await w.deps.db.partnerApplication.findUnique({ where: { id: applicationId(job.payload) } });
+      const app = await w.deps.db.partnerApplication.findUnique({
+        where: { id: applicationId(job.payload) },
+      });
       if (!app || (app.status !== 'APPROVED' && app.status !== 'REJECTED')) return;
       if (app.status === 'APPROVED') {
         const role = await marketing.grantPartnerRole(w.deps, app.id);
@@ -87,7 +104,9 @@ export const marketingJobs: WorkerModule = {
       }
       if (await marketing.decisionDmAlreadySent(w.deps.db, app.id)) return;
       const cfg = await getGuildConfig(w.deps.db, app.guildId);
-      const dm = await w.deps.discord.sendDm(app.applicantId, { embeds: [marketing.partnerDecisionEmbed(app, cfg.supportUrl)] });
+      const dm = await w.deps.discord.sendDm(app.applicantId, {
+        embeds: [marketing.partnerDecisionEmbed(app, cfg.supportUrl)],
+      });
       await marketing.markDecisionDmSent(w.deps, app, dm !== null);
     },
   },

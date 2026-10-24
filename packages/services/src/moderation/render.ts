@@ -16,7 +16,11 @@ const TYPE_COLOR: Record<ModerationType, number> = {
 };
 
 export const moderatorLabel = (id: string) =>
-  id === AUTOMOD_MODERATOR_ID ? 'Automod' : id === SYSTEM_MODERATOR_ID ? 'GYNX System' : `<@${id}> (\`${id}\`)`;
+  id === AUTOMOD_MODERATOR_ID
+    ? 'Automod'
+    : id === SYSTEM_MODERATOR_ID
+      ? 'GYNX System'
+      : `<@${id}> (\`${id}\`)`;
 
 /** Staff modlog entry. Never includes the restricted moderator note. */
 export function modlogEmbed(a: ModerationAction): APIEmbed {
@@ -27,12 +31,19 @@ export function modlogEmbed(a: ModerationAction): APIEmbed {
   ];
   if (a.durationSeconds) {
     fields.push({ name: 'Duration', value: formatDuration(a.durationSeconds * 1000), inline: true });
-    if (a.expiresAt) fields.push({ name: 'Expires', value: discordTimestamp(a.expiresAt, 'R'), inline: true });
+    if (a.expiresAt)
+      fields.push({ name: 'Expires', value: discordTimestamp(a.expiresAt, 'R'), inline: true });
   } else if (a.type === 'BAN') {
     fields.push({ name: 'Duration', value: 'Permanent', inline: true });
   }
-  if (a.status === 'FAILED') fields.push({ name: 'Status', value: `Failed: ${truncate(a.failureReason ?? 'unknown error', 200)}`, inline: false });
-  if (a.type !== 'UNBAN' && a.type !== 'UNTIMEOUT') fields.push({ name: 'DM delivered', value: a.dmSent ? 'Yes' : 'No', inline: true });
+  if (a.status === 'FAILED')
+    fields.push({
+      name: 'Status',
+      value: `Failed: ${truncate(a.failureReason ?? 'unknown error', 200)}`,
+      inline: false,
+    });
+  if (a.type !== 'UNBAN' && a.type !== 'UNTIMEOUT')
+    fields.push({ name: 'DM delivered', value: a.dmSent ? 'Yes' : 'No', inline: true });
   return brandEmbed({
     title: `${a.ref} · ${ACTION_LABELS[a.type]}${a.status === 'FAILED' ? ' (failed)' : ''}`,
     color: a.status === 'FAILED' ? EMBED_COLORS.neutral : TYPE_COLOR[a.type],
@@ -60,7 +71,9 @@ export function actionDmEmbed(i: ActionDmInput): APIEmbed {
   const lines = [`**Reason:** ${truncate(neutraliseMentions(i.reason), 800)}`];
   if (i.durationMs) lines.push(`**Duration:** ${formatDuration(i.durationMs)}`);
   else if (i.type === 'BAN') lines.push('**Duration:** Permanent');
-  const support = i.supportUrl ? `through our support system: ${i.supportUrl}` : 'by contacting the support team';
+  const support = i.supportUrl
+    ? `through our support system: ${i.supportUrl}`
+    : 'by contacting the support team';
   if (i.type === 'BAN' || i.type === 'KICK') {
     lines.push('', `If you believe this was a mistake, you can appeal ${support}.`);
   } else {
@@ -82,13 +95,26 @@ export function appealStaffEmbed(appeal: ModerationAppeal, action: ModerationAct
     fields: [
       { name: 'Member', value: `<@${appeal.userId}> (\`${appeal.userId}\`)`, inline: true },
       { name: 'Submitted', value: discordTimestamp(appeal.createdAt, 'R'), inline: true },
-      ...(action ? [{ name: 'Original reason', value: truncate(neutraliseMentions(action.reason), 500), inline: false }] : []),
+      ...(action
+        ? [
+            {
+              name: 'Original reason',
+              value: truncate(neutraliseMentions(action.reason), 500),
+              inline: false,
+            },
+          ]
+        : []),
     ],
-    footer: action?.type === 'BAN' ? 'Ban appeals require ban permission to review.' : 'Review requires moderation permission.',
+    footer:
+      action?.type === 'BAN'
+        ? 'Ban appeals require ban permission to review.'
+        : 'Review requires moderation permission.',
   });
 }
 
-export function appealReviewButtons(appealId: string): APIActionRowComponent<APIComponentInMessageActionRow>[] {
+export function appealReviewButtons(
+  appealId: string,
+): APIActionRowComponent<APIComponentInMessageActionRow>[] {
   return [
     {
       type: 1,
@@ -100,15 +126,27 @@ export function appealReviewButtons(appealId: string): APIActionRowComponent<API
   ];
 }
 
-export function appealDecisionEmbed(appeal: ModerationAppeal, actionRef: string | null, guildName: string, supportUrl: string | null): APIEmbed {
+export function appealDecisionEmbed(
+  appeal: ModerationAppeal,
+  actionRef: string | null,
+  guildName: string,
+  supportUrl: string | null,
+): APIEmbed {
   const accepted = appeal.status === 'ACCEPTED';
   const lines = [
     accepted
       ? `Your appeal${actionRef ? ` for ${actionRef}` : ''} has been **accepted**.`
       : `Your appeal${actionRef ? ` for ${actionRef}` : ''} has been **denied**.`,
   ];
-  if (appeal.reviewNote) lines.push('', `**Note from staff:** ${truncate(neutraliseMentions(appeal.reviewNote), 800)}`);
-  if (!accepted) lines.push('', supportUrl ? `If you have new information, you can contact support: ${supportUrl}` : 'If you have new information, please contact the support team.');
+  if (appeal.reviewNote)
+    lines.push('', `**Note from staff:** ${truncate(neutraliseMentions(appeal.reviewNote), 800)}`);
+  if (!accepted)
+    lines.push(
+      '',
+      supportUrl
+        ? `If you have new information, you can contact support: ${supportUrl}`
+        : 'If you have new information, please contact the support team.',
+    );
   return brandEmbed({
     title: `Appeal update · ${truncate(guildName, 100)}`,
     description: lines.join('\n'),

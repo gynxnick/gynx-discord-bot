@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { dateKeyInZone, formatDuration, isValidTimeZone, nextWeeklyOccurrence, parseDuration, zonedToUtc } from './time';
+import {
+  dateKeyInZone,
+  formatDuration,
+  isValidTimeZone,
+  nextWeeklyOccurrence,
+  parseDuration,
+  zonedToUtc,
+} from './time';
 
 describe('time zones', () => {
   it('validates IANA zones', () => {
@@ -16,17 +23,25 @@ describe('time zones', () => {
 
   it('computes the next weekly report time strictly in the future', () => {
     const wed = new Date('2026-10-21T12:00:00Z'); // Wednesday
-    expect(nextWeeklyOccurrence(wed, 'MONDAY', '09:00', 'UTC').toISOString()).toBe('2026-10-26T09:00:00.000Z');
+    expect(nextWeeklyOccurrence(wed, 'MONDAY', '09:00', 'UTC').toISOString()).toBe(
+      '2026-10-26T09:00:00.000Z',
+    );
     const monBefore = new Date('2026-10-26T08:59:00Z');
-    expect(nextWeeklyOccurrence(monBefore, 'MONDAY', '09:00', 'UTC').toISOString()).toBe('2026-10-26T09:00:00.000Z');
+    expect(nextWeeklyOccurrence(monBefore, 'MONDAY', '09:00', 'UTC').toISOString()).toBe(
+      '2026-10-26T09:00:00.000Z',
+    );
     const monAfter = new Date('2026-10-26T09:00:00Z');
-    expect(nextWeeklyOccurrence(monAfter, 'MONDAY', '09:00', 'UTC').toISOString()).toBe('2026-11-02T09:00:00.000Z');
+    expect(nextWeeklyOccurrence(monAfter, 'MONDAY', '09:00', 'UTC').toISOString()).toBe(
+      '2026-11-02T09:00:00.000Z',
+    );
   });
 
   it('respects the zone when picking the weekday', () => {
     // 2026-10-25 23:30 UTC is already Monday 26th 08:30 in Tokyo → next Monday 09:00 JST is that same day
     const now = new Date('2026-10-25T23:30:00Z');
-    expect(nextWeeklyOccurrence(now, 'MONDAY', '09:00', 'Asia/Tokyo').toISOString()).toBe('2026-10-26T00:00:00.000Z');
+    expect(nextWeeklyOccurrence(now, 'MONDAY', '09:00', 'Asia/Tokyo').toISOString()).toBe(
+      '2026-10-26T00:00:00.000Z',
+    );
     expect(dateKeyInZone(now, 'Asia/Tokyo')).toBe('2026-10-26');
     expect(dateKeyInZone(now, 'UTC')).toBe('2026-10-25');
   });

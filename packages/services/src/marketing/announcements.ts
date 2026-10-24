@@ -34,8 +34,18 @@ const MAX_SCHEDULE_AHEAD_MS = 366 * 86_400_000;
 
 // ─── Templates ──────────────────────────────────────────────────────────────
 
-export const DEFAULT_TEMPLATES: Array<{ name: string; type: (typeof ANNOUNCEMENT_TYPES)[number]; title: string; body: string }> = [
-  { name: 'General update', type: 'GENERAL', title: 'Update from GYNX.GG', body: 'Hey everyone,\n\n[What is happening and why it matters]\n\n[Where to find more information]' },
+export const DEFAULT_TEMPLATES: Array<{
+  name: string;
+  type: (typeof ANNOUNCEMENT_TYPES)[number];
+  title: string;
+  body: string;
+}> = [
+  {
+    name: 'General update',
+    type: 'GENERAL',
+    title: 'Update from GYNX.GG',
+    body: 'Hey everyone,\n\n[What is happening and why it matters]\n\n[Where to find more information]',
+  },
   {
     name: 'Planned maintenance',
     type: 'MAINTENANCE',
@@ -54,15 +64,30 @@ export const DEFAULT_TEMPLATES: Array<{ name: string; type: (typeof ANNOUNCEMENT
     title: 'New: [feature name]',
     body: '**What is new:** [short description]\n**Why it helps:** [benefit]\n**How to use it:** [steps or link]',
   },
-  { name: 'Milestone', type: 'MILESTONE', title: 'We reached [milestone]!', body: 'Thank you to everyone in the community for helping us reach **[milestone]**. [What comes next]' },
+  {
+    name: 'Milestone',
+    type: 'MILESTONE',
+    title: 'We reached [milestone]!',
+    body: 'Thank you to everyone in the community for helping us reach **[milestone]**. [What comes next]',
+  },
   {
     name: 'Review request',
     type: 'REVIEW_REQUEST',
     title: 'Enjoying GYNX.GG? Tell others!',
     body: 'If GYNX.GG has been good to you, an honest review really helps us grow: [review link]\n\nHad a problem instead? Let the support team know so we can fix it.',
   },
-  { name: 'Community poll', type: 'POLL', title: 'We want your opinion', body: '[Question]\n\nVote in [poll link or channel] before [deadline].' },
-  { name: 'Community event', type: 'EVENT', title: '[Event name]', body: '**When:** [date and time]\n**Where:** [channel or server]\n**What:** [description]\n\nRSVP in [event link].' },
+  {
+    name: 'Community poll',
+    type: 'POLL',
+    title: 'We want your opinion',
+    body: '[Question]\n\nVote in [poll link or channel] before [deadline].',
+  },
+  {
+    name: 'Community event',
+    type: 'EVENT',
+    title: '[Event name]',
+    body: '**When:** [date and time]\n**Where:** [channel or server]\n**What:** [description]\n\nRSVP in [event link].',
+  },
   {
     name: 'Referral campaign',
     type: 'REFERRAL_CAMPAIGN',
@@ -91,7 +116,10 @@ export async function listTemplates(ctx: Ctx) {
   await requireAny(ctx, ['announcements.create', 'announcements.publish']);
   await requireModule(ctx, 'announcements');
   await seedDefaultTemplates(ctx.db, ctx.guildId);
-  return ctx.db.announcementTemplate.findMany({ where: { guildId: ctx.guildId }, orderBy: [{ type: 'asc' }, { name: 'asc' }] });
+  return ctx.db.announcementTemplate.findMany({
+    where: { guildId: ctx.guildId },
+    orderBy: [{ type: 'asc' }, { name: 'asc' }],
+  });
 }
 
 export async function createTemplate(ctx: Ctx, raw: z.input<typeof templateSchema>) {
@@ -101,7 +129,16 @@ export async function createTemplate(ctx: Ctx, raw: z.input<typeof templateSchem
   try {
     return await ctx.db.$transaction(async (tx) => {
       const t = await tx.announcementTemplate.create({ data: { ...input, guildId: ctx.guildId } });
-      await audit(ctx, { action: 'announcements.template.create', targetType: 'AnnouncementTemplate', targetId: t.id, metadata: { name: t.name, type: t.type } }, tx);
+      await audit(
+        ctx,
+        {
+          action: 'announcements.template.create',
+          targetType: 'AnnouncementTemplate',
+          targetId: t.id,
+          metadata: { name: t.name, type: t.type },
+        },
+        tx,
+      );
       return t;
     });
   } catch (e) {
@@ -118,7 +155,16 @@ export async function updateTemplate(ctx: Ctx, id: string, raw: Partial<z.input<
   try {
     return await ctx.db.$transaction(async (tx) => {
       const t = await tx.announcementTemplate.update({ where: { id }, data: input });
-      await audit(ctx, { action: 'announcements.template.update', targetType: 'AnnouncementTemplate', targetId: id, metadata: { fields: Object.keys(input) } }, tx);
+      await audit(
+        ctx,
+        {
+          action: 'announcements.template.update',
+          targetType: 'AnnouncementTemplate',
+          targetId: id,
+          metadata: { fields: Object.keys(input) },
+        },
+        tx,
+      );
       return t;
     });
   } catch (e) {
@@ -133,7 +179,16 @@ export async function deleteTemplate(ctx: Ctx, id: string): Promise<void> {
   if (!existing) throw notFound('Template');
   await ctx.db.$transaction(async (tx) => {
     await tx.announcementTemplate.delete({ where: { id } });
-    await audit(ctx, { action: 'announcements.template.delete', targetType: 'AnnouncementTemplate', targetId: id, metadata: { name: existing.name } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'announcements.template.delete',
+        targetType: 'AnnouncementTemplate',
+        targetId: id,
+        metadata: { name: existing.name },
+      },
+      tx,
+    );
   });
 }
 
@@ -160,7 +215,8 @@ export type UpdateAnnouncementInput = z.input<typeof updateAnnouncementSchema>;
 
 function checkMentionShape(mention: string, roleId: string | null | undefined, guildId: string) {
   if (mention === 'ROLE' && !roleId) throw validation('Choose a role to mention.');
-  if (mention === 'ROLE' && roleId === guildId) throw validation('Use the @everyone mention mode instead of the @everyone role.');
+  if (mention === 'ROLE' && roleId === guildId)
+    throw validation('Use the @everyone mention mode instead of the @everyone role.');
 }
 
 export async function createAnnouncement(ctx: Ctx, raw: CreateAnnouncementInput): Promise<Announcement> {
@@ -170,7 +226,9 @@ export async function createAnnouncement(ctx: Ctx, raw: CreateAnnouncementInput)
 
   let tpl: { type: Announcement['type']; title: string; body: string } | null = null;
   if (input.templateId) {
-    tpl = await ctx.db.announcementTemplate.findFirst({ where: { id: input.templateId, guildId: ctx.guildId } });
+    tpl = await ctx.db.announcementTemplate.findFirst({
+      where: { id: input.templateId, guildId: ctx.guildId },
+    });
     if (!tpl) throw notFound('Template');
   }
   const title = input.title ?? tpl?.title;
@@ -197,7 +255,16 @@ export async function createAnnouncement(ctx: Ctx, raw: CreateAnnouncementInput)
         createdById: ctx.actor.userId,
       },
     });
-    await audit(ctx, { action: 'announcements.create', targetType: 'Announcement', targetId: a.id, metadata: { type: a.type, mention: a.mention, templateId: input.templateId ?? null } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'announcements.create',
+        targetType: 'Announcement',
+        targetId: a.id,
+        metadata: { type: a.type, mention: a.mention, templateId: input.templateId ?? null },
+      },
+      tx,
+    );
     return a;
   });
 }
@@ -223,7 +290,10 @@ export const listAnnouncementsSchema = paginationSchema.extend({
   type: z.enum(ANNOUNCEMENT_TYPES).optional(),
 });
 
-export async function listAnnouncements(ctx: Ctx, raw: z.input<typeof listAnnouncementsSchema> = {}): Promise<Page<Announcement>> {
+export async function listAnnouncements(
+  ctx: Ctx,
+  raw: z.input<typeof listAnnouncementsSchema> = {},
+): Promise<Page<Announcement>> {
   await requireAny(ctx, ['announcements.create', 'announcements.publish']);
   const f = listAnnouncementsSchema.parse(raw);
   const rows = await ctx.db.announcement.findMany({
@@ -235,10 +305,20 @@ export async function listAnnouncements(ctx: Ctx, raw: z.input<typeof listAnnoun
 }
 
 /** Mass mentions need an extra permission — checked whenever an announcement is queued. */
-async function requireMentionPermission(ctx: Ctx, mention: Announcement['mention'], id: string): Promise<void> {
+async function requireMentionPermission(
+  ctx: Ctx,
+  mention: Announcement['mention'],
+  id: string,
+): Promise<void> {
   if (mention === 'NONE') return;
   if (can(ctx, 'announcements.mass_mention')) return;
-  await audit(ctx, { action: 'announcements.mass_mention', targetType: 'Announcement', targetId: id, result: 'DENIED', metadata: { mention } });
+  await audit(ctx, {
+    action: 'announcements.mass_mention',
+    targetType: 'Announcement',
+    targetId: id,
+    result: 'DENIED',
+    metadata: { mention },
+  });
   throw new AppError('FORBIDDEN', 'You need the mass-mention permission to ping @everyone, @here or roles.');
 }
 
@@ -250,16 +330,23 @@ const EDITABLE: readonly AnnouncementStatus[] = ['DRAFT', 'SCHEDULED', 'FAILED',
  * rights (and mass-mention rights if it pings), cancels the old delivery job
  * and enqueues a new one for the new version.
  */
-export async function updateAnnouncement(ctx: Ctx, id: string, raw: UpdateAnnouncementInput, expectedVersion?: number): Promise<Announcement> {
+export async function updateAnnouncement(
+  ctx: Ctx,
+  id: string,
+  raw: UpdateAnnouncementInput,
+  expectedVersion?: number,
+): Promise<Announcement> {
   await requirePermission(ctx, 'announcements.create');
   await requireModule(ctx, 'announcements');
   const input = updateAnnouncementSchema.parse(raw);
   const a = await loadAnnouncement(ctx, id);
   if (!EDITABLE.includes(a.status)) throw invalidState('This announcement can no longer be edited.');
-  if (expectedVersion !== undefined && expectedVersion !== a.version) throw conflict('This announcement changed in the meantime. Reload and try again.');
+  if (expectedVersion !== undefined && expectedVersion !== a.version)
+    throw conflict('This announcement changed in the meantime. Reload and try again.');
 
   const mention = input.mention ?? a.mention;
-  const mentionRoleId = mention === 'ROLE' ? (input.mentionRoleId !== undefined ? input.mentionRoleId : a.mentionRoleId) : null;
+  const mentionRoleId =
+    mention === 'ROLE' ? (input.mentionRoleId !== undefined ? input.mentionRoleId : a.mentionRoleId) : null;
   checkMentionShape(mention, mentionRoleId, ctx.guildId);
 
   const scheduled = a.status === 'SCHEDULED';
@@ -292,7 +379,16 @@ export async function updateAnnouncement(ctx: Ctx, id: string, raw: UpdateAnnoun
         maxAttempts: 3,
       });
     }
-    await audit(ctx, { action: 'announcements.update', targetType: 'Announcement', targetId: id, metadata: { fields: Object.keys(input), version: nextVersion, scheduled, mention } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'announcements.update',
+        targetType: 'Announcement',
+        targetId: id,
+        metadata: { fields: Object.keys(input), version: nextVersion, scheduled, mention },
+      },
+      tx,
+    );
     return tx.announcement.findUniqueOrThrow({ where: { id } });
   });
 }
@@ -300,11 +396,21 @@ export async function updateAnnouncement(ctx: Ctx, id: string, raw: UpdateAnnoun
 export async function deleteAnnouncement(ctx: Ctx, id: string): Promise<void> {
   await requirePermission(ctx, 'announcements.create');
   const a = await loadAnnouncement(ctx, id);
-  if (!['DRAFT', 'CANCELLED', 'FAILED'].includes(a.status)) throw invalidState('Only drafts, cancelled or failed announcements can be deleted.');
+  if (!['DRAFT', 'CANCELLED', 'FAILED'].includes(a.status))
+    throw invalidState('Only drafts, cancelled or failed announcements can be deleted.');
   await ctx.db.$transaction(async (tx) => {
     const r = await tx.announcement.deleteMany({ where: { id, status: a.status, version: a.version } });
     if (r.count === 0) throw conflict('This announcement changed in the meantime.');
-    await audit(ctx, { action: 'announcements.delete', targetType: 'Announcement', targetId: id, metadata: { status: a.status } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'announcements.delete',
+        targetType: 'Announcement',
+        targetId: id,
+        metadata: { status: a.status },
+      },
+      tx,
+    );
   });
 }
 
@@ -322,11 +428,21 @@ export interface AnnouncementPreview {
   canMassMention: boolean;
 }
 
-export async function previewAnnouncement(ctx: Ctx, id: string, counts: { roleMemberCount?: number | null } = {}): Promise<AnnouncementPreview> {
+export async function previewAnnouncement(
+  ctx: Ctx,
+  id: string,
+  counts: { roleMemberCount?: number | null } = {},
+): Promise<AnnouncementPreview> {
   await requireAny(ctx, ['announcements.create', 'announcements.publish']);
   const a = await loadAnnouncement(ctx, id);
-  const [cfg, guild] = await Promise.all([getGuildConfig(ctx.db, ctx.guildId), ctx.db.guild.findUnique({ where: { id: ctx.guildId }, select: { memberCount: true } })]);
-  const warning = mentionWarning(a.mention, a.mentionRoleId, { memberCount: guild?.memberCount || null, roleMemberCount: counts.roleMemberCount });
+  const [cfg, guild] = await Promise.all([
+    getGuildConfig(ctx.db, ctx.guildId),
+    ctx.db.guild.findUnique({ where: { id: ctx.guildId }, select: { memberCount: true } }),
+  ]);
+  const warning = mentionWarning(a.mention, a.mentionRoleId, {
+    memberCount: guild?.memberCount || null,
+    roleMemberCount: counts.roleMemberCount,
+  });
   return {
     id: a.id,
     version: a.version,
@@ -353,13 +469,26 @@ export interface QueueOptions {
  * the job's dedupe key is fresh (a previous cancelled/failed run can never block
  * or duplicate the new one), and cancels any job for the previous version.
  */
-async function queueAnnouncement(ctx: Ctx, id: string, runAt: Date, opts: QueueOptions, action: string): Promise<Announcement> {
+async function queueAnnouncement(
+  ctx: Ctx,
+  id: string,
+  runAt: Date,
+  opts: QueueOptions,
+  action: string,
+): Promise<Announcement> {
   await requirePermission(ctx, 'announcements.publish', action);
   await requireModule(ctx, 'announcements');
   const a = await loadAnnouncement(ctx, id);
-  if (!QUEUEABLE.includes(a.status)) throw invalidState(a.status === 'PUBLISHED' ? 'This announcement was already published.' : 'This announcement is being published right now.');
+  if (!QUEUEABLE.includes(a.status))
+    throw invalidState(
+      a.status === 'PUBLISHED'
+        ? 'This announcement was already published.'
+        : 'This announcement is being published right now.',
+    );
   if (opts.expectedVersion !== undefined && opts.expectedVersion !== a.version) {
-    throw conflict('This announcement was edited after you previewed it. Preview it again before publishing.');
+    throw conflict(
+      'This announcement was edited after you previewed it. Preview it again before publishing.',
+    );
   }
   await requireMentionPermission(ctx, a.mention, id);
   if (a.mention !== 'NONE' && !opts.confirmMentions) {
@@ -371,7 +500,12 @@ async function queueAnnouncement(ctx: Ctx, id: string, runAt: Date, opts: QueueO
   return ctx.db.$transaction(async (tx) => {
     const res = await tx.announcement.updateMany({
       where: { id, version: a.version, status: a.status },
-      data: { status: 'SCHEDULED', scheduledFor: runAt, version: nextVersion, publishedById: ctx.actor.userId },
+      data: {
+        status: 'SCHEDULED',
+        scheduledFor: runAt,
+        version: nextVersion,
+        publishedById: ctx.actor.userId,
+      },
     });
     if (res.count === 0) throw conflict('This announcement changed in the meantime. Preview it again.');
     await cancelJob(tx, announcementJobKey(id, a.version));
@@ -384,13 +518,32 @@ async function queueAnnouncement(ctx: Ctx, id: string, runAt: Date, opts: QueueO
       maxAttempts: 3,
     });
     // The mass-mention authorisation is recorded here; delivery relies on it.
-    await audit(ctx, { action, targetType: 'Announcement', targetId: id, metadata: { runAt: runAt.toISOString(), version: nextVersion, mention: a.mention, mentionRoleId: a.mentionRoleId, channelId: a.channelId } }, tx);
+    await audit(
+      ctx,
+      {
+        action,
+        targetType: 'Announcement',
+        targetId: id,
+        metadata: {
+          runAt: runAt.toISOString(),
+          version: nextVersion,
+          mention: a.mention,
+          mentionRoleId: a.mentionRoleId,
+          channelId: a.channelId,
+        },
+      },
+      tx,
+    );
     return tx.announcement.findUniqueOrThrow({ where: { id } });
   });
 }
 
 /** Publish as soon as the worker picks it up (seconds). */
-export async function publishAnnouncement(ctx: Ctx, id: string, opts: QueueOptions = {}): Promise<Announcement> {
+export async function publishAnnouncement(
+  ctx: Ctx,
+  id: string,
+  opts: QueueOptions = {},
+): Promise<Announcement> {
   return queueAnnouncement(ctx, id, ctx.now(), opts, 'announcements.publish');
 }
 
@@ -400,7 +553,12 @@ export const scheduleSchema = z.object({
 });
 
 /** Schedule using wall-clock input in the given (or guild) time zone; stored in UTC. */
-export async function scheduleAnnouncement(ctx: Ctx, id: string, raw: z.input<typeof scheduleSchema>, opts: QueueOptions = {}): Promise<Announcement> {
+export async function scheduleAnnouncement(
+  ctx: Ctx,
+  id: string,
+  raw: z.input<typeof scheduleSchema>,
+  opts: QueueOptions = {},
+): Promise<Announcement> {
   const input = scheduleSchema.parse(raw);
   const cfg = await getGuildConfig(ctx.db, ctx.guildId);
   const runAt = parseScheduleInput(input.when, input.timezone ?? cfg.timezone);
@@ -410,12 +568,19 @@ export async function scheduleAnnouncement(ctx: Ctx, id: string, raw: z.input<ty
 /** Validate that a UTC instant is an acceptable schedule time. */
 export function assertSchedulable(runAt: Date, now: Date): void {
   if (Number.isNaN(runAt.getTime())) throw validation('That time is not valid.');
-  if (runAt.getTime() < now.getTime() + 60_000) throw validation('Pick a time at least one minute in the future.');
-  if (runAt.getTime() > now.getTime() + MAX_SCHEDULE_AHEAD_MS) throw validation('Announcements can be scheduled at most a year ahead.');
+  if (runAt.getTime() < now.getTime() + 60_000)
+    throw validation('Pick a time at least one minute in the future.');
+  if (runAt.getTime() > now.getTime() + MAX_SCHEDULE_AHEAD_MS)
+    throw validation('Announcements can be scheduled at most a year ahead.');
 }
 
 /** Schedule at an already-resolved UTC instant (e.g. from a confirmation button). */
-export async function scheduleAnnouncementAt(ctx: Ctx, id: string, runAt: Date, opts: QueueOptions = {}): Promise<Announcement> {
+export async function scheduleAnnouncementAt(
+  ctx: Ctx,
+  id: string,
+  runAt: Date,
+  opts: QueueOptions = {},
+): Promise<Announcement> {
   assertSchedulable(runAt, ctx.now());
   return queueAnnouncement(ctx, id, runAt, opts, 'announcements.schedule');
 }
@@ -423,12 +588,29 @@ export async function scheduleAnnouncementAt(ctx: Ctx, id: string, runAt: Date, 
 export async function cancelAnnouncement(ctx: Ctx, id: string): Promise<Announcement> {
   await requirePermission(ctx, 'announcements.publish', 'announcements.cancel');
   const a = await loadAnnouncement(ctx, id);
-  if (a.status !== 'SCHEDULED') throw invalidState(a.status === 'PUBLISHING' ? 'This announcement is being published right now and can no longer be cancelled.' : 'Only scheduled announcements can be cancelled.');
+  if (a.status !== 'SCHEDULED')
+    throw invalidState(
+      a.status === 'PUBLISHING'
+        ? 'This announcement is being published right now and can no longer be cancelled.'
+        : 'Only scheduled announcements can be cancelled.',
+    );
   return ctx.db.$transaction(async (tx) => {
-    const res = await tx.announcement.updateMany({ where: { id, status: 'SCHEDULED', version: a.version }, data: { status: 'CANCELLED' } });
+    const res = await tx.announcement.updateMany({
+      where: { id, status: 'SCHEDULED', version: a.version },
+      data: { status: 'CANCELLED' },
+    });
     if (res.count === 0) throw conflict('This announcement changed in the meantime.');
     await cancelJob(tx, announcementJobKey(id, a.version));
-    await audit(ctx, { action: 'announcements.cancel', targetType: 'Announcement', targetId: id, metadata: { version: a.version } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'announcements.cancel',
+        targetType: 'Announcement',
+        targetId: id,
+        metadata: { version: a.version },
+      },
+      tx,
+    );
     return tx.announcement.findUniqueOrThrow({ where: { id } });
   });
 }
@@ -463,7 +645,10 @@ export async function deliverAnnouncement(
   const sys = makeCtx(deps, a.guildId, systemActor('worker'));
 
   if (a.status === 'SCHEDULED') {
-    const r = await db.announcement.updateMany({ where: { id, version, status: 'SCHEDULED' }, data: { status: 'PUBLISHING' } });
+    const r = await db.announcement.updateMany({
+      where: { id, version, status: 'SCHEDULED' },
+      data: { status: 'PUBLISHING' },
+    });
     if (r.count === 0) return 'skipped'; // cancelled or edited concurrently
   }
 
@@ -471,17 +656,34 @@ export async function deliverAnnouncement(
   const existing = await db.announcementDelivery.findUnique({ where: { idempotencyKey: key } });
   if (existing) {
     if (existing.success) {
-      await db.announcement.updateMany({ where: { id, version, status: 'PUBLISHING' }, data: { status: 'PUBLISHED', publishedAt: a.publishedAt ?? existing.createdAt } });
+      await db.announcement.updateMany({
+        where: { id, version, status: 'PUBLISHING' },
+        data: { status: 'PUBLISHED', publishedAt: a.publishedAt ?? existing.createdAt },
+      });
       return 'already-delivered';
     }
     if (!existing.error) {
       await db.$transaction(async (tx) => {
         await tx.announcementDelivery.update({
           where: { id: existing.id },
-          data: { error: 'Interrupted during sending; not re-sent to avoid a duplicate post. Check the channel, then publish again if needed.', attempt: { increment: 1 } },
+          data: {
+            error:
+              'Interrupted during sending; not re-sent to avoid a duplicate post. Check the channel, then publish again if needed.',
+            attempt: { increment: 1 },
+          },
         });
         await tx.announcement.updateMany({ where: { id, version }, data: { status: 'FAILED' } });
-        await audit(sys, { action: 'announcements.delivery.interrupted', targetType: 'Announcement', targetId: id, result: 'FAILURE', metadata: { version } }, tx);
+        await audit(
+          sys,
+          {
+            action: 'announcements.delivery.interrupted',
+            targetType: 'Announcement',
+            targetId: id,
+            result: 'FAILURE',
+            metadata: { version },
+          },
+          tx,
+        );
       });
       return 'interrupted';
     }
@@ -491,7 +693,9 @@ export async function deliverAnnouncement(
 
   let deliveryId: string;
   try {
-    const d = await db.announcementDelivery.create({ data: { announcementId: id, idempotencyKey: key, channelId: a.channelId, success: false } });
+    const d = await db.announcementDelivery.create({
+      data: { announcementId: id, idempotencyKey: key, channelId: a.channelId, success: false },
+    });
     deliveryId = d.id;
   } catch (e) {
     if (isUniqueViolation(e)) return 'skipped'; // another worker is delivering this version
@@ -508,7 +712,17 @@ export async function deliverAnnouncement(
     await db.$transaction(async (tx) => {
       await tx.announcementDelivery.update({ where: { id: deliveryId }, data: { error: message } });
       await tx.announcement.updateMany({ where: { id, version }, data: { status: 'FAILED' } });
-      await audit(sys, { action: 'announcements.delivery.failed', targetType: 'Announcement', targetId: id, result: 'FAILURE', metadata: { version, channelId: a.channelId } }, tx);
+      await audit(
+        sys,
+        {
+          action: 'announcements.delivery.failed',
+          targetType: 'Announcement',
+          targetId: id,
+          result: 'FAILURE',
+          metadata: { version, channelId: a.channelId },
+        },
+        tx,
+      );
     });
     deps.log.error({ err, announcementId: id }, 'announcement delivery failed');
     return 'failed';
@@ -516,8 +730,26 @@ export async function deliverAnnouncement(
 
   await db.$transaction(async (tx) => {
     await tx.announcementDelivery.update({ where: { id: deliveryId }, data: { messageId, success: true } });
-    await tx.announcement.updateMany({ where: { id, version }, data: { status: 'PUBLISHED', publishedAt: deps.now() } });
-    await audit(sys, { action: 'announcements.delivered', targetType: 'Announcement', targetId: id, metadata: { version, channelId: a.channelId, messageId, mention: a.mention, authorisedBy: a.publishedById } }, tx);
+    await tx.announcement.updateMany({
+      where: { id, version },
+      data: { status: 'PUBLISHED', publishedAt: deps.now() },
+    });
+    await audit(
+      sys,
+      {
+        action: 'announcements.delivered',
+        targetType: 'Announcement',
+        targetId: id,
+        metadata: {
+          version,
+          channelId: a.channelId,
+          messageId,
+          mention: a.mention,
+          authorisedBy: a.publishedById,
+        },
+      },
+      tx,
+    );
   });
   return 'published';
 }
@@ -530,14 +762,21 @@ export const ENGAGEMENT_WINDOW_DAYS = 14;
 export async function deliveriesForEngagementRefresh(db: Db, guildId: string, now: Date) {
   const since = new Date(now.getTime() - ENGAGEMENT_WINDOW_DAYS * 86_400_000);
   return db.announcementDelivery.findMany({
-    where: { success: true, messageId: { not: null }, announcement: { guildId, status: 'PUBLISHED', publishedAt: { gte: since } } },
+    where: {
+      success: true,
+      messageId: { not: null },
+      announcement: { guildId, status: 'PUBLISHED', publishedAt: { gte: since } },
+    },
     select: { id: true, channelId: true, messageId: true },
     take: 200,
   });
 }
 
 export async function recordReactionCount(db: Db, deliveryId: string, count: number): Promise<void> {
-  await db.announcementDelivery.update({ where: { id: deliveryId }, data: { reactionCount: Math.max(0, Math.floor(count)) } });
+  await db.announcementDelivery.update({
+    where: { id: deliveryId },
+    data: { reactionCount: Math.max(0, Math.floor(count)) },
+  });
 }
 
 /**
@@ -549,7 +788,10 @@ export async function getAnnouncementAnalytics(ctx: Ctx, id: string) {
   await requireAny(ctx, ['announcements.create', 'announcements.publish', 'analytics.view']);
   const a = await ctx.db.announcement.findFirst({
     where: { id, guildId: ctx.guildId },
-    include: { deliveries: { where: { success: true } }, trackedLinks: { select: { id: true, slug: true, targetUrl: true, clicks: true } } },
+    include: {
+      deliveries: { where: { success: true } },
+      trackedLinks: { select: { id: true, slug: true, targetUrl: true, clicks: true } },
+    },
   });
   if (!a) throw notFound('Announcement');
   const reactions = a.deliveries.reduce((s, d) => s + d.reactionCount, 0);

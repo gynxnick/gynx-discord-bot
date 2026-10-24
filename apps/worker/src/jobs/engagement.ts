@@ -19,7 +19,13 @@ async function renderEvent(w: WorkerCtx, eventId: string) {
   const ev = await w.deps.db.communityEvent.findUnique({ where: { id: eventId } });
   if (!ev) return null;
   const counts = await engagement.eventCounts(w.deps.db, ev.id);
-  return { ev, body: { embeds: [engagement.eventEmbed(ev, counts)], components: engagement.eventComponents(ev) } satisfies MessageBody };
+  return {
+    ev,
+    body: {
+      embeds: [engagement.eventEmbed(ev, counts)],
+      components: engagement.eventComponents(ev),
+    } satisfies MessageBody,
+  };
 }
 
 async function renderPoll(w: WorkerCtx, pollId: string) {
@@ -27,14 +33,28 @@ async function renderPoll(w: WorkerCtx, pollId: string) {
   if (!poll) return null;
   const results = await engagement.tallyPoll(w.deps.db, pollId);
   const showTally = poll.liveResults || poll.status === 'CLOSED';
-  return { poll, body: { embeds: [engagement.pollEmbed(results, showTally)], components: engagement.pollComponents(results) } satisfies MessageBody };
+  return {
+    poll,
+    body: {
+      embeds: [engagement.pollEmbed(results, showTally)],
+      components: engagement.pollComponents(results),
+    } satisfies MessageBody,
+  };
 }
 
 async function renderSuggestion(w: WorkerCtx, suggestionId: string) {
   const s = await w.deps.db.suggestion.findUnique({ where: { id: suggestionId } });
   if (!s) return null;
-  const dup = s.duplicateOfId ? await w.deps.db.suggestion.findUnique({ where: { id: s.duplicateOfId }, select: { ref: true } }) : null;
-  return { s, body: { embeds: [engagement.suggestionEmbed(s, dup?.ref)], components: engagement.suggestionComponents(s) } satisfies MessageBody };
+  const dup = s.duplicateOfId
+    ? await w.deps.db.suggestion.findUnique({ where: { id: s.duplicateOfId }, select: { ref: true } })
+    : null;
+  return {
+    s,
+    body: {
+      embeds: [engagement.suggestionEmbed(s, dup?.ref)],
+      components: engagement.suggestionComponents(s),
+    } satisfies MessageBody,
+  };
 }
 
 async function renderGiveaway(w: WorkerCtx, giveawayId: string) {
@@ -45,10 +65,21 @@ async function renderGiveaway(w: WorkerCtx, giveawayId: string) {
     w.deps.db.giveawayDraw.findMany({ where: { giveawayId }, orderBy: { seq: 'asc' } }),
   ]);
   const winners = draws.length ? draws.flatMap((d) => d.winnerIds) : null;
-  return { g, body: { embeds: [engagement.giveawayEmbed(g, entrants, winners)], components: engagement.giveawayComponents(g) } satisfies MessageBody };
+  return {
+    g,
+    body: {
+      embeds: [engagement.giveawayEmbed(g, entrants, winners)],
+      components: engagement.giveawayComponents(g),
+    } satisfies MessageBody,
+  };
 }
 
-async function editIfPosted(w: WorkerCtx, channelId: string | null, messageId: string | null, body: Partial<MessageBody>) {
+async function editIfPosted(
+  w: WorkerCtx,
+  channelId: string | null,
+  messageId: string | null,
+  body: Partial<MessageBody>,
+) {
   if (!channelId || !messageId) return; // not posted yet: the publish job renders current state anyway
   await w.deps.discord.editMessage(channelId, messageId, body);
 }
@@ -61,7 +92,10 @@ export const engagementJobs: WorkerModule = {
       const r = await renderEvent(w, str(job, 'eventId'));
       if (!r || r.ev.messageId || r.ev.status !== 'SCHEDULED' || !r.ev.channelId) return;
       const msg = await w.deps.discord.sendMessage(r.ev.channelId, r.body);
-      await w.deps.db.communityEvent.updateMany({ where: { id: r.ev.id, messageId: null }, data: { messageId: msg.id } });
+      await w.deps.db.communityEvent.updateMany({
+        where: { id: r.ev.id, messageId: null },
+        data: { messageId: msg.id },
+      });
     },
 
     async [JOBS.eventRefresh](job, w) {
@@ -92,7 +126,14 @@ export const engagementJobs: WorkerModule = {
       if (d.kind === 'suggestion.status') {
         const s = await db.suggestion.findUnique({ where: { id: d.refId } });
         if (!s || s.hidden || s.status !== d.guard) return;
-        await discord.sendDm(d.userId, { embeds: [engagement.suggestionStatusDmEmbed(s, engagement.messageLink(s.guildId, s.channelId, s.messageId))] });
+        await discord.sendDm(d.userId, {
+          embeds: [
+            engagement.suggestionStatusDmEmbed(
+              s,
+              engagement.messageLink(s.guildId, s.channelId, s.messageId),
+            ),
+          ],
+        });
         return;
       }
       const ev = await db.communityEvent.findUnique({ where: { id: d.refId } });
@@ -102,7 +143,10 @@ export const engagementJobs: WorkerModule = {
       } else if (d.kind === 'event.reminder' || d.kind === 'event.promoted') {
         if (ev.status !== 'SCHEDULED') return;
         if (d.kind === 'event.reminder' && ev.startsAt.toISOString() !== d.guard) return;
-        const rsvp = await db.eventRsvp.findUnique({ where: { eventId_userId: { eventId: ev.id, userId: d.userId } }, select: { status: true } });
+        const rsvp = await db.eventRsvp.findUnique({
+          where: { eventId_userId: { eventId: ev.id, userId: d.userId } },
+          select: { status: true },
+        });
         if (rsvp?.status !== 'GOING') return;
       } else {
         return;
@@ -116,7 +160,10 @@ export const engagementJobs: WorkerModule = {
       const r = await renderPoll(w, str(job, 'pollId'));
       if (!r || r.poll.messageId || !r.poll.channelId) return;
       const msg = await w.deps.discord.sendMessage(r.poll.channelId, r.body);
-      await w.deps.db.poll.updateMany({ where: { id: r.poll.id, messageId: null }, data: { messageId: msg.id } });
+      await w.deps.db.poll.updateMany({
+        where: { id: r.poll.id, messageId: null },
+        data: { messageId: msg.id },
+      });
     },
 
     /** Debounced live tally (deduped per poll + minute bucket). */
@@ -147,7 +194,10 @@ export const engagementJobs: WorkerModule = {
       const r = await renderSuggestion(w, str(job, 'suggestionId'));
       if (!r || r.s.messageId || r.s.hidden || !r.s.channelId) return;
       const msg = await w.deps.discord.sendMessage(r.s.channelId, r.body);
-      await w.deps.db.suggestion.updateMany({ where: { id: r.s.id, messageId: null }, data: { messageId: msg.id } });
+      await w.deps.db.suggestion.updateMany({
+        where: { id: r.s.id, messageId: null },
+        data: { messageId: msg.id },
+      });
     },
 
     async [JOBS.suggestionRefresh](job, w) {
@@ -160,7 +210,10 @@ export const engagementJobs: WorkerModule = {
       const r = await renderGiveaway(w, str(job, 'giveawayId'));
       if (!r || r.g.messageId || r.g.status !== 'ACTIVE' || !r.g.channelId) return;
       const msg = await w.deps.discord.sendMessage(r.g.channelId, r.body);
-      await w.deps.db.giveaway.updateMany({ where: { id: r.g.id, messageId: null }, data: { messageId: msg.id } });
+      await w.deps.db.giveaway.updateMany({
+        where: { id: r.g.id, messageId: null },
+        data: { messageId: msg.id },
+      });
     },
 
     async [JOBS.giveawayRefresh](job, w) {
@@ -170,7 +223,10 @@ export const engagementJobs: WorkerModule = {
 
     /** Scheduled end. The service's conditional ACTIVE→ENDED update makes re-runs no-ops. */
     async [JOBS.giveawayEnd](job, w) {
-      const g = await w.deps.db.giveaway.findUnique({ where: { id: str(job, 'giveawayId') }, select: { id: true, guildId: true, status: true } });
+      const g = await w.deps.db.giveaway.findUnique({
+        where: { id: str(job, 'giveawayId') },
+        select: { id: true, guildId: true, status: true },
+      });
       if (!g || g.status !== 'ACTIVE') return;
       const ctx = makeCtx(w.deps, g.guildId, systemActor('worker'), `job:${job.id}`);
       await engagement.finishGiveaway(ctx, g.id);
@@ -178,9 +234,18 @@ export const engagementJobs: WorkerModule = {
 
     /** Announce a draw. Mentions ONLY the winners (explicit allowed_mentions user list). */
     async [JOBS.giveawayAnnounce](job, w) {
-      const draw = await w.deps.db.giveawayDraw.findUnique({ where: { id: str(job, 'drawId') }, include: { giveaway: true } });
+      const draw = await w.deps.db.giveawayDraw.findUnique({
+        where: { id: str(job, 'drawId') },
+        include: { giveaway: true },
+      });
       const channelId = draw?.giveaway.channelId;
-      if (!draw || !channelId) return;
+      if (!draw || !channelId || draw.announcedAt) return;
+      // Claim before sending: a retry after a crash never pings winners twice.
+      const claimed = await w.deps.db.giveawayDraw.updateMany({
+        where: { id: draw.id, announcedAt: null },
+        data: { announcedAt: w.deps.now() },
+      });
+      if (claimed.count === 0) return;
       const g = draw.giveaway;
       await w.deps.discord.sendMessage(channelId, {
         content: engagement.winnerAnnouncementContent(g, draw),

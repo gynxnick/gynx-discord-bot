@@ -1,5 +1,22 @@
-import { isUniqueViolation, type Db, type GeneratedReport, type Prisma, type PrismaClient, type ReportDefinition } from '@gynx/database';
-import { WEEKDAYS, dateKeyInZone, isValidTimeZone, nextWeeklyOccurrence, redactSecrets, truncate, zonedParts, zonedToUtc, type Weekday } from '@gynx/shared';
+import {
+  isUniqueViolation,
+  type Db,
+  type GeneratedReport,
+  type Prisma,
+  type PrismaClient,
+  type ReportDefinition,
+} from '@gynx/database';
+import {
+  WEEKDAYS,
+  dateKeyInZone,
+  isValidTimeZone,
+  nextWeeklyOccurrence,
+  redactSecrets,
+  truncate,
+  zonedParts,
+  zonedToUtc,
+  type Weekday,
+} from '@gynx/shared';
 import { getGuildConfig } from '../core/config';
 import type { MessageBody } from '../core/discord-port';
 import { enqueueJob } from '../core/jobs';
@@ -11,15 +28,23 @@ export const DEFAULT_REPORT_NAME = 'Weekly CEO report';
 export const DELIVER_JOB = 'analytics.report.deliver';
 export const deliverDedupeKey = (reportId: string) => `${DELIVER_JOB}:${reportId}`;
 
-const asWeekday = (d: string): Weekday => ((WEEKDAYS as readonly string[]).includes(d) ? (d as Weekday) : 'MONDAY');
-const safeTz = (tz: string, fallback = 'UTC') => (isValidTimeZone(tz) ? tz : isValidTimeZone(fallback) ? fallback : 'UTC');
+const asWeekday = (d: string): Weekday =>
+  (WEEKDAYS as readonly string[]).includes(d) ? (d as Weekday) : 'MONDAY';
+const safeTz = (tz: string, fallback = 'UTC') =>
+  isValidTimeZone(tz) ? tz : isValidTimeZone(fallback) ? fallback : 'UTC';
 
 /**
  * The most recent scheduled occurrence that is ≤ now, starting from the stored
  * `nextRunAt`. If the worker was down for several cycles, the missed periods are
  * skipped and only the latest due period is generated (no burst of stale reports).
  */
-export function latestDueOccurrence(nextRunAt: Date, now: Date, day: Weekday, time: string, tz: string): Date {
+export function latestDueOccurrence(
+  nextRunAt: Date,
+  now: Date,
+  day: Weekday,
+  time: string,
+  tz: string,
+): Date {
   let due = nextRunAt;
   for (let i = 0; i < 1000; i++) {
     const n = nextWeeklyOccurrence(due, day, time, tz);
@@ -47,7 +72,12 @@ export interface WeeklyReportSeed {
 }
 
 /** Ensure the default weekly CEO report definition exists (never overwrites staff edits). */
-export async function ensureDefaultReportDefinition(db: Db, guildId: string, seed: WeeklyReportSeed, now: Date): Promise<ReportDefinition | null> {
+export async function ensureDefaultReportDefinition(
+  db: Db,
+  guildId: string,
+  seed: WeeklyReportSeed,
+  now: Date,
+): Promise<ReportDefinition | null> {
   if (!seed.enabled) return null;
   const cfg = await getGuildConfig(db, guildId);
   // GuildConfig.timezone defaults to UTC; a non-default value wins over DEFAULT_TIMEZONE.
@@ -73,13 +103,24 @@ export async function ensureDefaultReportDefinition(db: Db, guildId: string, see
  * the unique (definitionId, periodStart) constraint guarantees one report per period
  * even with concurrent workers.
  */
-export async function generateReport(db: Db, def: ReportDefinition, period: Period, now: Date): Promise<{ report: GeneratedReport; created: boolean }> {
-  const existing = await db.generatedReport.findUnique({ where: { definitionId_periodStart: { definitionId: def.id, periodStart: period.start } } });
+export async function generateReport(
+  db: Db,
+  def: ReportDefinition,
+  period: Period,
+  now: Date,
+): Promise<{ report: GeneratedReport; created: boolean }> {
+  const existing = await db.generatedReport.findUnique({
+    where: { definitionId_periodStart: { definitionId: def.id, periodStart: period.start } },
+  });
   if (existing) return { report: existing, created: false };
 
   const cfg = await getGuildConfig(db, def.guildId);
   const tz = safeTz(def.timezone, cfg.timezone);
-  const data = await buildReportData(db, { guildId: def.guildId, period, opts: { tz, now, activeMemberMinMessages: cfg.activeMemberMinMessages } });
+  const data = await buildReportData(db, {
+    guildId: def.guildId,
+    period,
+    opts: { tz, now, activeMemberMinMessages: cfg.activeMemberMinMessages },
+  });
   const markdown = renderMarkdown(data, def.name);
   try {
     const report = await db.generatedReport.create({
@@ -102,7 +143,9 @@ export async function generateReport(db: Db, def: ReportDefinition, period: Peri
     return { report, created: true };
   } catch (e) {
     if (!isUniqueViolation(e)) throw e;
-    const report = await db.generatedReport.findUniqueOrThrow({ where: { definitionId_periodStart: { definitionId: def.id, periodStart: period.start } } });
+    const report = await db.generatedReport.findUniqueOrThrow({
+      where: { definitionId_periodStart: { definitionId: def.id, periodStart: period.start } },
+    });
     return { report, created: false };
   }
 }
@@ -118,7 +161,12 @@ export interface DueReportResult {
  * Scheduler step (worker, every few minutes): initialise missing `nextRunAt`, generate
  * every due report, enqueue its delivery job and advance the schedule.
  */
-export async function runDueReports(db: PrismaClient, guildId: string, now: Date, seed: WeeklyReportSeed): Promise<DueReportResult[]> {
+export async function runDueReports(
+  db: PrismaClient,
+  guildId: string,
+  now: Date,
+  seed: WeeklyReportSeed,
+): Promise<DueReportResult[]> {
   await ensureDefaultReportDefinition(db, guildId, seed, now);
   const defs = await db.reportDefinition.findMany({ where: { guildId, enabled: true } });
   const results: DueReportResult[] = [];
@@ -134,7 +182,13 @@ export async function runDueReports(db: PrismaClient, guildId: string, now: Date
     const { report, created } = await generateReport(db, def, period, now);
     await db.$transaction(async (tx) => {
       if (!report.deliveredAt) {
-        await enqueueJob(tx, { type: DELIVER_JOB, dedupeKey: deliverDedupeKey(report.id), runAt: now, guildId, payload: { reportId: report.id } });
+        await enqueueJob(tx, {
+          type: DELIVER_JOB,
+          dedupeKey: deliverDedupeKey(report.id),
+          runAt: now,
+          guildId,
+          payload: { reportId: report.id },
+        });
       }
       await tx.reportDefinition.updateMany({
         where: { id: def.id, nextRunAt: def.nextRunAt },
@@ -151,7 +205,11 @@ export interface ReportFile {
   data: Buffer;
 }
 /** Sends a channel message with one file attachment. The worker implements it with @discordjs/rest. */
-export type ReportSender = (channelId: string, body: MessageBody, file: ReportFile) => Promise<{ id: string }>;
+export type ReportSender = (
+  channelId: string,
+  body: MessageBody,
+  file: ReportFile,
+) => Promise<{ id: string }>;
 
 export type DeliveryOutcome = 'delivered' | 'already-delivered' | 'no-channel' | 'missing';
 
@@ -163,14 +221,25 @@ export const reportFileName = (r: Pick<GeneratedReport, 'periodStart' | 'periodE
  * Never regenerates. On failure the error is recorded and rethrown so the job runner
  * retries *delivery only* with backoff.
  */
-export async function deliverReport(db: Db, reportId: string, send: ReportSender, opts: { now: Date; dashboardUrl?: string }): Promise<DeliveryOutcome> {
-  const report = await db.generatedReport.findUnique({ where: { id: reportId }, include: { definition: true } });
+export async function deliverReport(
+  db: Db,
+  reportId: string,
+  send: ReportSender,
+  opts: { now: Date; dashboardUrl?: string },
+): Promise<DeliveryOutcome> {
+  const report = await db.generatedReport.findUnique({
+    where: { id: reportId },
+    include: { definition: true },
+  });
   if (!report) return 'missing';
   if (report.deliveredAt) return 'already-delivered';
   const cfg = await getGuildConfig(db, report.guildId);
   const channelId = report.definition.channelId ?? cfg.reportChannelId;
   if (!channelId) {
-    await db.generatedReport.update({ where: { id: report.id }, data: { deliveryError: 'No report channel configured (set it with /config channel set report).' } });
+    await db.generatedReport.update({
+      where: { id: report.id },
+      data: { deliveryError: 'No report channel configured (set it with /config channel set report).' },
+    });
     return 'no-channel';
   }
   const data = report.data as unknown as ReportData;
@@ -178,10 +247,20 @@ export async function deliverReport(db: Db, reportId: string, send: ReportSender
   try {
     const msg = await send(
       channelId,
-      { embeds: reportEmbeds(data, { title: report.definition.name, dashboardUrl: opts.dashboardUrl, reportId: report.id, footer: cfg.embedFooter }) },
+      {
+        embeds: reportEmbeds(data, {
+          title: report.definition.name,
+          dashboardUrl: opts.dashboardUrl,
+          reportId: report.id,
+          footer: cfg.embedFooter,
+        }),
+      },
       { name: reportFileName(report, tz), data: Buffer.from(report.markdown, 'utf8') },
     );
-    await db.generatedReport.update({ where: { id: report.id }, data: { deliveredAt: opts.now, messageId: msg.id, deliveryError: null } });
+    await db.generatedReport.update({
+      where: { id: report.id },
+      data: { deliveredAt: opts.now, messageId: msg.id, deliveryError: null },
+    });
     return 'delivered';
   } catch (e) {
     const message = truncate(redactSecrets(e instanceof Error ? e.message : String(e)), 500);

@@ -82,7 +82,8 @@ export function validateTarget(s: TargetShape): { target: string | null; port: n
       } catch {
         throw validation('The target must be a valid http(s) URL.');
       }
-      if (url.protocol !== 'http:' && url.protocol !== 'https:') throw validation('Only http:// and https:// targets are supported.');
+      if (url.protocol !== 'http:' && url.protocol !== 'https:')
+        throw validation('Only http:// and https:// targets are supported.');
       if (url.username || url.password) throw validation('Do not put credentials in the target URL.');
       checkLiteralHost(url.hostname, s.allowPrivate);
       return { target: url.toString(), port: null };
@@ -91,7 +92,7 @@ export function validateTarget(s: TargetShape): { target: string | null; port: n
       if (!s.target) throw validation('A host is required for TCP checks.');
       if (!s.port) throw validation('A port (1–65535) is required for TCP checks.');
       const host = s.target.trim().toLowerCase();
-      if (host.includes('/') || host.includes(':') && !isIP(host.replace(/^\[|\]$/g, ''))) {
+      if (host.includes('/') || (host.includes(':') && !isIP(host.replace(/^\[|\]$/g, '')))) {
         throw validation('Enter only a hostname or IP for TCP checks (port goes in the port field).');
       }
       checkLiteralHost(host, s.allowPrivate);
@@ -107,7 +108,10 @@ async function requireStaffView(ctx: Ctx) {
 
 export async function listServices(ctx: Ctx): Promise<MonitoredService[]> {
   await requireStaffView(ctx);
-  return ctx.db.monitoredService.findMany({ where: { guildId: ctx.guildId }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] });
+  return ctx.db.monitoredService.findMany({
+    where: { guildId: ctx.guildId },
+    orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+  });
 }
 
 export async function getService(ctx: Ctx, id: string) {
@@ -130,16 +134,39 @@ export async function createService(ctx: Ctx, raw: CreateServiceInput): Promise<
   await requirePermission(ctx, 'status.manage', 'status.service.create');
   const input = createServiceSchema.parse(raw);
   if (input.allowPrivate) await requirePrivateGrant(ctx, 'status.service.allow_private');
-  const { target, port } = validateTarget({ kind: input.kind, target: input.target, port: input.port ?? null, allowPrivate: input.allowPrivate });
+  const { target, port } = validateTarget({
+    kind: input.kind,
+    target: input.target,
+    port: input.port ?? null,
+    allowPrivate: input.allowPrivate,
+  });
 
   try {
     return await ctx.db.$transaction(async (tx) => {
       const s = await tx.monitoredService.create({
         data: { ...input, guildId: ctx.guildId, target, port, expectedStatus: input.expectedStatus ?? null },
       });
-      await audit(ctx, { action: 'status.service.create', targetType: 'MonitoredService', targetId: s.id, metadata: { slug: s.slug, kind: s.kind, allowPrivate: s.allowPrivate, public: s.public } }, tx);
+      await audit(
+        ctx,
+        {
+          action: 'status.service.create',
+          targetType: 'MonitoredService',
+          targetId: s.id,
+          metadata: { slug: s.slug, kind: s.kind, allowPrivate: s.allowPrivate, public: s.public },
+        },
+        tx,
+      );
       if (s.allowPrivate) {
-        await audit(ctx, { action: 'status.service.allow_private', targetType: 'MonitoredService', targetId: s.id, metadata: { slug: s.slug, enabled: true } }, tx);
+        await audit(
+          ctx,
+          {
+            action: 'status.service.allow_private',
+            targetType: 'MonitoredService',
+            targetId: s.id,
+            metadata: { slug: s.slug, enabled: true },
+          },
+          tx,
+        );
       }
       return s;
     });
@@ -149,7 +176,11 @@ export async function createService(ctx: Ctx, raw: CreateServiceInput): Promise<
   }
 }
 
-export async function updateService(ctx: Ctx, id: string, raw: UpdateServiceInput): Promise<MonitoredService> {
+export async function updateService(
+  ctx: Ctx,
+  id: string,
+  raw: UpdateServiceInput,
+): Promise<MonitoredService> {
   await requireModule(ctx, 'status');
   await requirePermission(ctx, 'status.manage', 'status.service.update');
   const input = updateServiceSchema.parse(raw);
@@ -166,10 +197,14 @@ export async function updateService(ctx: Ctx, id: string, raw: UpdateServiceInpu
     port: input.port !== undefined ? (input.port ?? null) : existing.port,
     allowPrivate,
   };
-  const targetTouched = input.kind !== undefined || input.target !== undefined || input.port !== undefined || privateChanged;
-  const { target, port } = targetTouched ? validateTarget(merged) : { target: existing.target, port: existing.port };
+  const targetTouched =
+    input.kind !== undefined || input.target !== undefined || input.port !== undefined || privateChanged;
+  const { target, port } = targetTouched
+    ? validateTarget(merged)
+    : { target: existing.target, port: existing.port };
   // Changing what is monitored invalidates the current streaks.
-  const resetCounters = targetTouched && (target !== existing.target || port !== existing.port || merged.kind !== existing.kind);
+  const resetCounters =
+    targetTouched && (target !== existing.target || port !== existing.port || merged.kind !== existing.kind);
 
   const data: Prisma.MonitoredServiceUpdateInput = {
     ...input,
@@ -182,9 +217,27 @@ export async function updateService(ctx: Ctx, id: string, raw: UpdateServiceInpu
     return await ctx.db.$transaction(async (tx) => {
       const s = await tx.monitoredService.update({ where: { id }, data });
       const changed = Object.keys(input).filter((k) => k !== 'target'); // never echo targets into audit metadata
-      await audit(ctx, { action: 'status.service.update', targetType: 'MonitoredService', targetId: id, metadata: { slug: s.slug, changed, targetChanged: target !== existing.target } }, tx);
+      await audit(
+        ctx,
+        {
+          action: 'status.service.update',
+          targetType: 'MonitoredService',
+          targetId: id,
+          metadata: { slug: s.slug, changed, targetChanged: target !== existing.target },
+        },
+        tx,
+      );
       if (privateChanged) {
-        await audit(ctx, { action: 'status.service.allow_private', targetType: 'MonitoredService', targetId: id, metadata: { slug: s.slug, enabled: allowPrivate } }, tx);
+        await audit(
+          ctx,
+          {
+            action: 'status.service.allow_private',
+            targetType: 'MonitoredService',
+            targetId: id,
+            metadata: { slug: s.slug, enabled: allowPrivate },
+          },
+          tx,
+        );
       }
       return s;
     });
@@ -201,7 +254,16 @@ export async function deleteService(ctx: Ctx, id: string): Promise<void> {
   await ctx.db.$transaction(async (tx) => {
     await tx.monitoredService.delete({ where: { id } });
     await tx.statusSubscription.deleteMany({ where: { guildId: ctx.guildId, serviceSlug: s.slug } });
-    await audit(ctx, { action: 'status.service.delete', targetType: 'MonitoredService', targetId: id, metadata: { slug: s.slug } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'status.service.delete',
+        targetType: 'MonitoredService',
+        targetId: id,
+        metadata: { slug: s.slug },
+      },
+      tx,
+    );
   });
 }
 
@@ -211,13 +273,20 @@ export const setStateSchema = z.object({ state: z.enum(['OPERATIONAL', 'DEGRADED
  * Staff-set state for MANUAL services (status pages for things we can't probe).
  * Emits an alert like the monitor does.
  */
-export async function setManualState(ctx: Ctx, id: string, raw: z.input<typeof setStateSchema>): Promise<MonitoredService> {
+export async function setManualState(
+  ctx: Ctx,
+  id: string,
+  raw: z.input<typeof setStateSchema>,
+): Promise<MonitoredService> {
   await requireModule(ctx, 'status');
   await requireAny(ctx, ['status.manage', 'incidents.manage'], 'status.service.set_state');
   const { state } = setStateSchema.parse(raw);
   const s = await ctx.db.monitoredService.findFirst({ where: { id, guildId: ctx.guildId } });
   if (!s) throw notFound('Service');
-  if (s.kind !== 'MANUAL') throw validation('Only MANUAL services can have their state set by hand; monitored services follow their checks.');
+  if (s.kind !== 'MANUAL')
+    throw validation(
+      'Only MANUAL services can have their state set by hand; monitored services follow their checks.',
+    );
   if (s.state === state) return s;
   const now = ctx.now();
   return ctx.db.$transaction(async (tx) => {
@@ -230,13 +299,29 @@ export async function setManualState(ctx: Ctx, id: string, raw: z.input<typeof s
         ...(alert ? { lastAlertAt: now, lastAlertState: state as ServiceState } : {}),
       },
     });
-    await audit(ctx, { action: 'status.service.set_state', targetType: 'MonitoredService', targetId: id, metadata: { slug: s.slug, from: s.state, to: state } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'status.service.set_state',
+        targetType: 'MonitoredService',
+        targetId: id,
+        metadata: { slug: s.slug, from: s.state, to: state },
+      },
+      tx,
+    );
     if (alert) await enqueueAlert(tx, ctx.guildId, updated.id, state, s.state, now);
     return updated;
   });
 }
 
-export async function enqueueAlert(tx: Prisma.TransactionClient, guildId: string, serviceId: string, state: ServiceState, from: ServiceState, stateChangeAt: Date) {
+export async function enqueueAlert(
+  tx: Prisma.TransactionClient,
+  guildId: string,
+  serviceId: string,
+  state: ServiceState,
+  from: ServiceState,
+  stateChangeAt: Date,
+) {
   await enqueueJob(tx, {
     type: 'status.alert',
     dedupeKey: `status.alert:${serviceId}:${stateChangeAt.getTime()}`,

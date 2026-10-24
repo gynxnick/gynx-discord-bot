@@ -11,7 +11,12 @@ interface Sent {
   file: analytics.ReportFile;
 }
 
-function setup(guildId: string, clock: { now: Date }, sender: analytics.ReportSender, env: Partial<WorkerEnv> = {}) {
+function setup(
+  guildId: string,
+  clock: { now: Date },
+  sender: analytics.ReportSender,
+  env: Partial<WorkerEnv> = {},
+) {
   const deps = testDeps({ now: () => clock.now });
   const runner = new JobRunner(
     {
@@ -46,7 +51,10 @@ describe('analytics worker jobs', () => {
   it('seeds the default weekly report, generates it when due and delivers summary + .md attachment once', async () => {
     const guildId = await freshGuild();
     const reportChannelId = snowflake();
-    await testDb().guildConfig.update({ where: { guildId }, data: { reportChannelId, timezone: 'Europe/London' } });
+    await testDb().guildConfig.update({
+      where: { guildId },
+      data: { reportChannelId, timezone: 'Europe/London' },
+    });
     const sent: Sent[] = [];
     const sender: analytics.ReportSender = async (channelId, body, file) => {
       sent.push({ channelId, body, file });
@@ -57,8 +65,16 @@ describe('analytics worker jobs', () => {
     const { runner } = setup(guildId, clock, sender);
 
     await drain(runner, clock.now);
-    const def = await testDb().reportDefinition.findUniqueOrThrow({ where: { guildId_name: { guildId, name: analytics.DEFAULT_REPORT_NAME } } });
-    expect(def).toMatchObject({ day: 'MONDAY', time: '09:00', timezone: 'Europe/London', periodDays: 7, channelId: reportChannelId });
+    const def = await testDb().reportDefinition.findUniqueOrThrow({
+      where: { guildId_name: { guildId, name: analytics.DEFAULT_REPORT_NAME } },
+    });
+    expect(def).toMatchObject({
+      day: 'MONDAY',
+      time: '09:00',
+      timezone: 'Europe/London',
+      periodDays: 7,
+      channelId: reportChannelId,
+    });
     expect(def.nextRunAt?.toISOString()).toBe('2031-03-10T09:00:00.000Z'); // GMT in March before DST
     expect(await testDb().generatedReport.count({ where: { guildId } })).toBe(0);
 
@@ -100,7 +116,9 @@ describe('analytics worker jobs', () => {
     const failed = await testDb().generatedReport.findFirstOrThrow({ where: { guildId } });
     expect(failed.deliveredAt).toBeNull();
     expect(failed.deliveryError).toContain('Missing Access');
-    const job = await testDb().scheduledJob.findUniqueOrThrow({ where: { dedupeKey: analytics.deliverDedupeKey(failed.id) } });
+    const job = await testDb().scheduledJob.findUniqueOrThrow({
+      where: { dedupeKey: analytics.deliverDedupeKey(failed.id) },
+    });
     expect(job.status).toBe('FAILED');
 
     // After the backoff the delivery job runs again; generation is not repeated.
@@ -128,7 +146,9 @@ describe('analytics worker jobs', () => {
     const r = await testDb().generatedReport.findFirstOrThrow({ where: { guildId } });
     expect(r.deliveredAt).toBeNull();
     expect(r.deliveryError).toMatch(/No report channel configured/);
-    const job = await testDb().scheduledJob.findUniqueOrThrow({ where: { dedupeKey: analytics.deliverDedupeKey(r.id) } });
+    const job = await testDb().scheduledJob.findUniqueOrThrow({
+      where: { dedupeKey: analytics.deliverDedupeKey(r.id) },
+    });
     expect(job.status).toBe('DONE');
   });
 });

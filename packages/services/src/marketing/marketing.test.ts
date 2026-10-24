@@ -1,10 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { mentionPayload, mentionWarning, parseScheduleInput, renderAnnouncement } from './announcement-render';
+import {
+  mentionPayload,
+  mentionWarning,
+  parseScheduleInput,
+  renderAnnouncement,
+} from './announcement-render';
 import { detectReferralAbuse, diffInviteUses, snowflakeTimestamp } from './attribution';
 import { publicHttpsUrlProblem, randomBase62, SLUG_RE } from './common';
 import { privilegedDiscordPermissions } from './partners';
 
-const base = { type: 'GENERAL' as const, title: 'Hello', body: 'Body with @everyone inside', imageUrl: null, color: null, mentionRoleId: null };
+const base = {
+  type: 'GENERAL' as const,
+  title: 'Hello',
+  body: 'Body with @everyone inside',
+  imageUrl: null,
+  color: null,
+  mentionRoleId: null,
+};
 
 describe('announcement mentions', () => {
   it('NONE never pings anything', () => {
@@ -39,7 +51,12 @@ describe('announcement mentions', () => {
   });
 
   it('body text lives in the embed, content holds only the mention prefix', () => {
-    const body = renderAnnouncement({ ...base, mention: 'NONE', color: '#7C3AED', imageUrl: 'https://cdn.example.com/x.png' });
+    const body = renderAnnouncement({
+      ...base,
+      mention: 'NONE',
+      color: '#7C3AED',
+      imageUrl: 'https://cdn.example.com/x.png',
+    });
     expect(body.embeds?.[0]?.description).toBe(base.body);
     expect(body.embeds?.[0]?.color).toBe(0x7c3aed);
     expect(body.embeds?.[0]?.image?.url).toBe('https://cdn.example.com/x.png');
@@ -55,9 +72,15 @@ describe('announcement mentions', () => {
 
 describe('schedule time-zone conversion', () => {
   it('converts wall time in a zone to UTC', () => {
-    expect(parseScheduleInput('2026-07-01 18:30', 'Europe/London').toISOString()).toBe('2026-07-01T17:30:00.000Z'); // BST
-    expect(parseScheduleInput('2026-12-01 18:30', 'Europe/London').toISOString()).toBe('2026-12-01T18:30:00.000Z'); // GMT
-    expect(parseScheduleInput('2026-12-01 09:00', 'America/New_York').toISOString()).toBe('2026-12-01T14:00:00.000Z');
+    expect(parseScheduleInput('2026-07-01 18:30', 'Europe/London').toISOString()).toBe(
+      '2026-07-01T17:30:00.000Z',
+    ); // BST
+    expect(parseScheduleInput('2026-12-01 18:30', 'Europe/London').toISOString()).toBe(
+      '2026-12-01T18:30:00.000Z',
+    ); // GMT
+    expect(parseScheduleInput('2026-12-01 09:00', 'America/New_York').toISOString()).toBe(
+      '2026-12-01T14:00:00.000Z',
+    );
     expect(parseScheduleInput('2026-12-01 09:00', 'UTC').toISOString()).toBe('2026-12-01T09:00:00.000Z');
   });
 
@@ -108,12 +131,24 @@ describe('referral invite diff', () => {
 describe('referral abuse detection', () => {
   const joinedAt = new Date('2026-10-01T12:00:00Z');
   const old = new Date('2024-01-01T00:00:00Z');
-  const ok = { referrerId: '111111111111111111', joinedUserId: '222222222222222222', accountCreatedAt: old, joinedAt, previouslyAttributed: false, recentJoinsViaInvite: 0 };
+  const ok = {
+    referrerId: '111111111111111111',
+    joinedUserId: '222222222222222222',
+    accountCreatedAt: old,
+    joinedAt,
+    previouslyAttributed: false,
+    recentJoinsViaInvite: 0,
+  };
 
   it('clean join has no flags', () => expect(detectReferralAbuse(ok)).toEqual([]));
-  it('flags new accounts', () => expect(detectReferralAbuse({ ...ok, accountCreatedAt: new Date(joinedAt.getTime() - 3 * 86_400_000) })).toEqual(['NEW_ACCOUNT']));
-  it('flags rejoins', () => expect(detectReferralAbuse({ ...ok, previouslyAttributed: true })).toEqual(['REJOIN']));
-  it('flags self-referral', () => expect(detectReferralAbuse({ ...ok, joinedUserId: ok.referrerId })).toContain('SELF_REFERRAL'));
+  it('flags new accounts', () =>
+    expect(
+      detectReferralAbuse({ ...ok, accountCreatedAt: new Date(joinedAt.getTime() - 3 * 86_400_000) }),
+    ).toEqual(['NEW_ACCOUNT']));
+  it('flags rejoins', () =>
+    expect(detectReferralAbuse({ ...ok, previouslyAttributed: true })).toEqual(['REJOIN']));
+  it('flags self-referral', () =>
+    expect(detectReferralAbuse({ ...ok, joinedUserId: ok.referrerId })).toContain('SELF_REFERRAL'));
   it('flags bursts above the threshold', () => {
     expect(detectReferralAbuse({ ...ok, recentJoinsViaInvite: 4 })).toEqual([]); // 5th join = threshold, allowed
     expect(detectReferralAbuse({ ...ok, recentJoinsViaInvite: 5 })).toEqual(['BURST']);
@@ -156,7 +191,9 @@ describe('partner role safety', () => {
     expect(privilegedDiscordPermissions('0')).toEqual([]);
     expect(privilegedDiscordPermissions(String(1n << 10n))).toEqual([]); // ViewChannel
     expect(privilegedDiscordPermissions(String(1n << 3n))).toEqual(['Administrator']);
-    expect(privilegedDiscordPermissions(String((1n << 17n) | (1n << 13n)))).toEqual(expect.arrayContaining(['MentionEveryone', 'ManageMessages']));
+    expect(privilegedDiscordPermissions(String((1n << 17n) | (1n << 13n)))).toEqual(
+      expect.arrayContaining(['MentionEveryone', 'ManageMessages']),
+    );
     expect(privilegedDiscordPermissions('garbage')).toHaveLength(1);
   });
 });

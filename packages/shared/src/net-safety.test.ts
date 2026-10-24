@@ -24,8 +24,9 @@ describe('isBlockedAddress', () => {
     'not-an-ip',
   ])('blocks %s', (ip) => expect(isBlockedAddress(ip)).toBe(true));
 
-  it.each(['1.1.1.1', '8.8.8.8', '172.32.0.1', '2606:4700:4700::1111', '::ffff:8.8.8.8'])('allows public %s', (ip) =>
-    expect(isBlockedAddress(ip)).toBe(false),
+  it.each(['1.1.1.1', '8.8.8.8', '172.32.0.1', '2606:4700:4700::1111', '::ffff:8.8.8.8'])(
+    'allows public %s',
+    (ip) => expect(isBlockedAddress(ip)).toBe(false),
   );
 });
 
@@ -45,12 +46,14 @@ describe('resolveSafeTarget', () => {
 
   it('enforces the authorised suffix allowlist', async () => {
     const r = resolver({ 'mc.gynx.gg': ['93.184.216.34'], 'gynx.gg.attacker.com': ['93.184.216.34'] });
-    await expect(resolveSafeTarget('mc.gynx.gg', { resolver: r, allowedSuffixes: ['gynx.gg'] })).resolves.toMatchObject({
+    await expect(
+      resolveSafeTarget('mc.gynx.gg', { resolver: r, allowedSuffixes: ['gynx.gg'] }),
+    ).resolves.toMatchObject({
       address: '93.184.216.34',
     });
-    await expect(resolveSafeTarget('gynx.gg.attacker.com', { resolver: r, allowedSuffixes: ['gynx.gg'] })).rejects.toThrow(
-      /authorized/,
-    );
+    await expect(
+      resolveSafeTarget('gynx.gg.attacker.com', { resolver: r, allowedSuffixes: ['gynx.gg'] }),
+    ).rejects.toThrow(/authorized/);
   });
 
   it('rejects malformed hostnames', async () => {

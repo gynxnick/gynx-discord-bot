@@ -10,18 +10,29 @@ import { discordTimestamp, truncate } from '@gynx/shared';
 import { respond, replySuccess } from '../../framework/reply';
 import type { BotModule } from '../../framework/types';
 
-const categoryChoices = security.REPORT_CATEGORIES.map((c) => ({ name: security.CATEGORY_LABELS[c], value: c }));
+const categoryChoices = security.REPORT_CATEGORIES.map((c) => ({
+  name: security.CATEGORY_LABELS[c],
+  value: c,
+}));
 
 const reportAbuse = new SlashCommandBuilder()
   .setName('report-abuse')
   .setDescription('Privately report spam, scams, harassment or other abuse to the GYNX team')
-  .addStringOption((o) => o.setName('category').setDescription('What are you reporting?').setRequired(true).addChoices(...categoryChoices))
+  .addStringOption((o) =>
+    o
+      .setName('category')
+      .setDescription('What are you reporting?')
+      .setRequired(true)
+      .addChoices(...categoryChoices),
+  )
   .addUserOption((o) => o.setName('user').setDescription('The member involved (optional)'));
 
 const auditLog = new SlashCommandBuilder()
   .setName('audit-log')
   .setDescription('Show recent security audit events')
-  .addStringOption((o) => o.setName('action').setDescription('Action prefix, e.g. moderation. or permissions.'))
+  .addStringOption((o) =>
+    o.setName('action').setDescription('Action prefix, e.g. moderation. or permissions.'),
+  )
   .addUserOption((o) => o.setName('actor').setDescription('Only events by this user'));
 
 export const securityModule: BotModule = {
@@ -83,7 +94,12 @@ export const securityModule: BotModule = {
             `${discordTimestamp(e.createdAt, 'R')} **${e.action}** · ${e.actorId === 'system' ? 'system' : `<@${e.actorId}>`} · ${e.result}${e.targetId ? ` · \`${truncate(e.targetId, 24)}\`` : ''}`,
         );
         await respond(i, {
-          embeds: [brandEmbed({ title: 'Security audit log', description: lines.join('\n') || 'No matching events.' })],
+          embeds: [
+            brandEmbed({
+              title: 'Security audit log',
+              description: lines.join('\n') || 'No matching events.',
+            }),
+          ],
         });
       },
     },

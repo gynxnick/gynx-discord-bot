@@ -10,7 +10,10 @@ import { communityListeners } from './listeners';
 const GUIDE_PAGE_SIZE = 5;
 const CUID = /^c[a-z0-9]{20,32}$/;
 
-const memberFacts = (m: GuildMember): community.MemberFacts => ({ joinedAt: m.joinedAt, accountCreatedAt: m.user.createdAt });
+const memberFacts = (m: GuildMember): community.MemberFacts => ({
+  joinedAt: m.joinedAt,
+  accountCreatedAt: m.user.createdAt,
+});
 
 function requireMember(i: Interaction): GuildMember {
   if (!i.inCachedGuild()) throw new AppError('FORBIDDEN', 'This only works inside the server.');
@@ -20,13 +23,25 @@ function requireMember(i: Interaction): GuildMember {
 // ── /faq rendering ───────────────────────────────────────────────────────────
 
 async function faqAnswerReply(ctx: Ctx, id: string) {
-  const [entry, supportUrl] = await Promise.all([community.viewFaqEntry(ctx, id), community.resolveSupportUrl(ctx.db, ctx.guildId)]);
-  return { embeds: [community.faqAnswerEmbed(entry, supportUrl)], components: community.faqAnswerButtons(entry.id, supportUrl) };
+  const [entry, supportUrl] = await Promise.all([
+    community.viewFaqEntry(ctx, id),
+    community.resolveSupportUrl(ctx.db, ctx.guildId),
+  ]);
+  return {
+    embeds: [community.faqAnswerEmbed(entry, supportUrl)],
+    components: community.faqAnswerButtons(entry.id, supportUrl),
+  };
 }
 
 async function faqOverviewReply(ctx: Ctx) {
-  const [categories, popular] = await Promise.all([community.listFaqCategories(ctx), community.mostViewedFaq(ctx, 10)]);
-  return { embeds: [community.faqOverviewEmbed(categories, popular)], components: community.faqPickSelect(popular) };
+  const [categories, popular] = await Promise.all([
+    community.listFaqCategories(ctx),
+    community.mostViewedFaq(ctx, 10),
+  ]);
+  return {
+    embeds: [community.faqOverviewEmbed(categories, popular)],
+    components: community.faqPickSelect(popular),
+  };
 }
 
 // ── /guides rendering ────────────────────────────────────────────────────────
@@ -34,12 +49,20 @@ async function faqOverviewReply(ctx: Ctx) {
 async function guidesReply(ctx: Ctx, page: number, filters: { category?: string; game?: string }) {
   const result = await community.listGuides(ctx, { ...filters, page, pageSize: GUIDE_PAGE_SIZE });
   await Promise.all(result.items.map((g) => community.recordGuideView(ctx, g.id)));
-  return { embeds: [community.guidesEmbed(result, filters)], components: community.guidesPager(result, filters) };
+  return {
+    embeds: [community.guidesEmbed(result, filters)],
+    components: community.guidesPager(result, filters),
+  };
 }
 
 // ── role application ─────────────────────────────────────────────────────────
 
-async function applyChanges(rt: BotRuntime, member: GuildMember, changes: community.RoleChange[], reason: string): Promise<string[]> {
+async function applyChanges(
+  rt: BotRuntime,
+  member: GuildMember,
+  changes: community.RoleChange[],
+  reason: string,
+): Promise<string[]> {
   const lines: string[] = [];
   for (const c of changes) {
     const r = await applyRoleChange(member, c, reason, rt.log);
@@ -61,7 +84,10 @@ async function interestsPrompt(ctx: Ctx, current: readonly string[]) {
 const commands: SlashCommand[] = [
   {
     module: 'core',
-    data: new SlashCommandBuilder().setName('help').setDescription('Overview of everything the GYNX.GG bot can do').toJSON(),
+    data: new SlashCommandBuilder()
+      .setName('help')
+      .setDescription('Overview of everything the GYNX.GG bot can do')
+      .toJSON(),
     async execute(i, h) {
       const supportUrl = await community.resolveSupportUrl(h.ctx.db, h.ctx.guildId);
       await respond(i, { embeds: [helpEmbed(supportUrl)] });
@@ -72,7 +98,13 @@ const commands: SlashCommand[] = [
     data: new SlashCommandBuilder()
       .setName('faq')
       .setDescription('Search frequently asked questions')
-      .addStringOption((o) => o.setName('query').setDescription('What do you need help with?').setMaxLength(100).setAutocomplete(true))
+      .addStringOption((o) =>
+        o
+          .setName('query')
+          .setDescription('What do you need help with?')
+          .setMaxLength(100)
+          .setAutocomplete(true),
+      )
       .toJSON(),
     async autocomplete(i, h) {
       try {
@@ -102,7 +134,11 @@ const commands: SlashCommand[] = [
       const [top, ...others] = results.items;
       if (!top) {
         const supportUrl = await community.resolveSupportUrl(h.ctx.db, h.ctx.guildId);
-        await replyInfo(i, 'No matching FAQ', `I couldn't find an answer for that.\nTry different words, browse \`/guides\`, or use \`/troubleshoot\`.\n\n${community.supportLine(supportUrl)}`);
+        await replyInfo(
+          i,
+          'No matching FAQ',
+          `I couldn't find an answer for that.\nTry different words, browse \`/guides\`, or use \`/troubleshoot\`.\n\n${community.supportLine(supportUrl)}`,
+        );
         return;
       }
       const reply = await faqAnswerReply(h.ctx, top.id);
@@ -114,8 +150,12 @@ const commands: SlashCommand[] = [
     data: new SlashCommandBuilder()
       .setName('guides')
       .setDescription('Browse setup and how-to guides')
-      .addStringOption((o) => o.setName('category').setDescription('Filter by category').setMaxLength(30).setAutocomplete(true))
-      .addStringOption((o) => o.setName('game').setDescription('Filter by game').setMaxLength(30).setAutocomplete(true))
+      .addStringOption((o) =>
+        o.setName('category').setDescription('Filter by category').setMaxLength(30).setAutocomplete(true),
+      )
+      .addStringOption((o) =>
+        o.setName('game').setDescription('Filter by game').setMaxLength(30).setAutocomplete(true),
+      )
       .toJSON(),
     async autocomplete(i, h) {
       try {
@@ -134,7 +174,10 @@ const commands: SlashCommand[] = [
       }
     },
     async execute(i, h) {
-      const filters = { category: i.options.getString('category') ?? undefined, game: i.options.getString('game') ?? undefined };
+      const filters = {
+        category: i.options.getString('category') ?? undefined,
+        game: i.options.getString('game') ?? undefined,
+      };
       await respond(i, await guidesReply(h.ctx, 1, filters));
     },
   },
@@ -155,10 +198,16 @@ const commands: SlashCommand[] = [
   },
   {
     module: 'community',
-    data: new SlashCommandBuilder().setName('roles').setDescription('Pick your game and notification roles').toJSON(),
+    data: new SlashCommandBuilder()
+      .setName('roles')
+      .setDescription('Pick your game and notification roles')
+      .toJSON(),
     async execute(i, h) {
       const roles = await community.listEnabledSelfRoles(h.ctx);
-      await respond(i, { embeds: [community.selfRolesEmbed(roles, h.ctx.actor.roleIds)], components: community.selfRoleSelects(roles) });
+      await respond(i, {
+        embeds: [community.selfRolesEmbed(roles, h.ctx.actor.roleIds)],
+        components: community.selfRoleSelects(roles),
+      });
     },
   },
 ];
@@ -185,7 +234,11 @@ const components: ComponentHandler[] = [
           await replySuccess(i, 'Thanks for the feedback!');
         } else {
           const supportUrl = await community.resolveSupportUrl(h.ctx.db, h.ctx.guildId);
-          await replyInfo(i, 'Sorry that didn’t help', `Try \`/troubleshoot\` or \`/guides\`.\n${community.supportLine(supportUrl)}`);
+          await replyInfo(
+            i,
+            'Sorry that didn’t help',
+            `Try \`/troubleshoot\` or \`/guides\`.\n${community.supportLine(supportUrl)}`,
+          );
         }
         return;
       }
@@ -205,7 +258,10 @@ const components: ComponentHandler[] = [
       const [action, page, category, game] = args;
       if (action === 'page' && i.isButton()) {
         const n = Math.max(1, Math.min(1000, Number.parseInt(page ?? '1', 10) || 1));
-        const reply = await guidesReply(h.ctx, n, { category: community.decodeArg(category), game: community.decodeArg(game) });
+        const reply = await guidesReply(h.ctx, n, {
+          category: community.decodeArg(category),
+          game: community.decodeArg(game),
+        });
         await i.update({ ...reply, allowedMentions: { parse: [] } });
         return;
       }
@@ -227,10 +283,14 @@ const components: ComponentHandler[] = [
           embeds: [
             brandEmbed({
               title: alreadyAccepted ? 'Rules already accepted' : 'Thanks for accepting the rules',
-              description: needsVerify ? 'One more step: press **Verify** to finish onboarding.' : 'Pick the games you play below, or use `/roles` any time.',
+              description: needsVerify
+                ? 'One more step: press **Verify** to finish onboarding.'
+                : 'Pick the games you play below, or use `/roles` any time.',
             }),
           ],
-          components: needsVerify ? community.onboardingButtons({ showAccept: false, showVerify: true }) : await interestsPrompt(h.ctx, status.interests),
+          components: needsVerify
+            ? community.onboardingButtons({ showAccept: false, showVerify: true })
+            : await interestsPrompt(h.ctx, status.interests),
         });
         return;
       }
@@ -244,10 +304,18 @@ const components: ComponentHandler[] = [
           const live = await liveRoleContext(member.guild, result.verifiedRoleId);
           const safety = community.assessRoleSafety({ guildId: member.guild.id, ...live });
           if (!safety.ok) {
-            h.rt.log.warn({ roleId: result.verifiedRoleId, reason: safety.reason }, 'verified role is unsafe; not applied');
+            h.rt.log.warn(
+              { roleId: result.verifiedRoleId, reason: safety.reason },
+              'verified role is unsafe; not applied',
+            );
             lines.push('⚠️ The verified role is misconfigured. Please let the staff team know.');
           } else {
-            const r = await applyRoleChange(member, { roleId: result.verifiedRoleId, action: 'add' }, 'Onboarding verification', h.rt.log);
+            const r = await applyRoleChange(
+              member,
+              { roleId: result.verifiedRoleId, action: 'add' },
+              'Onboarding verification',
+              h.rt.log,
+            );
             if (!r.ok) lines.push(`⚠️ ${r.message}`);
           }
         }
@@ -273,7 +341,11 @@ const components: ComponentHandler[] = [
         );
         const sel = await community.selectInterests(h.ctx, i.values, live, facts);
         const lines = await applyChanges(h.rt, member, [...sel.add, ...sel.remove], 'Onboarding interests');
-        await respond(i, { embeds: [brandEmbed({ title: 'Interests saved', description: lines.join('\n') || 'No changes needed.' })] });
+        await respond(i, {
+          embeds: [
+            brandEmbed({ title: 'Interests saved', description: lines.join('\n') || 'No changes needed.' }),
+          ],
+        });
         return;
       }
 
@@ -302,7 +374,9 @@ const components: ComponentHandler[] = [
           lines.push(`⚠️ ${err.message}`);
         }
       }
-      await respond(i, { embeds: [brandEmbed({ title: 'Your roles', description: lines.join('\n') || 'No changes.' })] });
+      await respond(i, {
+        embeds: [brandEmbed({ title: 'Your roles', description: lines.join('\n') || 'No changes.' })],
+      });
     },
   },
 ];

@@ -1,16 +1,25 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import type { WorkerEnv } from '@gynx/config';
 import { engagement } from '@gynx/services';
-import { ctxAs, freshGuild, silentLog, snowflake, testDb, testDeps } from '../../../../tests/integration/helpers';
+import {
+  ctxAs,
+  freshGuild,
+  silentLog,
+  snowflake,
+  testDb,
+  testDeps,
+} from '../../../../tests/integration/helpers';
 import { JobRunner } from '../framework/runner';
 import { engagementJobs } from './engagement';
-
 
 /** Deps with a controllable clock so scheduled jobs (ends, reminders, debounced edits) can be driven. */
 function harness(guildId: string) {
   let clock = Date.now();
   const deps = testDeps({ now: () => new Date(clock) });
-  const runner = new JobRunner({ deps, env: { DISCORD_GUILD_ID: guildId } as WorkerEnv, log: silentLog, workerId: 't' }, [engagementJobs]);
+  const runner = new JobRunner(
+    { deps, env: { DISCORD_GUILD_ID: guildId } as WorkerEnv, log: silentLog, workerId: 't' },
+    [engagementJobs],
+  );
   // The integration DB is shared across files, so the runner may also execute jobs left by other
   // test files; every assertion is scoped to this test's own channel and users.
   const channel = snowflake();
@@ -54,7 +63,8 @@ describe('engagement worker jobs', () => {
     const stored = await testDb().poll.findUniqueOrThrow({ where: { id: poll.id } });
     expect(stored.messageId).not.toBeNull();
 
-    for (let k = 0; k < 3; k++) await engagement.votePoll(ctxAs(guildId, [], { deps: h.deps }), poll.id, [poll.options[0]!.id]);
+    for (let k = 0; k < 3; k++)
+      await engagement.votePoll(ctxAs(guildId, [], { deps: h.deps }), poll.id, [poll.options[0]!.id]);
     h.advance(61_000);
     await h.drain();
     expect(h.edits()).toHaveLength(1); // three votes in one minute bucket → one edit
@@ -70,7 +80,12 @@ describe('engagement worker jobs', () => {
 
     // Running the end handler again is a no-op.
     const before = h.edits().length;
-    await engagementJobs.handlers![engagement.JOBS.pollEnd]!({ payload: { pollId: poll.id } } as never, { deps: h.deps, env: {} as WorkerEnv, log: silentLog, workerId: 't' });
+    await engagementJobs.handlers![engagement.JOBS.pollEnd]!({ payload: { pollId: poll.id } } as never, {
+      deps: h.deps,
+      env: {} as WorkerEnv,
+      log: silentLog,
+      workerId: 't',
+    });
     expect(h.edits().length).toBe(before);
   });
 
@@ -97,8 +112,17 @@ describe('engagement worker jobs', () => {
   it('giveaway end job run twice draws once, and the announcement mentions only the winners', async () => {
     const guildId = await freshGuild();
     const h = harness(guildId);
-    const g = await engagement.createGiveaway(ctxAs(guildId, ['giveaways.manage'], { deps: h.deps }), { prize: 'Server swag pack', winnerCount: 1, durationMs: 60_000, channelId: h.channel });
-    const member = { roleIds: [], accountCreatedAt: new Date('2020-01-01'), joinedAt: new Date('2021-01-01') };
+    const g = await engagement.createGiveaway(ctxAs(guildId, ['giveaways.manage'], { deps: h.deps }), {
+      prize: 'Server swag pack',
+      winnerCount: 1,
+      durationMs: 60_000,
+      channelId: h.channel,
+    });
+    const member = {
+      roleIds: [],
+      accountCreatedAt: new Date('2020-01-01'),
+      joinedAt: new Date('2021-01-01'),
+    };
     const entrants = [ctxAs(guildId, [], { deps: h.deps }), ctxAs(guildId, [], { deps: h.deps })];
     for (const e of entrants) await engagement.enterGiveaway(e, g.id, member);
     await h.drain();
@@ -106,13 +130,18 @@ describe('engagement worker jobs', () => {
     h.advance(2 * 60_000);
     await h.drain();
     const w = { deps: h.deps, env: {} as WorkerEnv, log: silentLog, workerId: 't' };
-    await engagementJobs.handlers![engagement.JOBS.giveawayEnd]!({ id: 'x', payload: { giveawayId: g.id } } as never, w);
+    await engagementJobs.handlers![engagement.JOBS.giveawayEnd]!(
+      { id: 'x', payload: { giveawayId: g.id } } as never,
+      w,
+    );
     await h.drain();
 
     const draws = await testDb().giveawayDraw.findMany({ where: { giveawayId: g.id } });
     expect(draws).toHaveLength(1);
     expect(draws[0]!.kind).toBe('INITIAL');
-    const announcement = h.sent().find((m) => typeof m.body.content === 'string' && m.body.content.includes('Congratulations'));
+    const announcement = h
+      .sent()
+      .find((m) => typeof m.body.content === 'string' && m.body.content.includes('Congratulations'));
     expect(announcement?.body.allowed_mentions).toEqual({ parse: [], users: draws[0]!.winnerIds });
     expect(h.sent().filter((m) => m.body.content?.includes('Congratulations'))).toHaveLength(1);
   });
@@ -123,7 +152,14 @@ describe('engagement worker jobs', () => {
     const staff = ctxAs(guildId, ['events.manage'], { deps: h.deps });
     const start = new Date(Date.now() + 2 * 3_600_000);
     const wall = start.toISOString().slice(0, 16).replace('T', ' ');
-    const ev = await engagement.createEvent(staff, { title: 'Patch notes stream', description: 'Live walkthrough of the update.', startsAt: wall, timezone: 'UTC', reminderMinutesBefore: [60], channelId: h.channel });
+    const ev = await engagement.createEvent(staff, {
+      title: 'Patch notes stream',
+      description: 'Live walkthrough of the update.',
+      startsAt: wall,
+      timezone: 'UTC',
+      reminderMinutesBefore: [60],
+      channelId: h.channel,
+    });
     const going = ctxAs(guildId, [], { deps: h.deps });
     const notGoing = ctxAs(guildId, [], { deps: h.deps });
     await engagement.rsvpEvent(going, ev.id, 'GOING');
@@ -143,7 +179,14 @@ describe('engagement worker jobs', () => {
     const h = harness(guildId);
     const staff = ctxAs(guildId, ['events.manage'], { deps: h.deps });
     const wall = new Date(Date.now() + 86_400_000).toISOString().slice(0, 16).replace('T', ' ');
-    const ev = await engagement.createEvent(staff, { title: 'Raid night', description: 'Bring snacks.', startsAt: wall, timezone: 'UTC', capacity: 1, channelId: h.channel });
+    const ev = await engagement.createEvent(staff, {
+      title: 'Raid night',
+      description: 'Bring snacks.',
+      startsAt: wall,
+      timezone: 'UTC',
+      capacity: 1,
+      channelId: h.channel,
+    });
     const a = ctxAs(guildId, [], { deps: h.deps });
     const b = ctxAs(guildId, [], { deps: h.deps });
     await engagement.rsvpEvent(a, ev.id, 'GOING');
@@ -165,10 +208,16 @@ describe('engagement worker jobs', () => {
     const h = harness(guildId);
     await testDb().guildConfig.update({ where: { guildId }, data: { suggestionChannelId: h.channel } });
     const author = ctxAs(guildId, [], { deps: h.deps });
-    const s = await engagement.submitSuggestion(author, { title: 'Weekly patch digest', body: 'Post a weekly digest of game patches that affect our servers.' });
+    const s = await engagement.submitSuggestion(author, {
+      title: 'Weekly patch digest',
+      body: 'Post a weekly digest of game patches that affect our servers.',
+    });
     await h.drain();
     expect(h.sent()).toHaveLength(1);
-    await engagement.setSuggestionStatus(ctxAs(guildId, ['suggestions.manage'], { deps: h.deps }), s.id, { status: 'PLANNED', response: 'Great idea.' });
+    await engagement.setSuggestionStatus(ctxAs(guildId, ['suggestions.manage'], { deps: h.deps }), s.id, {
+      status: 'PLANNED',
+      response: 'Great idea.',
+    });
     await h.drain();
     expect(h.dmsTo(author)).toEqual([author.actor.userId]);
     expect(h.edits().length).toBeGreaterThanOrEqual(1);

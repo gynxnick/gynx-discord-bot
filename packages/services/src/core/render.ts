@@ -43,4 +43,5 @@ export const errorEmbed = (message: string): APIEmbed =>
 export const successEmbed = (title: string, description?: string): APIEmbed =>
   brandEmbed({ title, description, color: EMBED_COLORS.success });
 
-export const infoEmbed = (title: string, description?: string): APIEmbed => brandEmbed({ title, description });
+export const infoEmbed = (title: string, description?: string): APIEmbed =>
+  brandEmbed({ title, description });

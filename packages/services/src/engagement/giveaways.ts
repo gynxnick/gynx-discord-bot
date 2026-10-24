@@ -1,6 +1,14 @@
 import { z } from 'zod';
 import { isUniqueViolation, type Db, type Giveaway, type GiveawayDraw, type Prisma } from '@gynx/database';
-import { conflict, cursorArgs, invalidState, notFound, paginationSchema, toPage, type Page } from '@gynx/shared';
+import {
+  conflict,
+  cursorArgs,
+  invalidState,
+  notFound,
+  paginationSchema,
+  toPage,
+  type Page,
+} from '@gynx/shared';
 import { audit } from '../core/audit';
 import { requirePermission, requireRate } from '../core/authz';
 import { requireModule } from '../core/config';
@@ -48,7 +56,11 @@ export const createGiveawaySchema = z.object({
   prize: z.string().trim().min(1).max(200),
   description: z.string().trim().max(1000).optional().nullable(),
   winnerCount: z.number().int().min(1).max(20).default(1),
-  durationMs: z.number().int().min(GIVEAWAY_MIN_DURATION_MS, 'Minimum duration is 1 minute.').max(GIVEAWAY_MAX_DURATION_MS, 'Maximum duration is 30 days.'),
+  durationMs: z
+    .number()
+    .int()
+    .min(GIVEAWAY_MIN_DURATION_MS, 'Minimum duration is 1 minute.')
+    .max(GIVEAWAY_MAX_DURATION_MS, 'Maximum duration is 30 days.'),
   requiredRoleIds: z.array(snowflakeSchema).max(5).default([]),
   minAccountAgeDays: z.number().int().min(0).max(3650).default(0),
   minMemberDays: z.number().int().min(0).max(3650).default(0),
@@ -68,7 +80,9 @@ export async function enqueueGiveawayRefresh(ctx: Ctx, tx: Db, id: string, immed
   const { bucket, runAt } = refreshBucket(ctx.now(), 30_000);
   await enqueueJob(tx, {
     type: JOBS.giveawayRefresh,
-    dedupeKey: immediate ? `${JOBS.giveawayRefresh}:${id}:now:${ctx.now().getTime()}` : `${JOBS.giveawayRefresh}:${id}:${bucket}`,
+    dedupeKey: immediate
+      ? `${JOBS.giveawayRefresh}:${id}:now:${ctx.now().getTime()}`
+      : `${JOBS.giveawayRefresh}:${id}:${bucket}`,
     runAt: immediate ? ctx.now() : runAt,
     guildId: ctx.guildId,
     payload: { giveawayId: id },
@@ -100,9 +114,30 @@ export async function createGiveaway(ctx: Ctx, raw: CreateGiveawayInput): Promis
         createdById: ctx.actor.userId,
       },
     });
-    await audit(ctx, { action: 'engagement.giveaway.create', targetType: 'Giveaway', targetId: g.id, metadata: { prize: g.prize, winnerCount: g.winnerCount, endsAt: endsAt.toISOString() } }, tx);
-    await enqueueJob(tx, { type: JOBS.giveawayPublish, dedupeKey: `${JOBS.giveawayPublish}:${g.id}`, runAt: now, guildId: ctx.guildId, payload: { giveawayId: g.id } });
-    await enqueueJob(tx, { type: JOBS.giveawayEnd, dedupeKey: endKey(g.id), runAt: endsAt, guildId: ctx.guildId, payload: { giveawayId: g.id } });
+    await audit(
+      ctx,
+      {
+        action: 'engagement.giveaway.create',
+        targetType: 'Giveaway',
+        targetId: g.id,
+        metadata: { prize: g.prize, winnerCount: g.winnerCount, endsAt: endsAt.toISOString() },
+      },
+      tx,
+    );
+    await enqueueJob(tx, {
+      type: JOBS.giveawayPublish,
+      dedupeKey: `${JOBS.giveawayPublish}:${g.id}`,
+      runAt: now,
+      guildId: ctx.guildId,
+      payload: { giveawayId: g.id },
+    });
+    await enqueueJob(tx, {
+      type: JOBS.giveawayEnd,
+      dedupeKey: endKey(g.id),
+      runAt: endsAt,
+      guildId: ctx.guildId,
+      payload: { giveawayId: g.id },
+    });
     return g;
   });
 }
@@ -121,12 +156,22 @@ export interface FinishResult {
 export async function finishGiveaway(ctx: Ctx, id: string): Promise<FinishResult> {
   await requirePermission(ctx, 'giveaways.manage', 'engagement.giveaway.end');
   return ctx.db.$transaction(async (tx) => {
-    const res = await tx.giveaway.updateMany({ where: { id, guildId: ctx.guildId, status: 'ACTIVE' }, data: { status: 'ENDED', endedAt: ctx.now() } });
+    const res = await tx.giveaway.updateMany({
+      where: { id, guildId: ctx.guildId, status: 'ACTIVE' },
+      data: { status: 'ENDED', endedAt: ctx.now() },
+    });
     const giveaway = await loadGiveaway(ctx, id, tx);
     if (res.count === 0) return { giveaway, draw: null };
 
-    const entries = await tx.giveawayEntry.findMany({ where: { giveawayId: id }, orderBy: { userId: 'asc' }, select: { userId: true } });
-    const result = drawWinners(entries.map((e) => e.userId), giveaway.winnerCount);
+    const entries = await tx.giveawayEntry.findMany({
+      where: { giveawayId: id },
+      orderBy: { userId: 'asc' },
+      select: { userId: true },
+    });
+    const result = drawWinners(
+      entries.map((e) => e.userId),
+      giveaway.winnerCount,
+    );
     const draw = await tx.giveawayDraw.create({
       data: {
         giveawayId: id,
@@ -139,9 +184,31 @@ export async function finishGiveaway(ctx: Ctx, id: string): Promise<FinishResult
         drawnById: ctx.actor.userId,
       },
     });
-    await audit(ctx, { action: 'engagement.giveaway.draw', targetType: 'Giveaway', targetId: id, metadata: { seq: 1, kind: 'INITIAL', winners: result.winnerIds.length, entrantCount: result.entrantCount, entrantsHash: result.entrantsHash, algorithm: result.algorithm } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'engagement.giveaway.draw',
+        targetType: 'Giveaway',
+        targetId: id,
+        metadata: {
+          seq: 1,
+          kind: 'INITIAL',
+          winners: result.winnerIds.length,
+          entrantCount: result.entrantCount,
+          entrantsHash: result.entrantsHash,
+          algorithm: result.algorithm,
+        },
+      },
+      tx,
+    );
     await cancelJob(tx, endKey(id));
-    await enqueueJob(tx, { type: JOBS.giveawayAnnounce, dedupeKey: `${JOBS.giveawayAnnounce}:${draw.id}`, runAt: ctx.now(), guildId: ctx.guildId, payload: { drawId: draw.id } });
+    await enqueueJob(tx, {
+      type: JOBS.giveawayAnnounce,
+      dedupeKey: `${JOBS.giveawayAnnounce}:${draw.id}`,
+      runAt: ctx.now(),
+      guildId: ctx.guildId,
+      payload: { drawId: draw.id },
+    });
     return { giveaway, draw };
   });
 }
@@ -163,7 +230,11 @@ export const rerollSchema = z.object({
 });
 
 /** Draw replacement winner(s), excluding everyone who has already won this giveaway. */
-export async function rerollGiveaway(ctx: Ctx, id: string, raw: z.input<typeof rerollSchema>): Promise<GiveawayDraw> {
+export async function rerollGiveaway(
+  ctx: Ctx,
+  id: string,
+  raw: z.input<typeof rerollSchema>,
+): Promise<GiveawayDraw> {
   await requireModule(ctx, 'engagement');
   await requirePermission(ctx, 'giveaways.manage', 'engagement.giveaway.reroll');
   const input = rerollSchema.parse(raw);
@@ -175,11 +246,20 @@ export async function rerollGiveaway(ctx: Ctx, id: string, raw: z.input<typeof r
     if (g.status !== 'ENDED') throw invalidState('Only ended giveaways can be rerolled.');
     const [draws, entries] = await Promise.all([
       tx.giveawayDraw.findMany({ where: { giveawayId: id }, orderBy: { seq: 'asc' } }),
-      tx.giveawayEntry.findMany({ where: { giveawayId: id }, orderBy: { userId: 'asc' }, select: { userId: true } }),
+      tx.giveawayEntry.findMany({
+        where: { giveawayId: id },
+        orderBy: { userId: 'asc' },
+        select: { userId: true },
+      }),
     ]);
     const previousWinners = draws.flatMap((d) => d.winnerIds);
-    const result = drawWinners(entries.map((e) => e.userId), input.count ?? 1, previousWinners);
-    if (result.winnerIds.length === 0) throw conflict('There are no remaining eligible entrants to draw from.');
+    const result = drawWinners(
+      entries.map((e) => e.userId),
+      input.count ?? 1,
+      previousWinners,
+    );
+    if (result.winnerIds.length === 0)
+      throw conflict('There are no remaining eligible entrants to draw from.');
     const seq = (draws[draws.length - 1]?.seq ?? 0) + 1;
     const reason = cleanText(input.reason);
     const draw = await tx.giveawayDraw.create({
@@ -195,8 +275,29 @@ export async function rerollGiveaway(ctx: Ctx, id: string, raw: z.input<typeof r
         drawnById: ctx.actor.userId,
       },
     });
-    await audit(ctx, { action: 'engagement.giveaway.reroll', targetType: 'Giveaway', targetId: id, metadata: { seq, reason, excluded: previousWinners.length, winners: result.winnerIds.length, entrantsHash: result.entrantsHash } }, tx);
-    await enqueueJob(tx, { type: JOBS.giveawayAnnounce, dedupeKey: `${JOBS.giveawayAnnounce}:${draw.id}`, runAt: ctx.now(), guildId: ctx.guildId, payload: { drawId: draw.id } });
+    await audit(
+      ctx,
+      {
+        action: 'engagement.giveaway.reroll',
+        targetType: 'Giveaway',
+        targetId: id,
+        metadata: {
+          seq,
+          reason,
+          excluded: previousWinners.length,
+          winners: result.winnerIds.length,
+          entrantsHash: result.entrantsHash,
+        },
+      },
+      tx,
+    );
+    await enqueueJob(tx, {
+      type: JOBS.giveawayAnnounce,
+      dedupeKey: `${JOBS.giveawayAnnounce}:${draw.id}`,
+      runAt: ctx.now(),
+      guildId: ctx.guildId,
+      payload: { drawId: draw.id },
+    });
     return draw;
   });
 }
@@ -207,10 +308,22 @@ export async function cancelGiveaway(ctx: Ctx, id: string, reason?: string): Pro
   const why = z.string().trim().max(500).optional().parse(reason);
   await loadGiveaway(ctx, id);
   return ctx.db.$transaction(async (tx) => {
-    const res = await tx.giveaway.updateMany({ where: { id, guildId: ctx.guildId, status: { in: ['ACTIVE', 'SCHEDULED'] } }, data: { status: 'CANCELLED', endedAt: ctx.now() } });
+    const res = await tx.giveaway.updateMany({
+      where: { id, guildId: ctx.guildId, status: { in: ['ACTIVE', 'SCHEDULED'] } },
+      data: { status: 'CANCELLED', endedAt: ctx.now() },
+    });
     if (res.count === 0) throw invalidState('Only active giveaways can be cancelled.');
     await cancelJob(tx, endKey(id));
-    await audit(ctx, { action: 'engagement.giveaway.cancel', targetType: 'Giveaway', targetId: id, metadata: { reason: why ? cleanText(why) : undefined } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'engagement.giveaway.cancel',
+        targetType: 'Giveaway',
+        targetId: id,
+        metadata: { reason: why ? cleanText(why) : undefined },
+      },
+      tx,
+    );
     await enqueueGiveawayRefresh(ctx, tx, id, true);
     return tx.giveaway.findUniqueOrThrow({ where: { id } });
   });
@@ -219,13 +332,21 @@ export async function cancelGiveaway(ctx: Ctx, id: string, reason?: string): Pro
 // ─── Member operations ──────────────────────────────────────────────────────
 
 /** Enter a giveaway. Eligibility is checked at entry time with member data supplied by the bot. */
-export async function enterGiveaway(ctx: Ctx, id: string, member: MemberEligibilityInfo): Promise<{ entrantCount: number }> {
+export async function enterGiveaway(
+  ctx: Ctx,
+  id: string,
+  member: MemberEligibilityInfo,
+): Promise<{ entrantCount: number }> {
   await requireModule(ctx, 'engagement');
   await requireRate(ctx, 'engagement.giveaway.enter', 10, 60);
   const g = await loadGiveaway(ctx, id);
-  if (g.status !== 'ACTIVE' || g.endsAt.getTime() <= ctx.now().getTime()) throw invalidState('This giveaway is no longer accepting entries.');
+  if (g.status !== 'ACTIVE' || g.endsAt.getTime() <= ctx.now().getTime())
+    throw invalidState('This giveaway is no longer accepting entries.');
   const check = checkGiveawayEligibility(g, member, ctx.now());
-  if (!check.eligible) throw invalidState(`You are not eligible for this giveaway:\n${check.reasons.map((r) => `• ${r}`).join('\n')}`);
+  if (!check.eligible)
+    throw invalidState(
+      `You are not eligible for this giveaway:\n${check.reasons.map((r) => `• ${r}`).join('\n')}`,
+    );
   try {
     await ctx.db.$transaction(async (tx) => {
       await lockRow(tx, 'Giveaway', id, 'share'); // blocks a concurrent end until the entry commits
@@ -258,16 +379,26 @@ export async function leaveGiveaway(ctx: Ctx, id: string): Promise<{ left: boole
 
 // ─── Reads ──────────────────────────────────────────────────────────────────
 
-export const listGiveawaysSchema = paginationSchema.extend({ status: z.enum(['SCHEDULED', 'ACTIVE', 'ENDED', 'CANCELLED']).optional() });
+export const listGiveawaysSchema = paginationSchema.extend({
+  status: z.enum(['SCHEDULED', 'ACTIVE', 'ENDED', 'CANCELLED']).optional(),
+});
 
 export type GiveawaySummary = Giveaway & { entrantCount: number };
 
 /** Public listing (prize details are public); entrant identities are not included. */
-export async function listGiveaways(ctx: Ctx, raw: z.input<typeof listGiveawaysSchema> = {}): Promise<Page<GiveawaySummary>> {
+export async function listGiveaways(
+  ctx: Ctx,
+  raw: z.input<typeof listGiveawaysSchema> = {},
+): Promise<Page<GiveawaySummary>> {
   await requireModule(ctx, 'engagement');
   const f = listGiveawaysSchema.parse(raw);
   const where: Prisma.GiveawayWhereInput = { guildId: ctx.guildId, status: f.status };
-  const rows = await ctx.db.giveaway.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], include: { _count: { select: { entries: true } } }, ...cursorArgs(f) });
+  const rows = await ctx.db.giveaway.findMany({
+    where,
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    include: { _count: { select: { entries: true } } },
+    ...cursorArgs(f),
+  });
   const page = toPage(rows, f.limit);
   return { ...page, items: page.items.map(({ _count, ...g }) => ({ ...g, entrantCount: _count.entries })) };
 }
@@ -277,7 +408,10 @@ export interface DrawAudit extends GiveawayDraw {
 }
 
 /** Staff/dashboard: giveaway with all draws, each independently re-verified against the stored entries. */
-export async function getGiveawayAudit(ctx: Ctx, id: string): Promise<{ giveaway: Giveaway; entrantCount: number; draws: DrawAudit[] }> {
+export async function getGiveawayAudit(
+  ctx: Ctx,
+  id: string,
+): Promise<{ giveaway: Giveaway; entrantCount: number; draws: DrawAudit[] }> {
   await requirePermission(ctx, 'giveaways.manage', 'engagement.giveaway.audit');
   const giveaway = await loadGiveaway(ctx, id);
   const [draws, entries] = await Promise.all([

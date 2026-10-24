@@ -40,15 +40,24 @@ export function decodeArg(v?: string): string | undefined {
   }
 }
 
-export const GROUP_LABELS: Record<string, string> = { games: 'Games', community: 'Community', notifications: 'Notifications' };
+export const GROUP_LABELS: Record<string, string> = {
+  games: 'Games',
+  community: 'Community',
+  notifications: 'Notifications',
+};
 
 export function supportLine(supportUrl: string | null | undefined): string {
-  return supportUrl ? `Still stuck? Reach the support team: ${supportUrl}` : 'Still stuck? Contact the support team.';
+  return supportUrl
+    ? `Still stuck? Reach the support team: ${supportUrl}`
+    : 'Still stuck? Contact the support team.';
 }
 
 // ── Welcome / rules ──────────────────────────────────────────────────────────
 
-export function welcomeEmbed(w: WelcomeConfig, vars: { userId: string; serverName: string; requiresVerification: boolean }): APIEmbed {
+export function welcomeEmbed(
+  w: WelcomeConfig,
+  vars: { userId: string; serverName: string; requiresVerification: boolean },
+): APIEmbed {
   const steps = [
     w.requireRulesAck || vars.requiresVerification ? '• Read the rules with `/rules`' : null,
     vars.requiresVerification ? '• Press **Verify** below to unlock the server' : null,
@@ -65,12 +74,17 @@ export function welcomeEmbed(w: WelcomeConfig, vars: { userId: string; serverNam
   });
 }
 
-export function welcomeDmEmbed(w: WelcomeConfig, opts: { serverName: string; supportUrl: string | null; requiresVerification: boolean }): APIEmbed {
+export function welcomeDmEmbed(
+  w: WelcomeConfig,
+  opts: { serverName: string; supportUrl: string | null; requiresVerification: boolean },
+): APIEmbed {
   return brandEmbed({
     title: `Welcome to ${truncate(neutraliseMentions(opts.serverName), 200)}`,
     description: [
       'Here is how to get started:',
-      opts.requiresVerification ? '1. Open the server and press **Verify** in the welcome channel (or run `/rules`).' : '1. Read the rules with `/rules`.',
+      opts.requiresVerification
+        ? '1. Open the server and press **Verify** in the welcome channel (or run `/rules`).'
+        : '1. Read the rules with `/rules`.',
       '2. Choose your games and notification roles with `/roles`.',
       '3. Browse quick answers with `/faq` and guides with `/guides`.',
       '',
@@ -83,17 +97,24 @@ export function welcomeDmEmbed(w: WelcomeConfig, opts: { serverName: string; sup
   });
 }
 
-export function rulesEmbed(w: WelcomeConfig, status?: { rulesAccepted: boolean; verified: boolean; requiresVerification: boolean }): APIEmbed {
+export function rulesEmbed(
+  w: WelcomeConfig,
+  status?: { rulesAccepted: boolean; verified: boolean; requiresVerification: boolean },
+): APIEmbed {
   const notes: string[] = [];
   if (status?.rulesAccepted) notes.push('✅ You have accepted the rules.');
   else if (w.requireRulesAck) notes.push('Please press **I accept** to confirm you have read the rules.');
   if (status?.requiresVerification && !status.verified) notes.push('Press **Verify** to finish onboarding.');
-  return brandEmbed({ title: 'Server rules', description: `${truncate(w.rulesText, 3800)}${notes.length ? `\n\n${notes.join('\n')}` : ''}` });
+  return brandEmbed({
+    title: 'Server rules',
+    description: `${truncate(w.rulesText, 3800)}${notes.length ? `\n\n${notes.join('\n')}` : ''}`,
+  });
 }
 
 export function onboardingButtons(opts: { showAccept: boolean; showVerify: boolean }): Row[] {
   const buttons: APIComponentInMessageActionRow[] = [];
-  if (opts.showAccept) buttons.push({ type: BUTTON, style: SUCCESS, label: 'I accept', custom_id: CID.rulesAccept });
+  if (opts.showAccept)
+    buttons.push({ type: BUTTON, style: SUCCESS, label: 'I accept', custom_id: CID.rulesAccept });
   if (opts.showVerify) buttons.push({ type: BUTTON, style: PRIMARY, label: 'Verify', custom_id: CID.verify });
   return buttons.length ? [{ type: 1, components: buttons }] : [];
 }
@@ -150,7 +171,10 @@ export function selfRoleSelects(roles: readonly SelfAssignableRole[]): Row[] {
   });
 }
 
-export function selfRolesEmbed(roles: readonly SelfAssignableRole[], memberRoleIds: readonly string[]): APIEmbed {
+export function selfRolesEmbed(
+  roles: readonly SelfAssignableRole[],
+  memberRoleIds: readonly string[],
+): APIEmbed {
   const byGroup = new Map<string, string[]>();
   for (const r of roles) {
     const line = `${memberRoleIds.includes(r.roleId) ? '✅' : '▫️'} ${r.emoji ? `${r.emoji} ` : ''}**${r.label}**${r.description ? ` · ${r.description}` : ''}`;
@@ -161,19 +185,32 @@ export function selfRolesEmbed(roles: readonly SelfAssignableRole[], memberRoleI
     description: roles.length
       ? 'Select a role to toggle it: roles you have are removed, others are added.'
       : 'No self-assignable roles are configured yet.',
-    fields: [...byGroup.entries()].map(([g, lines]) => ({ name: GROUP_LABELS[g] ?? g, value: lines.join('\n') })),
+    fields: [...byGroup.entries()].map(([g, lines]) => ({
+      name: GROUP_LABELS[g] ?? g,
+      value: lines.join('\n'),
+    })),
   });
 }
 
 // ── FAQ ──────────────────────────────────────────────────────────────────────
 
-export function faqAnswerEmbed(entry: FaqEntry & { category?: FaqCategory | null }, supportUrl: string | null): APIEmbed {
+export function faqAnswerEmbed(
+  entry: FaqEntry & { category?: FaqCategory | null },
+  supportUrl: string | null,
+): APIEmbed {
   const links = parseLinks(entry.links);
   return brandEmbed({
     title: entry.question,
     description: truncate(entry.answer, 3900),
     fields: [
-      ...(links.length ? [{ name: 'Links', value: links.map((l) => `[${l.label.replace(/[[\]]/g, '')}](${l.url})`).join('\n') }] : []),
+      ...(links.length
+        ? [
+            {
+              name: 'Links',
+              value: links.map((l) => `[${l.label.replace(/[[\]]/g, '')}](${l.url})`).join('\n'),
+            },
+          ]
+        : []),
       { name: 'Need more help?', value: supportLine(supportUrl) },
     ],
     footer: entry.category ? `FAQ · ${entry.category.name}` : 'FAQ',
@@ -182,25 +219,44 @@ export function faqAnswerEmbed(entry: FaqEntry & { category?: FaqCategory | null
 
 export function faqAnswerButtons(entryId: string, supportUrl: string | null): Row[] {
   const buttons: APIComponentInMessageActionRow[] = [
-    { type: BUTTON, style: SECONDARY, label: 'Helpful', emoji: { name: '👍' }, custom_id: CID.faqFeedback(entryId, true) },
-    { type: BUTTON, style: SECONDARY, label: 'Not helpful', emoji: { name: '👎' }, custom_id: CID.faqFeedback(entryId, false) },
+    {
+      type: BUTTON,
+      style: SECONDARY,
+      label: 'Helpful',
+      emoji: { name: '👍' },
+      custom_id: CID.faqFeedback(entryId, true),
+    },
+    {
+      type: BUTTON,
+      style: SECONDARY,
+      label: 'Not helpful',
+      emoji: { name: '👎' },
+      custom_id: CID.faqFeedback(entryId, false),
+    },
   ];
   if (supportUrl) buttons.push({ type: BUTTON, style: LINK, label: 'Contact support', url: supportUrl });
   return [{ type: 1, components: buttons }];
 }
 
-export function faqOverviewEmbed(categories: ReadonlyArray<FaqCategory & { publishedCount: number }>, mostViewed: readonly FaqEntry[]): APIEmbed {
+export function faqOverviewEmbed(
+  categories: ReadonlyArray<FaqCategory & { publishedCount: number }>,
+  mostViewed: readonly FaqEntry[],
+): APIEmbed {
   return brandEmbed({
     title: 'Frequently asked questions',
     description: 'Use `/faq query:<words>` to search, or pick a popular question below.',
     fields: [
       {
         name: 'Categories',
-        value: categories.length ? categories.map((c) => `• **${c.name}** (${c.publishedCount})`).join('\n') : 'No categories yet.',
+        value: categories.length
+          ? categories.map((c) => `• **${c.name}** (${c.publishedCount})`).join('\n')
+          : 'No categories yet.',
       },
       {
         name: 'Most viewed',
-        value: mostViewed.length ? mostViewed.map((e, n) => `${n + 1}. ${truncate(e.question, 120)}`).join('\n') : 'No published FAQs yet.',
+        value: mostViewed.length
+          ? mostViewed.map((e, n) => `${n + 1}. ${truncate(e.question, 120)}`).join('\n')
+          : 'No published FAQs yet.',
       },
     ],
   });
@@ -225,8 +281,16 @@ export function faqPickSelect(entries: readonly FaqEntry[]): Row[] {
 
 // ── Guides ───────────────────────────────────────────────────────────────────
 
-export function guidesEmbed(page: OffsetPage<Guide>, filters: { category?: string; game?: string }): APIEmbed {
-  const filterText = [filters.category && `category **${filters.category}**`, filters.game && `game **${filters.game}**`].filter(Boolean).join(', ');
+export function guidesEmbed(
+  page: OffsetPage<Guide>,
+  filters: { category?: string; game?: string },
+): APIEmbed {
+  const filterText = [
+    filters.category && `category **${filters.category}**`,
+    filters.game && `game **${filters.game}**`,
+  ]
+    .filter(Boolean)
+    .join(', ');
   return brandEmbed({
     title: 'Guides',
     description: page.total
@@ -251,7 +315,13 @@ export function guidesPager(page: OffsetPage<unknown>, filters: { category?: str
       type: 1,
       components: [
         { type: BUTTON, style: SECONDARY, label: 'Previous', custom_id: prev, disabled: page.page <= 1 },
-        { type: BUTTON, style: SECONDARY, label: 'Next', custom_id: next, disabled: page.page >= page.pageCount },
+        {
+          type: BUTTON,
+          style: SECONDARY,
+          label: 'Next',
+          custom_id: next,
+          disabled: page.page >= page.pageCount,
+        },
       ],
     },
   ];

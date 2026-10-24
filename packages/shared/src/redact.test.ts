@@ -23,7 +23,9 @@ describe('redactSecrets', () => {
   });
 
   it('strips URL credentials, webhooks, emails and IPs', () => {
-    const out = redactSecrets('mysql://root:pa55@10.0.0.4/db https://discord.com/api/webhooks/123/abcDEF me@example.com');
+    const out = redactSecrets(
+      'mysql://root:pa55@10.0.0.4/db https://discord.com/api/webhooks/123/abcDEF me@example.com',
+    );
     expect(out).not.toContain('pa55');
     expect(out).not.toContain('abcDEF');
     expect(out).not.toContain('me@example.com');
@@ -37,7 +39,15 @@ describe('redactSecrets', () => {
   });
 
   it('redacts sensitive keys recursively in objects', () => {
-    const out = redactObject({ user: 'a', accessToken: 'xyz', nested: { password: 'p', note: 'token=abcdef123' } });
-    expect(out).toEqual({ user: 'a', accessToken: '[REDACTED]', nested: { password: '[REDACTED]', note: 'token=[REDACTED]' } });
+    const out = redactObject({
+      user: 'a',
+      accessToken: 'xyz',
+      nested: { password: 'p', note: 'token=abcdef123' },
+    });
+    expect(out).toEqual({
+      user: 'a',
+      accessToken: '[REDACTED]',
+      nested: { password: '[REDACTED]', note: 'token=[REDACTED]' },
+    });
   });
 });

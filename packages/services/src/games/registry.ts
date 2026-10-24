@@ -10,7 +10,13 @@ import type { GameAdapter } from './types';
  * Supported games. Adding a game = add an adapter file in ./adapters and list it here.
  * Order is the display order of command choices.
  */
-const ADAPTERS: readonly GameAdapter[] = [minecraftAdapter, rustAdapter, palworldAdapter, valheimAdapter, gmodAdapter];
+const ADAPTERS: readonly GameAdapter[] = [
+  minecraftAdapter,
+  rustAdapter,
+  palworldAdapter,
+  valheimAdapter,
+  gmodAdapter,
+];
 
 const byKey = new Map<string, GameAdapter>();
 for (const a of ADAPTERS) {

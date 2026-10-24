@@ -56,7 +56,9 @@ describe('SLP packets', () => {
     const framed = Buffer.concat([encodeVarInt(packet.length), packet]);
     expect(parseStatusResponse(framed.subarray(0, 5))).toBeNull();
     expect(parseStatusResponse(framed)).toBe(json);
-    expect(() => parseStatusResponse(Buffer.concat([encodeVarInt(70_000), Buffer.alloc(10)]))).toThrow(/too large/);
+    expect(() => parseStatusResponse(Buffer.concat([encodeVarInt(70_000), Buffer.alloc(10)]))).toThrow(
+      /too large/,
+    );
   });
 
   it('turns chat components into plain text and strips § codes', () => {
@@ -66,16 +68,27 @@ describe('SLP packets', () => {
       JSON.stringify({
         version: { name: '§61.21.1', protocol: 767 },
         players: { online: 12, max: 100, sample: [] },
-        description: { text: '', extra: [{ text: '§bA Minecraft', color: 'aqua' }, { text: ' Server\n§7Line two' }] },
+        description: {
+          text: '',
+          extra: [{ text: '§bA Minecraft', color: 'aqua' }, { text: ' Server\n§7Line two' }],
+        },
       }),
     );
-    expect(s).toEqual({ versionName: '1.21.1', protocol: 767, playersOnline: 12, playersMax: 100, motd: 'A Minecraft Server\nLine two' });
+    expect(s).toEqual({
+      versionName: '1.21.1',
+      protocol: 767,
+      playersOnline: 12,
+      playersMax: 100,
+      motd: 'A Minecraft Server\nLine two',
+    });
     expect(() => parseStatusJson('not json')).toThrow();
   });
 });
 
 /** Minimal fake Minecraft server speaking SLP on 127.0.0.1. */
-function fakeMinecraft(onConn: (sock: Socket, received: () => Buffer) => void): Promise<{ server: Server; port: number }> {
+function fakeMinecraft(
+  onConn: (sock: Socket, received: () => Buffer) => void,
+): Promise<{ server: Server; port: number }> {
   return new Promise((resolve) => {
     const server = createServer((sock) => {
       sock.on('error', () => undefined);
@@ -85,7 +98,9 @@ function fakeMinecraft(onConn: (sock: Socket, received: () => Buffer) => void): 
         onConn(sock, () => buf);
       });
     });
-    server.listen(0, '127.0.0.1', () => resolve({ server, port: (server.address() as { port: number }).port }));
+    server.listen(0, '127.0.0.1', () =>
+      resolve({ server, port: (server.address() as { port: number }).port }),
+    );
   });
 }
 
@@ -104,8 +119,14 @@ describe('minecraftPing against a local fake server', () => {
       const body = buf.subarray(hsLen.size, hsLen.size + hsLen.value);
       const proto = decodeVarInt(body, 1)!;
       const hostLen = decodeVarInt(body, 1 + proto.size)!;
-      seenHost = body.subarray(1 + proto.size + hostLen.size, 1 + proto.size + hostLen.size + hostLen.value).toString();
-      const json = JSON.stringify({ version: { name: '1.20.4', protocol: 765 }, players: { online: 3, max: 20 }, description: '§eHello' });
+      seenHost = body
+        .subarray(1 + proto.size + hostLen.size, 1 + proto.size + hostLen.size + hostLen.value)
+        .toString();
+      const json = JSON.stringify({
+        version: { name: '1.20.4', protocol: 765 },
+        players: { online: 3, max: 20 },
+        description: '§eHello',
+      });
       const packet = Buffer.concat([encodeVarInt(0), encodeString(json)]);
       // Send in two chunks to exercise reassembly.
       const framed = Buffer.concat([encodeVarInt(packet.length), packet]);
@@ -115,7 +136,13 @@ describe('minecraftPing against a local fake server', () => {
     servers.push(server);
     const res = await minecraftPing('127.0.0.1', port, { hostname: 'play.example.gg', timeoutMs: 2000 });
     expect(seenHost).toBe('play.example.gg');
-    expect(res).toMatchObject({ versionName: '1.20.4', protocol: 765, playersOnline: 3, playersMax: 20, motd: 'Hello' });
+    expect(res).toMatchObject({
+      versionName: '1.20.4',
+      protocol: 765,
+      playersOnline: 3,
+      playersMax: 20,
+      motd: 'Hello',
+    });
     expect(res.latencyMs).toBeGreaterThanOrEqual(0);
   });
 
@@ -124,14 +151,18 @@ describe('minecraftPing against a local fake server', () => {
       sock.write(Buffer.concat([encodeVarInt(60_000), Buffer.alloc(80_000, 0x61)]));
     });
     servers.push(server);
-    await expect(minecraftPing('127.0.0.1', port, { hostname: 'x.example.gg', timeoutMs: 2000 })).rejects.toThrow();
+    await expect(
+      minecraftPing('127.0.0.1', port, { hostname: 'x.example.gg', timeoutMs: 2000 }),
+    ).rejects.toThrow();
   });
 
   it('times out on a silent server', async () => {
     const { server, port } = await fakeMinecraft(() => undefined);
     servers.push(server);
     const started = Date.now();
-    await expect(minecraftPing('127.0.0.1', port, { hostname: 'x.example.gg', timeoutMs: 300 })).rejects.toThrow(/did not respond/);
+    await expect(
+      minecraftPing('127.0.0.1', port, { hostname: 'x.example.gg', timeoutMs: 300 }),
+    ).rejects.toThrow(/did not respond/);
     expect(Date.now() - started).toBeLessThan(2000);
   });
 });

@@ -12,7 +12,10 @@ export const securityJobs: WorkerModule = {
       if (!r) return; // deleted by retention
       const cfg = await getGuildConfig(w.deps.db, r.guildId);
       if (!cfg.securityChannelId) {
-        w.log.warn({ guildId: r.guildId }, 'no security channel configured; report visible in dashboard only');
+        w.log.warn(
+          { guildId: r.guildId },
+          'no security channel configured; report visible in dashboard only',
+        );
         return;
       }
       await w.deps.discord.sendMessage(cfg.securityChannelId, {

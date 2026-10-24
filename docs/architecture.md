@@ -21,28 +21,28 @@
 
 Three processes share one database and one service layer:
 
-| Process | Responsibility | Talks to Discord via |
-|---|---|---|
-| `apps/bot` | Slash commands, buttons/selects/modals, gateway listeners (joins, messages for automod and activity counts, invites) | discord.js gateway + REST |
-| `apps/worker` | Scheduled and background work: notifications, scheduled announcements, giveaway/poll endings, reminders, status checks, rollups, weekly reports, retention | `@discordjs/rest` only (no gateway) |
-| `apps/dashboard` | Staff web UI and typed API routes (Discord OAuth2) | REST, read-mostly (members, roles, channels) |
+| Process          | Responsibility                                                                                                                                             | Talks to Discord via                         |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `apps/bot`       | Slash commands, buttons/selects/modals, gateway listeners (joins, messages for automod and activity counts, invites)                                       | discord.js gateway + REST                    |
+| `apps/worker`    | Scheduled and background work: notifications, scheduled announcements, giveaway/poll endings, reminders, status checks, rollups, weekly reports, retention | `@discordjs/rest` only (no gateway)          |
+| `apps/dashboard` | Staff web UI and typed API routes (Discord OAuth2)                                                                                                         | REST, read-mostly (members, roles, channels) |
 
 Out of scope by design: game-server panel functions, billing, server control, and **support ticketing** (handled by an external support system; flows that escalate link to `GuildConfig.supportUrl`).
 
 ## Packages
 
-| Package | Contents |
-|---|---|
-| `@gynx/config` | Zod-validated environment schemas per process (`loadEnv` fails fast and never echoes values). Pino logger with structural secret redaction. |
-| `@gynx/shared` | `AppError` taxonomy, free-text secret redaction, AES-256-GCM secret envelope, SSRF guard (`resolveSafeTarget`), time-zone and scheduling helpers, cursor pagination, rate-limiter interface, brand tokens, text utilities, `secureSample`. Pure, no I/O except DNS in the SSRF guard. |
-| `@gynx/permissions` | Permission keys, role presets, deny-wins evaluation, anti-escalation, central slash-command policy map. |
-| `@gynx/database` | Prisma schema, migrations, client singleton, `nextSequence` (atomic human-readable refs), `ensureGuild`. |
-| `@gynx/services` | All business logic. `core/` (context, authz, audit, config, job queue, Discord port, embeds, permissions, health, signed links) plus one folder per domain, exported as namespaces (`security.submitReport`, `status.getPublicStatus`, …). |
+| Package             | Contents                                                                                                                                                                                                                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@gynx/config`      | Zod-validated environment schemas per process (`loadEnv` fails fast and never echoes values). Pino logger with structural secret redaction.                                                                                                                                           |
+| `@gynx/shared`      | `AppError` taxonomy, free-text secret redaction, AES-256-GCM secret envelope, SSRF guard (`resolveSafeTarget`), time-zone and scheduling helpers, cursor pagination, rate-limiter interface, brand tokens, text utilities, `secureSample`. Pure, no I/O except DNS in the SSRF guard. |
+| `@gynx/permissions` | Permission keys, role presets, deny-wins evaluation, anti-escalation, central slash-command policy map.                                                                                                                                                                               |
+| `@gynx/database`    | Prisma schema, migrations, client singleton, `nextSequence` (atomic human-readable refs), `ensureGuild`.                                                                                                                                                                              |
+| `@gynx/services`    | All business logic. `core/` (context, authz, audit, config, job queue, Discord port, embeds, permissions, health, signed links) plus one folder per domain, exported as namespaces (`security.submitReport`, `status.getPublicStatus`, …).                                            |
 
 ### Module boundaries
 
 - **Services are Discord-agnostic.** They take a `Ctx` (db, logger, clock, rate limiter, optional `DiscordPort`, and the resolved `Actor`), validate input with Zod, enforce permissions, write audit events in the same transaction, and enqueue jobs for side effects.
-- **Bot handlers are thin**: parse the interaction, call a service, render the reply. Gateway-only actions (e.g. applying a ban) follow *prepare → act → record*: the service validates and authorizes, the bot performs the Discord call, then the service records the outcome.
+- **Bot handlers are thin**: parse the interaction, call a service, render the reply. Gateway-only actions (e.g. applying a ban) follow _prepare → act → record_: the service validates and authorizes, the bot performs the Discord call, then the service records the outcome.
 - **Worker handlers** call services with a system actor and use `DiscordPort` for delivery.
 - **The dashboard** never queries the database from the browser. Server components and route handlers call services through `apiRoute()`, which handles session, CSRF, validation, permissions, rate limiting and error mapping.
 
@@ -79,7 +79,7 @@ Out of scope by design: game-server panel functions, billing, server control, an
 Metric definitions live in code next to their calculators (`packages/services/src/analytics`) and are labelled in reports:
 
 - Activity metrics are **observed message activity** only. Discord provides no views or impressions, and the bot never claims them.
-- Unavailable data is reported as *Not available — reason*, never as zero.
+- Unavailable data is reported as _Not available — reason_, never as zero.
 - Period comparisons use equal-length previous periods; deltas against missing or zero baselines show `n/a`.
 - Uptime % = successful checks / total checks in the window. With no checks it shows "no data", never 100%.
 - Referral attribution is `CONFIRMED` only when exactly one tracked invite's use count changed. `AMBIGUOUS` and `UNKNOWN` joins are shown as such.

@@ -3,7 +3,14 @@ import https from 'node:https';
 import net, { isIP, type LookupFunction } from 'node:net';
 import { performance } from 'node:perf_hooks';
 import { isAppError, resolveSafeTarget } from '@gynx/shared';
-import type { CheckOptions, CheckTransport, ErrorClass, HttpTransportRequest, HttpTransportResponse, TcpTransportRequest } from '../types';
+import type {
+  CheckOptions,
+  CheckTransport,
+  ErrorClass,
+  HttpTransportRequest,
+  HttpTransportResponse,
+  TcpTransportRequest,
+} from '../types';
 
 /** Error carrying a sanitised class; its message is never persisted or shown. */
 export class CheckError extends Error {
@@ -20,7 +27,8 @@ export function classifyError(err: unknown): ErrorClass {
   if (err instanceof CheckError) return err.errorClass;
   const code = typeof err === 'object' && err && 'code' in err ? String((err as { code: unknown }).code) : '';
   if (code === 'TIMEOUT' || code === 'ETIMEDOUT' || code === 'ESOCKETTIMEDOUT') return 'TIMEOUT';
-  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN' || code === 'EAI_NODATA' || code === 'EAI_FAIL') return 'DNS';
+  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN' || code === 'EAI_NODATA' || code === 'EAI_FAIL')
+    return 'DNS';
   if (TLS_CODES.test(code)) return 'TLS';
   if (code.startsWith('HPE_')) return 'INVALID_RESPONSE';
   if (typeof err === 'object' && err && 'syscall' in err) return 'CONN_REFUSED'; // ECONNREFUSED/RESET/HOSTUNREACH…
@@ -125,7 +133,10 @@ function tcpConnect(req: TcpTransportRequest): Promise<number> {
       socket.destroy();
       fn();
     };
-    const deadline = setTimeout(() => finish(() => reject(Object.assign(new Error('timeout'), { code: 'TIMEOUT' }))), req.timeoutMs);
+    const deadline = setTimeout(
+      () => finish(() => reject(Object.assign(new Error('timeout'), { code: 'TIMEOUT' }))),
+      req.timeoutMs,
+    );
     socket.once('connect', () => finish(() => resolve(Math.round(performance.now() - started))));
     socket.once('error', (err) => finish(() => reject(err)));
   });

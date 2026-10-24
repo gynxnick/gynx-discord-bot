@@ -2,7 +2,13 @@ import { Client, Events, GatewayIntentBits, Options, Partials } from 'discord.js
 import { Redis } from 'ioredis';
 import { botEnvSchema, createLogger, loadEnv } from '@gynx/config';
 import { disconnectDb, ensureGuild, getDb } from '@gynx/database';
-import { RedisRateLimiter, createRestDiscordPort, defaultRateLimiter, startHealthServer, type ServiceDeps } from '@gynx/services';
+import {
+  RedisRateLimiter,
+  createRestDiscordPort,
+  defaultRateLimiter,
+  startHealthServer,
+  type ServiceDeps,
+} from '@gynx/services';
 import { InteractionRouter } from './framework/router';
 import type { BotRuntime } from './framework/types';
 import { modules } from './modules';
@@ -14,8 +20,12 @@ async function main(): Promise<void> {
   const db = getDb();
   await db.$connect();
 
-  const redis = env.REDIS_URL ? new Redis(env.REDIS_URL, { maxRetriesPerRequest: 2, lazyConnect: false }) : null;
-  redis?.on('error', (err) => log.warn({ err: err.message }, 'redis error (rate limiting falls back to allow)'));
+  const redis = env.REDIS_URL
+    ? new Redis(env.REDIS_URL, { maxRetriesPerRequest: 2, lazyConnect: false })
+    : null;
+  redis?.on('error', (err) =>
+    log.warn({ err: err.message }, 'redis error (rate limiting falls back to allow)'),
+  );
 
   const deps: ServiceDeps = {
     db,
@@ -53,20 +63,27 @@ async function main(): Promise<void> {
       // Typed per-listener via on(); the emitter here is used generically.
       (client as unknown as NodeJS.EventEmitter).on(l.event, (...args: unknown[]) => {
         // Only the configured guild; listener failures never crash the process.
-        l.run(rt, ...args).catch((err: unknown) => log.error({ err, module: m.name, event: l.event }, 'event handler failed'));
+        l.run(rt, ...args).catch((err: unknown) =>
+          log.error({ err, module: m.name, event: l.event }, 'event handler failed'),
+        );
       });
     }
   }
 
   client.once(Events.ClientReady, async (c) => {
-    log.info({ user: c.user.tag, modules: modules.map((m) => m.name), commands: router.commandList.length }, 'bot ready');
+    log.info(
+      { user: c.user.tag, modules: modules.map((m) => m.name), commands: router.commandList.length },
+      'bot ready',
+    );
     const guild = c.guilds.cache.get(env.DISCORD_GUILD_ID);
     if (!guild) log.warn({ guildId: env.DISCORD_GUILD_ID }, 'bot is not in the configured guild');
     else await ensureGuild(db, guild.id, guild.name);
   });
   client.on(Events.Error, (err) => log.error({ err }, 'discord client error'));
   client.on(Events.ShardDisconnect, () => log.warn('gateway disconnected'));
-  client.rest.on('rateLimited', (info) => log.warn({ route: info.route, retryAfter: info.retryAfter }, 'discord rate limited'));
+  client.rest.on('rateLimited', (info) =>
+    log.warn({ route: info.route, retryAfter: info.retryAfter }, 'discord rate limited'),
+  );
 
   const health = startHealthServer(
     env.BOT_HEALTH_PORT,

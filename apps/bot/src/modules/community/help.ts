@@ -16,15 +16,27 @@ export const HELP_SECTIONS: ReadonlyArray<{ name: string; lines: string[] }> = [
   },
   {
     name: 'Status',
-    lines: ['`/status` · current service status', '`/uptime` · recent uptime', '`/incidents` · recent incidents', '`/subscribe-status` · status alerts'],
+    lines: [
+      '`/status` · current service status',
+      '`/uptime` · recent uptime',
+      '`/incidents` · recent incidents',
+      '`/subscribe-status` · status alerts',
+    ],
   },
   {
     name: 'Moderation (staff)',
-    lines: ['`/warn` · `/warnings` · `/timeout` · `/kick` · `/ban`', '`/appeal` · appeal a moderation action (members)'],
+    lines: [
+      '`/warn` · `/warnings` · `/timeout` · `/kick` · `/ban`',
+      '`/appeal` · appeal a moderation action (members)',
+    ],
   },
   {
     name: 'Troubleshooting',
-    lines: ['`/troubleshoot` · guided troubleshooting', '`/diagnose` · run safe diagnostics', '`/knowledge-search` · search the knowledge base'],
+    lines: [
+      '`/troubleshoot` · guided troubleshooting',
+      '`/diagnose` · run safe diagnostics',
+      '`/knowledge-search` · search the knowledge base',
+    ],
   },
   {
     name: 'Game utilities',
@@ -32,15 +44,26 @@ export const HELP_SECTIONS: ReadonlyArray<{ name: string; lines: string[] }> = [
   },
   {
     name: 'Security',
-    lines: ['`/report-abuse` · privately report spam, scams or abuse', '`/audit-log` · security audit log (staff)'],
+    lines: [
+      '`/report-abuse` · privately report spam, scams or abuse',
+      '`/audit-log` · security audit log (staff)',
+    ],
   },
   {
     name: 'Community',
-    lines: ['`/event` · community events', '`/suggest` · share a suggestion', '`/poll` · `/giveaway` (staff)'],
+    lines: [
+      '`/event` · community events',
+      '`/suggest` · share a suggestion',
+      '`/poll` · `/giveaway` (staff)',
+    ],
   },
   {
     name: 'Marketing',
-    lines: ['`/referral` · referral links', '`/partners` · partner programme', '`/announce` · `/schedule-announcement` (staff)'],
+    lines: [
+      '`/referral` · referral links',
+      '`/partners` · partner programme',
+      '`/announce` · `/schedule-announcement` (staff)',
+    ],
   },
   {
     name: 'Analytics',
@@ -51,7 +74,8 @@ export const HELP_SECTIONS: ReadonlyArray<{ name: string; lines: string[] }> = [
 export function helpEmbed(supportUrl: string | null): APIEmbed {
   return brandEmbed({
     title: 'GYNX.GG bot commands',
-    description: 'Some commands are only available to staff. Commands may be unavailable if a module is turned off on this server.',
+    description:
+      'Some commands are only available to staff. Commands may be unavailable if a module is turned off on this server.',
     fields: [
       ...HELP_SECTIONS.map((s) => ({ name: s.name, value: s.lines.join('\n') })),
       { name: 'Support', value: community.supportLine(supportUrl) },

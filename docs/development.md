@@ -1,25 +1,26 @@
 # Development
 
 ## Prerequisites
+
 - Node.js 22+ (`.nvmrc` pins 24), pnpm 9 (`corepack enable`).
 - PostgreSQL for running the apps: `docker compose up -d postgres redis`, or any local Postgres.
 - Integration tests need **no** local database. They start a throwaway PostgreSQL via `embedded-postgres` (real Postgres binaries, random port), or use `TEST_DATABASE_URL` if set (CI uses a service container).
 
 ## Commands
 
-| Command | What it does |
-|---|---|
-| `pnpm install` | Install all workspace dependencies |
-| `pnpm dev:bot` / `dev:worker` / `dev:dashboard` | Run a process with reload (reads `../../.env`) |
-| `pnpm lint` / `pnpm format` / `pnpm format:check` | ESLint (flat config) / Prettier |
-| `pnpm typecheck` | Prisma generate + `tsc --noEmit` in every package |
-| `pnpm test` | All tests (unit + integration) |
-| `pnpm test:unit` / `pnpm test:integration` | One project only |
-| `pnpm build` | Build bot and worker (tsup bundles) and dashboard (Next standalone) |
-| `pnpm db:migrate:dev --name x` | Create and apply a new migration (dev DB) |
-| `pnpm db:migrate` | Apply committed migrations (`migrate deploy`) |
-| `pnpm commands:register` | Register guild slash commands |
-| `pnpm docs:permissions` | Regenerate the permission matrix in docs/permissions.md |
+| Command                                           | What it does                                                        |
+| ------------------------------------------------- | ------------------------------------------------------------------- |
+| `pnpm install`                                    | Install all workspace dependencies                                  |
+| `pnpm dev:bot` / `dev:worker` / `dev:dashboard`   | Run a process with reload (reads `../../.env`)                      |
+| `pnpm lint` / `pnpm format` / `pnpm format:check` | ESLint (flat config) / Prettier                                     |
+| `pnpm typecheck`                                  | Prisma generate + `tsc --noEmit` in every package                   |
+| `pnpm test`                                       | All tests (unit + integration)                                      |
+| `pnpm test:unit` / `pnpm test:integration`        | One project only                                                    |
+| `pnpm build`                                      | Build bot and worker (tsup bundles) and dashboard (Next standalone) |
+| `pnpm db:migrate:dev --name x`                    | Create and apply a new migration (dev DB)                           |
+| `pnpm db:migrate`                                 | Apply committed migrations (`migrate deploy`)                       |
+| `pnpm commands:register`                          | Register guild slash commands                                       |
+| `pnpm docs:permissions`                           | Regenerate the permission matrix in docs/permissions.md             |
 
 ## Layout
 
@@ -45,6 +46,7 @@ tests/integration          DB-backed tests + helpers
 7. **Docs**: update `docs/commands.md` and anything else affected.
 
 ## Conventions
+
 - TypeScript strict, ESM, `noUncheckedIndexedAccess`. No `any` in new code without a comment.
 - Errors: throw `AppError` (`validation`, `forbidden`, `notFound`, `conflict`, `invalidState`, `rateLimited`). Messages must be safe to show users.
 - Never log secrets or raw user content at info level. Pass objects to the logger (structured), not interpolated strings.
@@ -52,7 +54,13 @@ tests/integration          DB-backed tests + helpers
 - UTC everywhere; convert with `@gynx/shared` time helpers at the edges.
 - Commit messages: imperative summary line, body explaining why.
 
+## Windows notes
+
+- `next build` creates the standalone server bundle (`output: 'standalone'`) only on Linux/macOS or when `DASHBOARD_STANDALONE=1` is set. On Windows, copying pnpm's symlinks needs Developer Mode or an admin shell. Docker builds (Linux) always produce it.
+- The integration-test Postgres is initialised as UTF-8 regardless of the host code page.
+
 ## Testing notes
+
 - `tests/integration/helpers.ts` provides `freshGuild()` (an isolated guild per test), `ctxAs(guildId, perms)`, `testDeps()` and `fakeDiscord()`, which records every side effect for assertions.
 - Worker tests drive `JobRunner.tick(now)` directly, so you can control time and run the runner twice to prove idempotency.
 - The first integration run downloads nothing extra: Postgres binaries come from the `@embedded-postgres/*` npm package.

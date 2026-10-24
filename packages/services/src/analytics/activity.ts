@@ -31,10 +31,18 @@ function aggregate(rows: Array<{ date: string; id: string; count: number }>) {
  * (messageCount = messageCount + EXCLUDED.messageCount), so concurrent flushes and
  * repeated flushes accumulate correctly.
  */
-export async function flushActivity(db: PrismaClient, guildId: string, batch: ActivityBatch): Promise<{ channels: number; users: number }> {
+export async function flushActivity(
+  db: PrismaClient,
+  guildId: string,
+  batch: ActivityBatch,
+): Promise<{ channels: number; users: number }> {
   // Aggregate duplicates first: one INSERT cannot touch the same conflict row twice.
-  const channels = aggregate(batch.channels.map((r) => ({ date: r.date, id: r.channelId, count: r.count }))).map((r) => ({ date: r.date, channelId: r.id, count: r.count }));
-  const users = aggregate(batch.users.map((r) => ({ date: r.date, id: r.userId, count: r.count }))).map((r) => ({ date: r.date, userId: r.id, count: r.count }));
+  const channels = aggregate(
+    batch.channels.map((r) => ({ date: r.date, id: r.channelId, count: r.count })),
+  ).map((r) => ({ date: r.date, channelId: r.id, count: r.count }));
+  const users = aggregate(batch.users.map((r) => ({ date: r.date, id: r.userId, count: r.count }))).map(
+    (r) => ({ date: r.date, userId: r.id, count: r.count }),
+  );
   if (channels.length === 0 && users.length === 0) return { channels: 0, users: 0 };
 
   const statements: Prisma.PrismaPromise<number>[] = [];
@@ -61,13 +69,23 @@ export async function flushActivity(db: PrismaClient, guildId: string, batch: Ac
 }
 
 /** Record the latest member-count snapshot (from the gateway's guild.memberCount). */
-export async function recordMemberCount(db: Db, guildId: string, memberCount: number, at: Date): Promise<void> {
+export async function recordMemberCount(
+  db: Db,
+  guildId: string,
+  memberCount: number,
+  at: Date,
+): Promise<void> {
   if (!Number.isInteger(memberCount) || memberCount < 0) return;
   await db.guild.updateMany({ where: { id: guildId }, data: { memberCount, memberCountAt: at } });
 }
 
 /** Retention: drop per-day activity rows older than `retentionDays` (date keys compare lexically). */
-export async function purgeExpiredActivity(db: Db, guildId: string, todayKey: string, retentionDays: number): Promise<number> {
+export async function purgeExpiredActivity(
+  db: Db,
+  guildId: string,
+  todayKey: string,
+  retentionDays: number,
+): Promise<number> {
   const cutoff = addDaysToKey(todayKey, -Math.max(1, retentionDays));
   const [a, b] = await Promise.all([
     db.channelActivityDaily.deleteMany({ where: { guildId, date: { lt: cutoff } } }),

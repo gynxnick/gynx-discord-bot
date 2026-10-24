@@ -8,7 +8,12 @@ const ROLE_SUPPORT = '111111111111111111';
 const ROLE_MOD = '222222222222222222';
 const USER = '333333333333333333';
 
-const grant = (subjectId: string, permission: string, effect: 'ALLOW' | 'DENY' = 'ALLOW', subjectType: 'ROLE' | 'USER' = 'ROLE'): PermissionGrant => ({
+const grant = (
+  subjectId: string,
+  permission: string,
+  effect: 'ALLOW' | 'DENY' = 'ALLOW',
+  subjectType: 'ROLE' | 'USER' = 'ROLE',
+): PermissionGrant => ({
   subjectType,
   subjectId,
   permission,
@@ -21,15 +26,17 @@ describe('resolvePermissions', () => {
   });
 
   it('gives the guild owner every permission, even with deny rules', () => {
-    const perms = resolvePermissions({ userId: USER, roleIds: [], isGuildOwner: true }, [grant(USER, '*', 'DENY', 'USER')]);
+    const perms = resolvePermissions({ userId: USER, roleIds: [], isGuildOwner: true }, [
+      grant(USER, '*', 'DENY', 'USER'),
+    ]);
     expect(perms.size).toBe(ALL_PERMISSIONS.length);
   });
 
   it('expands presets and wildcards from role grants', () => {
-    const perms = resolvePermissions({ userId: USER, roleIds: [ROLE_SUPPORT, ROLE_MOD], isGuildOwner: false }, [
-      grant(ROLE_SUPPORT, 'SUPPORT_STAFF'),
-      grant(ROLE_MOD, 'moderation.*'),
-    ]);
+    const perms = resolvePermissions(
+      { userId: USER, roleIds: [ROLE_SUPPORT, ROLE_MOD], isGuildOwner: false },
+      [grant(ROLE_SUPPORT, 'SUPPORT_STAFF'), grant(ROLE_MOD, 'moderation.*')],
+    );
     for (const k of PRESET_PERMISSIONS.SUPPORT_STAFF) expect(perms.has(k)).toBe(true);
     expect(perms.has('moderation.ban')).toBe(true);
     expect(perms.has('settings.manage')).toBe(false);
@@ -80,7 +87,17 @@ describe('command policies', () => {
   });
 
   it('gate every moderation and admin command', () => {
-    for (const name of ['warn', 'timeout', 'kick', 'ban', 'config', 'audit-log', 'announce', 'giveaway', 'analytics']) {
+    for (const name of [
+      'warn',
+      'timeout',
+      'kick',
+      'ban',
+      'config',
+      'audit-log',
+      'announce',
+      'giveaway',
+      'analytics',
+    ]) {
       expect(COMMAND_POLICIES[name]?.permission, name).toBeTruthy();
     }
   });

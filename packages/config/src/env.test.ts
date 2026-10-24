@@ -30,6 +30,8 @@ describe('loadEnv', () => {
   });
 
   it('requires https dashboard URL in production', () => {
-    expect(() => loadEnv(workerEnvSchema, { ...base, NODE_ENV: 'production', DASHBOARD_URL: 'http://dash' })).toThrow(/https/);
+    expect(() =>
+      loadEnv(workerEnvSchema, { ...base, NODE_ENV: 'production', DASHBOARD_URL: 'http://dash' }),
+    ).toThrow(/https/);
   });
 });

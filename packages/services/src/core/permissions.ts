@@ -30,7 +30,10 @@ export async function resolveActor(db: Db, guildId: string, p: PrincipalInput): 
   return {
     userId: p.userId,
     roleIds: p.roleIds,
-    permissions: resolvePermissions({ userId: p.userId, roleIds: p.roleIds, isGuildOwner: p.isGuildOwner }, grants),
+    permissions: resolvePermissions(
+      { userId: p.userId, roleIds: p.roleIds, isGuildOwner: p.isGuildOwner },
+      grants,
+    ),
     isSystem: false,
     source: p.source,
     displayName: p.displayName,
@@ -39,7 +42,10 @@ export async function resolveActor(db: Db, guildId: string, p: PrincipalInput): 
 
 export async function listGrants(ctx: Ctx) {
   await requirePermission(ctx, 'settings.manage');
-  return ctx.db.staffPermission.findMany({ where: { guildId: ctx.guildId }, orderBy: [{ subjectId: 'asc' }, { permission: 'asc' }] });
+  return ctx.db.staffPermission.findMany({
+    where: { guildId: ctx.guildId },
+    orderBy: [{ subjectId: 'asc' }, { permission: 'asc' }],
+  });
 }
 
 export const grantInputSchema = z.object({
@@ -88,7 +94,20 @@ export async function upsertGrant(ctx: Ctx, raw: unknown, partnerRoleId?: string
       create: { ...input, guildId: ctx.guildId, createdById: ctx.actor.userId },
       update: { effect: input.effect },
     });
-    await audit(ctx, { action: 'permissions.grant', targetType: input.subjectType, targetId: input.subjectId, metadata: { permission: input.permission, effect: input.effect, preset: isRolePreset(input.permission) } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'permissions.grant',
+        targetType: input.subjectType,
+        targetId: input.subjectId,
+        metadata: {
+          permission: input.permission,
+          effect: input.effect,
+          preset: isRolePreset(input.permission),
+        },
+      },
+      tx,
+    );
     return row;
   });
 }
@@ -102,6 +121,15 @@ export async function deleteGrant(ctx: Ctx, grantId: string) {
   }
   await ctx.db.$transaction(async (tx) => {
     await tx.staffPermission.delete({ where: { id: grant.id } });
-    await audit(ctx, { action: 'permissions.revoke', targetType: grant.subjectType, targetId: grant.subjectId, metadata: { permission: grant.permission } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'permissions.revoke',
+        targetType: grant.subjectType,
+        targetId: grant.subjectId,
+        metadata: { permission: grant.permission },
+      },
+      tx,
+    );
   });
 }

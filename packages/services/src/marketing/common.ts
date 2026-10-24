@@ -5,7 +5,15 @@ import { isBlockedAddress, isValidHostname } from '@gynx/shared';
 
 export const snowflakeSchema = z.string().regex(/^\d{17,20}$/, 'Must be a Discord ID');
 
-const BLOCKED_HOSTNAMES = [/^localhost$/i, /\.localhost$/i, /\.local$/i, /\.internal$/i, /\.lan$/i, /\.home\.arpa$/i, /^metadata(\.|$)/i];
+const BLOCKED_HOSTNAMES = [
+  /^localhost$/i,
+  /\.localhost$/i,
+  /\.local$/i,
+  /\.internal$/i,
+  /\.lan$/i,
+  /\.home\.arpa$/i,
+  /^metadata(\.|$)/i,
+];
 
 /**
  * Validate an outbound URL that the bot will show to members (embed images,
@@ -22,7 +30,10 @@ export function publicHttpsUrlProblem(raw: string): string | null {
   }
   if (url.protocol !== 'https:') return 'Links must use https://';
   if (url.username || url.password) return 'Links must not contain credentials.';
-  const host = url.hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
+  const host = url.hostname
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/, '')
+    .toLowerCase();
   if (!host || !isValidHostname(host)) return 'That hostname is not valid.';
   if (isIP(host)) {
     if (isBlockedAddress(host)) return 'That destination is not allowed.';

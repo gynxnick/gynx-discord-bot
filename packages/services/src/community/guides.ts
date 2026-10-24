@@ -1,6 +1,14 @@
 import { z } from 'zod';
 import { isUniqueViolation, type Guide, type Prisma } from '@gynx/database';
-import { conflict, cursorArgs, notFound, paginationSchema, toPage, validation, type Page } from '@gynx/shared';
+import {
+  conflict,
+  cursorArgs,
+  notFound,
+  paginationSchema,
+  toPage,
+  validation,
+  type Page,
+} from '@gynx/shared';
 import { audit } from '../core/audit';
 import { can, requirePermission, requireRate } from '../core/authz';
 import { requireModule } from '../core/config';
@@ -25,8 +33,19 @@ export async function createGuide(ctx: Ctx, raw: GuideInput): Promise<Guide> {
   if (!slug) throw validation('Choose a slug using letters or numbers.');
   try {
     return await ctx.db.$transaction(async (tx) => {
-      const row = await tx.guide.create({ data: { ...input, slug, game: input.game ?? null, guildId: ctx.guildId } });
-      await audit(ctx, { action: 'community.guide.create', targetType: 'Guide', targetId: row.id, metadata: { slug, published: row.published } }, tx);
+      const row = await tx.guide.create({
+        data: { ...input, slug, game: input.game ?? null, guildId: ctx.guildId },
+      });
+      await audit(
+        ctx,
+        {
+          action: 'community.guide.create',
+          targetType: 'Guide',
+          targetId: row.id,
+          metadata: { slug, published: row.published },
+        },
+        tx,
+      );
       return row;
     });
   } catch (e) {
@@ -43,7 +62,16 @@ export async function updateGuide(ctx: Ctx, id: string, raw: Partial<GuideInput>
   try {
     return await ctx.db.$transaction(async (tx) => {
       const updated = await tx.guide.update({ where: { id }, data: input });
-      await audit(ctx, { action: 'community.guide.update', targetType: 'Guide', targetId: id, metadata: { fields: Object.keys(input), published: updated.published } }, tx);
+      await audit(
+        ctx,
+        {
+          action: 'community.guide.update',
+          targetType: 'Guide',
+          targetId: id,
+          metadata: { fields: Object.keys(input), published: updated.published },
+        },
+        tx,
+      );
       return updated;
     });
   } catch (e) {
@@ -54,11 +82,18 @@ export async function updateGuide(ctx: Ctx, id: string, raw: Partial<GuideInput>
 
 export async function deleteGuide(ctx: Ctx, id: string): Promise<void> {
   await requirePermission(ctx, 'community.manage', 'community.guide.delete');
-  const row = await ctx.db.guide.findFirst({ where: { id, guildId: ctx.guildId }, select: { id: true, slug: true } });
+  const row = await ctx.db.guide.findFirst({
+    where: { id, guildId: ctx.guildId },
+    select: { id: true, slug: true },
+  });
   if (!row) throw notFound('Guide');
   await ctx.db.$transaction(async (tx) => {
     await tx.guide.delete({ where: { id } });
-    await audit(ctx, { action: 'community.guide.delete', targetType: 'Guide', targetId: id, metadata: { slug: row.slug } }, tx);
+    await audit(
+      ctx,
+      { action: 'community.guide.delete', targetType: 'Guide', targetId: id, metadata: { slug: row.slug } },
+      tx,
+    );
   });
 }
 
@@ -66,7 +101,11 @@ export async function deleteGuide(ctx: Ctx, id: string): Promise<void> {
 export async function listAllGuides(ctx: Ctx, raw: z.input<typeof paginationSchema>): Promise<Page<Guide>> {
   await requirePermission(ctx, 'community.manage');
   const f = paginationSchema.parse(raw);
-  const rows = await ctx.db.guide.findMany({ where: { guildId: ctx.guildId }, orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }], ...cursorArgs(f) });
+  const rows = await ctx.db.guide.findMany({
+    where: { guildId: ctx.guildId },
+    orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+    ...cursorArgs(f),
+  });
   return toPage(rows, f.limit);
 }
 
@@ -76,7 +115,10 @@ export const listGuidesSchema = pageSchema.extend({
 });
 
 /** Member-facing list: published guides only, filters are case-insensitive. */
-export async function listGuides(ctx: Ctx, raw: z.input<typeof listGuidesSchema>): Promise<OffsetPage<Guide>> {
+export async function listGuides(
+  ctx: Ctx,
+  raw: z.input<typeof listGuidesSchema>,
+): Promise<OffsetPage<Guide>> {
   await requireModule(ctx, 'community');
   const f = listGuidesSchema.parse(raw);
   const where: Prisma.GuideWhereInput = {
@@ -102,7 +144,11 @@ export async function listGuides(ctx: Ctx, raw: z.input<typeof listGuidesSchema>
 /** Distinct categories and games among published guides (autocomplete / filters). */
 export async function guideFacets(ctx: Ctx): Promise<{ categories: string[]; games: string[] }> {
   await requireModule(ctx, 'community');
-  const rows = await ctx.db.guide.findMany({ where: { guildId: ctx.guildId, published: true }, select: { category: true, game: true }, take: 1000 });
+  const rows = await ctx.db.guide.findMany({
+    where: { guildId: ctx.guildId, published: true },
+    select: { category: true, game: true },
+    take: 1000,
+  });
   const sort = (s: Set<string>) => [...s].sort((a, b) => a.localeCompare(b));
   return {
     categories: sort(new Set(rows.map((r) => r.category))),
@@ -112,7 +158,9 @@ export async function guideFacets(ctx: Ctx): Promise<{ categories: string[]; gam
 
 export async function getGuide(ctx: Ctx, id: string): Promise<Guide> {
   await requireModule(ctx, 'community');
-  const row = await ctx.db.guide.findFirst({ where: { id, guildId: ctx.guildId, ...(can(ctx, 'community.manage') ? {} : { published: true }) } });
+  const row = await ctx.db.guide.findFirst({
+    where: { id, guildId: ctx.guildId, ...(can(ctx, 'community.manage') ? {} : { published: true }) },
+  });
   if (!row) throw notFound('Guide');
   return row;
 }
@@ -120,7 +168,11 @@ export async function getGuide(ctx: Ctx, id: string): Promise<Guide> {
 /** Count a guide view (at most once per user per guide per 10 minutes). */
 export async function recordGuideView(ctx: Ctx, id: string): Promise<void> {
   await getGuide(ctx, id);
-  const r = await ctx.rateLimiter.consume(`${ctx.guildId}:${ctx.actor.userId}:community.guide.view:${id}`, 1, 600);
+  const r = await ctx.rateLimiter.consume(
+    `${ctx.guildId}:${ctx.actor.userId}:community.guide.view:${id}`,
+    1,
+    600,
+  );
   if (r.allowed) await ctx.db.guide.update({ where: { id }, data: { views: { increment: 1 } } });
 }
 
@@ -128,6 +180,8 @@ export async function recordGuideFeedback(ctx: Ctx, id: string, helpful: boolean
   const g = await getGuide(ctx, id);
   if (!g.published) throw notFound('Guide');
   await requireRate(ctx, `community.guide.feedback:${id}`, 1, 86_400);
-  return ctx.db.guide.update({ where: { id }, data: helpful ? { helpfulYes: { increment: 1 } } : { helpfulNo: { increment: 1 } } });
+  return ctx.db.guide.update({
+    where: { id },
+    data: helpful ? { helpfulYes: { increment: 1 } } : { helpfulNo: { increment: 1 } },
+  });
 }
-

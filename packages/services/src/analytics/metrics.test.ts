@@ -20,7 +20,12 @@ import { mergeSection } from './collect';
 
 describe('member flow', () => {
   it('computes joins, leaves and net growth', () => {
-    expect(memberFlow([{ type: 'JOIN', count: 12 }, { type: 'LEAVE', count: 5 }])).toEqual({ joins: 12, leaves: 5, net: 7 });
+    expect(
+      memberFlow([
+        { type: 'JOIN', count: 12 },
+        { type: 'LEAVE', count: 5 },
+      ]),
+    ).toEqual({ joins: 12, leaves: 5, net: 7 });
     expect(memberFlow([{ type: 'LEAVE', count: 3 }])).toEqual({ joins: 0, leaves: 3, net: -3 });
     expect(memberFlow([])).toEqual({ joins: 0, leaves: 0, net: 0 });
   });
@@ -70,9 +75,19 @@ describe('unavailable vs zero semantics', () => {
     expect(fromSource(true, 0, 'unused')).toEqual({ available: true, value: 0 });
   });
   it('previous is attached only when both periods are available', () => {
-    expect(withPrevious(fromSource(true, 5, 'r'), fromSource(true, 3, 'r'))).toEqual({ available: true, value: 5, previous: 3 });
-    expect(withPrevious(fromSource(true, 5, 'r'), fromSource(false, 0, 'r'))).toEqual({ available: true, value: 5 });
-    expect(withPrevious(fromSource(false, 0, 'r'), fromSource(true, 3, 'r'))).toEqual({ available: false, reason: 'r' });
+    expect(withPrevious(fromSource(true, 5, 'r'), fromSource(true, 3, 'r'))).toEqual({
+      available: true,
+      value: 5,
+      previous: 3,
+    });
+    expect(withPrevious(fromSource(true, 5, 'r'), fromSource(false, 0, 'r'))).toEqual({
+      available: true,
+      value: 5,
+    });
+    expect(withPrevious(fromSource(false, 0, 'r'), fromSource(true, 3, 'r'))).toEqual({
+      available: false,
+      reason: 'r',
+    });
   });
   it('mergeSection attaches previous to metrics, skips lists and keeps plain fields', () => {
     const cur = { a: fromSource(true, 2, 'r'), list: fromSource(true, [1], 'r'), n: 7 };
@@ -113,7 +128,9 @@ describe('incident duration', () => {
   });
   it('does not count beyond now for the current period', () => {
     const asOf = new Date('2026-10-02T00:00:00Z');
-    expect(incidentDurationMs([{ startedAt: new Date('2026-10-01T12:00:00Z'), resolvedAt: null }], period, asOf)).toBe(12 * 3_600_000);
+    expect(
+      incidentDurationMs([{ startedAt: new Date('2026-10-01T12:00:00Z'), resolvedAt: null }], period, asOf),
+    ).toBe(12 * 3_600_000);
   });
 });
 
@@ -122,7 +139,11 @@ describe('tracked link clicks', () => {
     expect(periodClicks(100, 140)).toEqual({ available: true, value: 40 });
   });
   it('labels the first period as cumulative when no baseline exists', () => {
-    expect(periodClicks(null, 140)).toEqual({ available: true, value: 140, note: 'first period, cumulative' });
+    expect(periodClicks(null, 140)).toEqual({
+      available: true,
+      value: 140,
+      note: 'first period, cumulative',
+    });
   });
   it('is unavailable without an end snapshot', () => {
     expect(periodClicks(100, null).available).toBe(false);
@@ -131,7 +152,10 @@ describe('tracked link clicks', () => {
 
 describe('periods and date keys', () => {
   it('builds the previous equal-length period', () => {
-    const p = previousPeriod({ start: new Date('2026-10-19T09:00:00Z'), end: new Date('2026-10-26T09:00:00Z') });
+    const p = previousPeriod({
+      start: new Date('2026-10-19T09:00:00Z'),
+      end: new Date('2026-10-26T09:00:00Z'),
+    });
     expect(p.start.toISOString()).toBe('2026-10-12T09:00:00.000Z');
     expect(p.end.toISOString()).toBe('2026-10-19T09:00:00.000Z');
   });
@@ -141,10 +165,30 @@ describe('periods and date keys', () => {
     expect(addDaysToKey('2026-03-01', -1)).toBe('2026-02-28');
   });
   it('averages distinct daily users including silent days', () => {
-    expect(averageDaily(new Map([['2026-10-01', 4], ['2026-10-02', 2]]), ['2026-10-01', '2026-10-02', '2026-10-03'])).toBe(2);
+    expect(
+      averageDaily(
+        new Map([
+          ['2026-10-01', 4],
+          ['2026-10-02', 2],
+        ]),
+        ['2026-10-01', '2026-10-02', '2026-10-03'],
+      ),
+    ).toBe(2);
     expect(averageDaily(new Map(), [])).toBe(0);
   });
   it('ranks top entries deterministically', () => {
-    expect(topN(new Map([['b', 2], ['a', 2], ['c', 5]]), 2)).toEqual([{ id: 'c', count: 5 }, { id: 'a', count: 2 }]);
+    expect(
+      topN(
+        new Map([
+          ['b', 2],
+          ['a', 2],
+          ['c', 5],
+        ]),
+        2,
+      ),
+    ).toEqual([
+      { id: 'c', count: 5 },
+      { id: 'a', count: 2 },
+    ]);
   });
 });

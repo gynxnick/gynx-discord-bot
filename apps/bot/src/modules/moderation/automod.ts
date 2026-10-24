@@ -41,19 +41,30 @@ export function automodListener(): EventListener {
     if (lastNotice.size > 2_000) lastNotice.clear();
     lastNotice.set(message.author.id, now);
     try {
-      const sent = await message.channel.send({ content: `<@${message.author.id}> ${text}`, allowedMentions: { users: [message.author.id] } });
+      const sent = await message.channel.send({
+        content: `<@${message.author.id}> ${text}`,
+        allowedMentions: { users: [message.author.id] },
+      });
       setTimeout(() => void sent.delete().catch(() => undefined), NOTICE_TTL_MS).unref?.();
     } catch {
       // no send permission in this channel — the hit is still recorded
     }
   }
 
-  async function handleHit(rt: BotRuntime, message: Message<true>, member: GuildMember, hit: moderation.AutomodHit): Promise<void> {
+  async function handleHit(
+    rt: BotRuntime,
+    message: Message<true>,
+    member: GuildMember,
+    hit: moderation.AutomodHit,
+  ): Promise<void> {
     const log = rt.log.child({ module: 'automod', userId: member.id, rule: hit.rule });
     const deleted = await message.delete().then(
       () => true,
       (err: unknown) => {
-        log.warn({ err: err instanceof Error ? err.message : err }, 'could not delete message (missing Manage Messages?)');
+        log.warn(
+          { err: err instanceof Error ? err.message : err },
+          'could not delete message (missing Manage Messages?)',
+        );
         return false;
       },
     );
@@ -126,7 +137,8 @@ export function automodListener(): EventListener {
     if (!cfg) return;
     const member = message.member ?? (await message.guild.members.fetch(message.author.id).catch(() => null));
     if (!member) return;
-    if (member.id === message.guild.ownerId || member.permissions.has(PermissionFlagsBits.Administrator)) return;
+    if (member.id === message.guild.ownerId || member.permissions.has(PermissionFlagsBits.Administrator))
+      return;
 
     const now = message.createdAt;
     const prior = history.get(member.id, now);

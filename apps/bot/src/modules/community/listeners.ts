@@ -7,7 +7,9 @@ async function postWelcome(rt: BotRuntime, member: GuildMember, res: community.J
   const w = res.welcome;
   // During a raid, public welcomes are suppressed so raiders aren't pinged and the channel isn't flooded.
   if (!w.enabled || !w.channelId || res.raid.isRaid) return;
-  const channel = member.guild.channels.cache.get(w.channelId) ?? (await member.guild.channels.fetch(w.channelId).catch(() => null));
+  const channel =
+    member.guild.channels.cache.get(w.channelId) ??
+    (await member.guild.channels.fetch(w.channelId).catch(() => null));
   if (!channel || !channel.isSendable()) {
     rt.log.warn({ channelId: w.channelId }, 'welcome channel missing or not sendable');
     return;
@@ -15,7 +17,13 @@ async function postWelcome(rt: BotRuntime, member: GuildMember, res: community.J
   await channel
     .send({
       content: `<@${member.id}>`,
-      embeds: [community.welcomeEmbed(w, { userId: member.id, serverName: member.guild.name, requiresVerification: res.requiresVerification })],
+      embeds: [
+        community.welcomeEmbed(w, {
+          userId: member.id,
+          serverName: member.guild.name,
+          requiresVerification: res.requiresVerification,
+        }),
+      ],
       components: community.onboardingButtons({ showAccept: false, showVerify: res.requiresVerification }),
       // Explicitly authorised: ping only the new member, nobody else.
       allowedMentions: { parse: [], users: [member.id] },
@@ -28,7 +36,13 @@ async function dmWelcome(rt: BotRuntime, member: GuildMember, res: community.Joi
   const supportUrl = await community.resolveSupportUrl(rt.deps.db, member.guild.id);
   await member
     .send({
-      embeds: [community.welcomeDmEmbed(res.welcome, { serverName: member.guild.name, supportUrl, requiresVerification: res.requiresVerification })],
+      embeds: [
+        community.welcomeDmEmbed(res.welcome, {
+          serverName: member.guild.name,
+          supportUrl,
+          requiresVerification: res.requiresVerification,
+        }),
+      ],
       allowedMentions: { parse: [] },
     })
     .catch(() => rt.log.debug({ userId: member.id }, 'welcome DM not delivered (DMs closed)'));

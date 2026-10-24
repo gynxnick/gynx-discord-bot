@@ -65,7 +65,11 @@ const HIERARCHY_CHECKED: readonly ManualActionType[] = ['WARN', 'TIMEOUT', 'UNTI
 export const prepareActionSchema = z.object({
   type: z.enum(MANUAL_ACTION_TYPES),
   targetId: snowflake,
-  reason: z.string().trim().min(3, 'Reason must be at least 3 characters.').max(512, 'Reason must be at most 512 characters.'),
+  reason: z
+    .string()
+    .trim()
+    .min(3, 'Reason must be at least 3 characters.')
+    .max(512, 'Reason must be at most 512 characters.'),
   /** e.g. "30m", "2h", "7d". Required for TIMEOUT, optional (temp ban) for BAN. */
   duration: z.string().trim().max(32).optional(),
   deleteMessageDays: z.number().int().min(0).max(7).optional(),
@@ -110,14 +114,16 @@ function resolveDuration(type: ManualActionType, raw: string | undefined): numbe
     if (!raw) throw validation('A duration is required for a timeout (e.g. 30m, 2h, 1d).');
     const ms = parseDuration(raw);
     if (ms === null) throw validation('Invalid duration. Use a format like 30m, 2h or 1d.');
-    if (ms < TIMEOUT_MIN_MS || ms > TIMEOUT_MAX_MS) throw validation('Timeouts must be between 1 minute and 28 days.');
+    if (ms < TIMEOUT_MIN_MS || ms > TIMEOUT_MAX_MS)
+      throw validation('Timeouts must be between 1 minute and 28 days.');
     return ms;
   }
   if (type === 'BAN') {
     if (!raw) return null; // permanent
     const ms = parseDuration(raw);
     if (ms === null) throw validation('Invalid duration. Use a format like 12h, 7d or 4w.');
-    if (ms < TEMPBAN_MIN_MS || ms > TEMPBAN_MAX_MS) throw validation('Temporary bans must be between 1 minute and 365 days.');
+    if (ms < TEMPBAN_MIN_MS || ms > TEMPBAN_MAX_MS)
+      throw validation('Temporary bans must be between 1 minute and 365 days.');
     return ms;
   }
   if (raw) throw validation(`A duration cannot be set for ${type.toLowerCase()}.`);
@@ -129,7 +135,11 @@ function resolveDuration(type: ManualActionType, raw: string | undefined): numbe
  * `moderation.ban`), and role hierarchy. Denials are audited. Performs no writes
  * on success — the caller applies the plan on Discord, then calls `recordAction`.
  */
-export async function prepareAction(ctx: Ctx, raw: PrepareActionInput, subject?: HierarchySubject): Promise<ModerationPlan> {
+export async function prepareAction(
+  ctx: Ctx,
+  raw: PrepareActionInput,
+  subject?: HierarchySubject,
+): Promise<ModerationPlan> {
   await requireModule(ctx, 'moderation');
   const input = parseInput(prepareActionSchema, raw);
   const auditAction = `moderation.${input.type.toLowerCase()}`;
@@ -137,7 +147,8 @@ export async function prepareAction(ctx: Ctx, raw: PrepareActionInput, subject?:
   if (input.automodEventId && !ctx.actor.isSystem) throw forbidden();
 
   const durationMs = resolveDuration(input.type, input.duration);
-  if (input.deleteMessageDays && input.type !== 'BAN') throw validation('Message deletion only applies to bans.');
+  if (input.deleteMessageDays && input.type !== 'BAN')
+    throw validation('Message deletion only applies to bans.');
 
   if (HIERARCHY_CHECKED.includes(input.type)) {
     if (!subject) throw validation('Member information is required for this action.');
@@ -149,7 +160,11 @@ export async function prepareAction(ctx: Ctx, raw: PrepareActionInput, subject?:
       select: { subjectType: true, subjectId: true, permission: true, effect: true },
     });
     const targetPerms = resolvePermissions(
-      { userId: input.targetId, roleIds: subject.targetRoleIds ?? [], isGuildOwner: input.targetId === subject.guildOwnerId },
+      {
+        userId: input.targetId,
+        roleIds: subject.targetRoleIds ?? [],
+        isGuildOwner: input.targetId === subject.guildOwnerId,
+      },
       grants,
     );
     const verdict = checkHierarchy({
@@ -165,7 +180,13 @@ export async function prepareAction(ctx: Ctx, raw: PrepareActionInput, subject?:
       requiresBot: NEEDS_BOT_HIERARCHY.includes(input.type),
     });
     if (!verdict.ok) {
-      await audit(ctx, { action: auditAction, targetType: 'User', targetId: input.targetId, result: 'DENIED', metadata: { reason: 'hierarchy', detail: verdict.reason } });
+      await audit(ctx, {
+        action: auditAction,
+        targetType: 'User',
+        targetId: input.targetId,
+        result: 'DENIED',
+        metadata: { reason: 'hierarchy', detail: verdict.reason },
+      });
       throw forbidden(verdict.reason);
     }
   }
@@ -195,11 +216,24 @@ export interface RecordedAction {
  * the ModerationAction (status FAILED when Discord rejected it), a Warning for
  * WARN, the audit event, a modlog job and — for timed actions — an expiry job.
  */
-export async function recordAction(ctx: Ctx, plan: ModerationPlan, result: ActionResult): Promise<RecordedAction> {
+export async function recordAction(
+  ctx: Ctx,
+  plan: ModerationPlan,
+  result: ActionResult,
+): Promise<RecordedAction> {
   if (plan.guildId !== ctx.guildId) throw forbidden();
   if (!can(ctx, ACTION_PERMISSION[plan.type])) throw forbidden();
   const now = ctx.now();
   const applied = result.applied;
+  const warningExpiryDays =
+    plan.type === 'WARN'
+      ? ((
+          await ctx.db.automodConfig.findUnique({
+            where: { guildId: ctx.guildId },
+            select: { warningExpiryDays: true },
+          })
+        )?.warningExpiryDays ?? WARNING_EXPIRY_DAYS)
+      : WARNING_EXPIRY_DAYS;
   const expiresAt = applied && plan.durationMs ? new Date(now.getTime() + plan.durationMs) : null;
 
   const action = await ctx.db.$transaction(async (tx) => {
@@ -231,13 +265,19 @@ export async function recordAction(ctx: Ctx, plan: ModerationPlan, result: Actio
             moderatorId: plan.moderatorId,
             reason: plan.reason,
             actionId: a.id,
-            expiresAt: new Date(now.getTime() + WARNING_EXPIRY_DAYS * 86_400_000),
+            expiresAt: new Date(now.getTime() + warningExpiryDays * 86_400_000),
           },
         });
       }
       // A new timeout supersedes an older one; un-actions reverse the active original.
       const supersedes: ModerationType | null =
-        plan.type === 'UNBAN' ? 'BAN' : plan.type === 'UNTIMEOUT' || plan.type === 'TIMEOUT' ? 'TIMEOUT' : plan.type === 'BAN' ? 'BAN' : null;
+        plan.type === 'UNBAN'
+          ? 'BAN'
+          : plan.type === 'UNTIMEOUT' || plan.type === 'TIMEOUT'
+            ? 'TIMEOUT'
+            : plan.type === 'BAN'
+              ? 'BAN'
+              : null;
       if (supersedes) await reverseActive(tx, ctx.guildId, plan.targetId, supersedes, a.id);
       if (expiresAt && (plan.type === 'BAN' || plan.type === 'TIMEOUT')) {
         await enqueueJob(tx, {
@@ -278,13 +318,22 @@ export async function recordAction(ctx: Ctx, plan: ModerationPlan, result: Actio
 }
 
 /** Mark earlier APPLIED actions of `type` against the target as REVERSED and cancel their expiry jobs. */
-async function reverseActive(tx: Db, guildId: string, targetId: string, type: ModerationType, exceptId: string): Promise<void> {
+async function reverseActive(
+  tx: Db,
+  guildId: string,
+  targetId: string,
+  type: ModerationType,
+  exceptId: string,
+): Promise<void> {
   const active = await tx.moderationAction.findMany({
     where: { guildId, targetId, type, status: 'APPLIED', id: { not: exceptId } },
     select: { id: true },
   });
   if (active.length === 0) return;
-  await tx.moderationAction.updateMany({ where: { id: { in: active.map((r) => r.id) } }, data: { status: 'REVERSED' } });
+  await tx.moderationAction.updateMany({
+    where: { id: { in: active.map((r) => r.id) } },
+    data: { status: 'REVERSED' },
+  });
   for (const r of active) await cancelJob(tx, expiryJobKey(r.id));
 }
 
@@ -307,18 +356,36 @@ export type UnbanFn = (guildId: string, userId: string, reason: string) => Promi
  * update), so running twice records a single UNBAN. For temp bans the Discord unban
  * happens first; a crash before the DB update simply retries the (idempotent) unban.
  */
-export async function expireAction(ctx: Ctx, actionId: string, unban: UnbanFn): Promise<ModerationAction | null> {
+export async function expireAction(
+  ctx: Ctx,
+  actionId: string,
+  unban: UnbanFn,
+): Promise<ModerationAction | null> {
   if (!ctx.actor.isSystem) throw forbidden();
   const action = await ctx.db.moderationAction.findFirst({ where: { id: actionId, guildId: ctx.guildId } });
-  if (!action || action.status !== 'APPLIED' || (action.type !== 'BAN' && action.type !== 'TIMEOUT')) return null;
-  if (action.expiresAt && action.expiresAt.getTime() > ctx.now().getTime()) throw invalidState('Action has not expired yet.');
+  if (!action || action.status !== 'APPLIED' || (action.type !== 'BAN' && action.type !== 'TIMEOUT'))
+    return null;
+  if (action.expiresAt && action.expiresAt.getTime() > ctx.now().getTime())
+    throw invalidState('Action has not expired yet.');
 
   if (action.type === 'BAN') await unban(ctx.guildId, action.targetId, `Temporary ban ${action.ref} expired`);
 
   return ctx.db.$transaction(async (tx) => {
-    const res = await tx.moderationAction.updateMany({ where: { id: action.id, status: 'APPLIED' }, data: { status: 'EXPIRED' } });
+    const res = await tx.moderationAction.updateMany({
+      where: { id: action.id, status: 'APPLIED' },
+      data: { status: 'EXPIRED' },
+    });
     if (res.count === 0) return null;
-    await audit(ctx, { action: 'moderation.expire', targetType: 'ModerationAction', targetId: action.id, metadata: { ref: action.ref, type: action.type } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'moderation.expire',
+        targetType: 'ModerationAction',
+        targetId: action.id,
+        metadata: { ref: action.ref, type: action.type },
+      },
+      tx,
+    );
     if (action.type !== 'BAN') return null;
     const unbanAction = await insertAction(
       tx,
@@ -332,7 +399,16 @@ export async function expireAction(ctx: Ctx, actionId: string, unban: UnbanFn): 
       },
       ctx.now(),
     );
-    await audit(ctx, { action: 'moderation.unban', targetType: 'User', targetId: action.targetId, metadata: { ref: unbanAction.ref, actionId: unbanAction.id, expired: action.ref } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'moderation.unban',
+        targetType: 'User',
+        targetId: action.targetId,
+        metadata: { ref: unbanAction.ref, actionId: unbanAction.id, expired: action.ref },
+      },
+      tx,
+    );
     return unbanAction;
   });
 }
@@ -348,15 +424,26 @@ const activeWarningWhere = (guildId: string, userId: string, now: Date): Prisma.
   OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
 });
 
-export async function countActiveWarnings(db: Db, guildId: string, userId: string, now: Date): Promise<number> {
+export async function countActiveWarnings(
+  db: Db,
+  guildId: string,
+  userId: string,
+  now: Date,
+): Promise<number> {
   return db.warning.count({ where: activeWarningWhere(guildId, userId, now) });
 }
 
-export async function listWarnings(ctx: Ctx, userId: string, opts: { includeInactive?: boolean } = {}): Promise<Warning[]> {
+export async function listWarnings(
+  ctx: Ctx,
+  userId: string,
+  opts: { includeInactive?: boolean } = {},
+): Promise<Warning[]> {
   await requirePermission(ctx, 'moderation.audit.view', 'moderation.warnings.view');
   const uid = parseInput(snowflake, userId);
   return ctx.db.warning.findMany({
-    where: opts.includeInactive ? { guildId: ctx.guildId, userId: uid } : activeWarningWhere(ctx.guildId, uid, ctx.now()),
+    where: opts.includeInactive
+      ? { guildId: ctx.guildId, userId: uid }
+      : activeWarningWhere(ctx.guildId, uid, ctx.now()),
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: 100,
   });
@@ -395,8 +482,20 @@ export async function revokeWarning(ctx: Ctx, warningId: string, reason: string)
   return ctx.db.$transaction(async (tx) => {
     const res = await tx.warning.updateMany({ where: { id: w.id, active: true }, data: { active: false } });
     if (res.count === 0) throw invalidState('This warning is already inactive.');
-    await tx.moderationAction.updateMany({ where: { id: w.actionId, status: 'APPLIED' }, data: { status: 'REVERSED' } });
-    await audit(ctx, { action: 'moderation.warning.revoke', targetType: 'Warning', targetId: w.id, metadata: { userId: w.userId, actionId: w.actionId, reasonLength: why.length } }, tx);
+    await tx.moderationAction.updateMany({
+      where: { id: w.actionId, status: 'APPLIED' },
+      data: { status: 'REVERSED' },
+    });
+    await audit(
+      ctx,
+      {
+        action: 'moderation.warning.revoke',
+        targetType: 'Warning',
+        targetId: w.id,
+        metadata: { userId: w.userId, actionId: w.actionId, reasonLength: why.length },
+      },
+      tx,
+    );
     return tx.warning.findUniqueOrThrow({ where: { id: w.id } });
   });
 }
@@ -423,7 +522,9 @@ export const searchActionsSchema = paginationSchema.extend({
   type: z.enum(['WARN', 'TIMEOUT', 'UNTIMEOUT', 'KICK', 'BAN', 'UNBAN', 'MESSAGE_DELETE']).optional(),
   status: z.enum(['APPLIED', 'FAILED', 'EXPIRED', 'REVERSED']).optional(),
   targetId: snowflake.optional(),
-  moderatorId: z.union([snowflake, z.literal(AUTOMOD_MODERATOR_ID), z.literal(SYSTEM_MODERATOR_ID)]).optional(),
+  moderatorId: z
+    .union([snowflake, z.literal(AUTOMOD_MODERATOR_ID), z.literal(SYSTEM_MODERATOR_ID)])
+    .optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
   /** Exact reference, e.g. M-0042. */
@@ -431,7 +532,10 @@ export const searchActionsSchema = paginationSchema.extend({
 });
 
 /** Dashboard records search. Requires `moderation.audit.view` or `moderation.execute`. */
-export async function searchActions(ctx: Ctx, raw: z.input<typeof searchActionsSchema>): Promise<Page<ModerationAction>> {
+export async function searchActions(
+  ctx: Ctx,
+  raw: z.input<typeof searchActionsSchema>,
+): Promise<Page<ModerationAction>> {
   await requireAny(ctx, ['moderation.audit.view', 'moderation.execute'], 'moderation.records.view');
   const f = parseInput(searchActionsSchema, raw);
   const where: Prisma.ModerationActionWhereInput = {
@@ -443,7 +547,11 @@ export async function searchActions(ctx: Ctx, raw: z.input<typeof searchActionsS
     ref: f.ref ? f.ref.toUpperCase() : undefined,
     createdAt: f.from || f.to ? { gte: f.from, lte: f.to } : undefined,
   };
-  const rows = await ctx.db.moderationAction.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], ...cursorArgs(f) });
+  const rows = await ctx.db.moderationAction.findMany({
+    where,
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    ...cursorArgs(f),
+  });
   const page = toPage(rows, f.limit);
   return { ...page, items: page.items.map((a) => projectAction(ctx, a)) };
 }
@@ -458,7 +566,11 @@ export async function getAction(ctx: Ctx, idOrRef: string): Promise<ModerationAc
   return projectAction(ctx, a);
 }
 
-export async function setModeratorNote(ctx: Ctx, actionId: string, note: string | null): Promise<ModerationAction> {
+export async function setModeratorNote(
+  ctx: Ctx,
+  actionId: string,
+  note: string | null,
+): Promise<ModerationAction> {
   await requirePermission(ctx, 'moderation.audit.view', 'moderation.note');
   const text = note === null ? null : parseInput(z.string().trim().max(1000), note) || null;
   const a = await ctx.db.moderationAction.findFirst({ where: { id: actionId, guildId: ctx.guildId } });
@@ -468,7 +580,16 @@ export async function setModeratorNote(ctx: Ctx, actionId: string, note: string 
       where: { id: a.id },
       data: { moderatorNote: text ? redactSecrets(text, { maskIps: false }) : null },
     });
-    await audit(ctx, { action: 'moderation.note', targetType: 'ModerationAction', targetId: a.id, metadata: { ref: a.ref, cleared: text === null } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'moderation.note',
+        targetType: 'ModerationAction',
+        targetId: a.id,
+        metadata: { ref: a.ref, cleared: text === null },
+      },
+      tx,
+    );
     return updated;
   });
 }

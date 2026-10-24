@@ -34,13 +34,20 @@ async function enqueueDmChunk(db: Db, guildId: string, p: DmPayload, runAt: Date
   });
 }
 
-async function postMaintenance(w: WorkerCtx, guildId: string, window: Parameters<typeof status.toPublicMaintenance>[0], phase: status.MaintenancePhase) {
+async function postMaintenance(
+  w: WorkerCtx,
+  guildId: string,
+  window: Parameters<typeof status.toPublicMaintenance>[0],
+  phase: status.MaintenancePhase,
+) {
   const cfg = await getGuildConfig(w.deps.db, guildId);
   if (!cfg.statusChannelId) {
     w.log.warn({ guildId }, 'no status channel configured; maintenance notice skipped');
     return;
   }
-  await w.deps.discord.sendMessage(cfg.statusChannelId, { embeds: [status.maintenanceEmbed(status.toPublicMaintenance(window), phase)] });
+  await w.deps.discord.sendMessage(cfg.statusChannelId, {
+    embeds: [status.maintenanceEmbed(status.toPublicMaintenance(window), phase)],
+  });
 }
 
 /** Factory so tests can inject fake adapters; production uses `statusJobs`. */
@@ -52,7 +59,9 @@ export function createStatusJobs(opts: StatusJobsOptions = {}): WorkerModule {
     handlers: {
       /** Post a state-change alert. Pings the alert role only for OUTAGE, and only that role. */
       async 'status.alert'(job: ScheduledJob, w) {
-        const svc = await w.deps.db.monitoredService.findUnique({ where: { id: str(job.payload, 'serviceId') } });
+        const svc = await w.deps.db.monitoredService.findUnique({
+          where: { id: str(job.payload, 'serviceId') },
+        });
         if (!svc || !svc.public) return; // private services are dashboard-only
         if (svc.state !== str(job.payload, 'state')) return; // stale: the service moved on; a newer alert covers it
         const cfg = await getGuildConfig(w.deps.db, svc.guildId);
@@ -92,7 +101,10 @@ export function createStatusJobs(opts: StatusJobsOptions = {}): WorkerModule {
               await discord.editMessage(channelId, messageId, { embeds: [embed] });
               edited = true;
             } catch (err) {
-              w.log.warn({ err, incidentId: incident.id }, 'incident message could not be edited; posting a new one');
+              w.log.warn(
+                { err, incidentId: incident.id },
+                'incident message could not be edited; posting a new one',
+              );
               messageId = null;
             }
           }
@@ -109,12 +121,20 @@ export function createStatusJobs(opts: StatusJobsOptions = {}): WorkerModule {
             });
           }
         } else {
-          w.log.warn({ guildId: incident.guildId }, 'no incident channel configured; incident visible via /status and dashboard only');
+          w.log.warn(
+            { guildId: incident.guildId },
+            'no incident channel configured; incident visible via /status and dashboard only',
+          );
         }
 
         await db.$transaction(async (tx) => {
           await tx.incidentUpdate.update({ where: { id: upd.id }, data: { notifiedAt: w.deps.now() } });
-          await enqueueDmChunk(tx, incident.guildId, { kind: 'incident', incidentId: incident.id, updateId: upd.id }, w.deps.now());
+          await enqueueDmChunk(
+            tx,
+            incident.guildId,
+            { kind: 'incident', incidentId: incident.id, updateId: upd.id },
+            w.deps.now(),
+          );
         });
       },
 
@@ -127,7 +147,10 @@ export function createStatusJobs(opts: StatusJobsOptions = {}): WorkerModule {
         let body: MessageBody;
 
         if (p.kind === 'incident') {
-          const incident = await db.incident.findUnique({ where: { id: p.incidentId }, include: { services: refSelect } });
+          const incident = await db.incident.findUnique({
+            where: { id: p.incidentId },
+            include: { services: refSelect },
+          });
           const upd = await db.incidentUpdate.findUnique({ where: { id: p.updateId } });
           if (!incident || !upd) return;
           const pub = status.toPublicIncident(incident);
@@ -140,12 +163,19 @@ export function createStatusJobs(opts: StatusJobsOptions = {}): WorkerModule {
           });
           body = { embeds: [status.incidentDmEmbed(pub, upd)] };
         } else if (p.kind === 'maintenance') {
-          const win = await db.maintenanceWindow.findUnique({ where: { id: p.windowId }, include: { services: refSelect } });
+          const win = await db.maintenanceWindow.findUnique({
+            where: { id: p.windowId },
+            include: { services: refSelect },
+          });
           if (!win) return;
           if (win.status === 'CANCELLED' && p.phase !== 'cancelled') return;
           const pub = status.toPublicMaintenance(win);
           guildId = win.guildId;
-          recipients = await status.maintenanceRecipients(db, guildId, { slugs: pub.services.map((s) => s.slug), afterUserId: p.after, limit: chunk + 1 });
+          recipients = await status.maintenanceRecipients(db, guildId, {
+            slugs: pub.services.map((s) => s.slug),
+            afterUserId: p.after,
+            limit: chunk + 1,
+          });
           body = { embeds: [status.maintenanceEmbed(pub, p.phase)] };
         } else {
           return;
@@ -166,15 +196,24 @@ export function createStatusJobs(opts: StatusJobsOptions = {}): WorkerModule {
 
       async 'status.maintenance.announce'(job, w) {
         const { db } = w.deps;
-        const win = await db.maintenanceWindow.findUnique({ where: { id: str(job.payload, 'windowId') }, include: { services: refSelect } });
+        const win = await db.maintenanceWindow.findUnique({
+          where: { id: str(job.payload, 'windowId') },
+          include: { services: refSelect },
+        });
         if (!win || win.status === 'CANCELLED' || win.status === 'COMPLETED') return;
         const rescheduled = (job.payload as { rescheduled?: boolean }).rescheduled === true;
         if (!rescheduled && win.announcedAt) return;
         const phase: status.MaintenancePhase = rescheduled ? 'rescheduled' : 'scheduled';
         await postMaintenance(w, win.guildId, win, phase);
         await db.$transaction(async (tx) => {
-          if (!win.announcedAt) await tx.maintenanceWindow.update({ where: { id: win.id }, data: { announcedAt: w.deps.now() } });
-          await enqueueDmChunk(tx, win.guildId, { kind: 'maintenance', windowId: win.id, phase }, w.deps.now());
+          if (!win.announcedAt)
+            await tx.maintenanceWindow.update({ where: { id: win.id }, data: { announcedAt: w.deps.now() } });
+          await enqueueDmChunk(
+            tx,
+            win.guildId,
+            { kind: 'maintenance', windowId: win.id, phase },
+            w.deps.now(),
+          );
         });
       },
 
@@ -182,25 +221,39 @@ export function createStatusJobs(opts: StatusJobsOptions = {}): WorkerModule {
         const win = await status.beginMaintenance(w.deps.db, str(job.payload, 'windowId'), w.deps.now());
         if (!win || win.startNotifiedAt) return;
         await postMaintenance(w, win.guildId, win, 'started');
-        await w.deps.db.maintenanceWindow.update({ where: { id: win.id }, data: { startNotifiedAt: w.deps.now() } });
+        await w.deps.db.maintenanceWindow.update({
+          where: { id: win.id },
+          data: { startNotifiedAt: w.deps.now() },
+        });
       },
 
       async 'status.maintenance.end'(job, w) {
         const res = await status.finishMaintenance(w.deps.db, str(job.payload, 'windowId'), w.deps.now());
         if (!res || !res.notify) return;
         await postMaintenance(w, res.window.guildId, res.window, 'completed');
-        await w.deps.db.maintenanceWindow.update({ where: { id: res.window.id }, data: { endNotifiedAt: w.deps.now() } });
+        await w.deps.db.maintenanceWindow.update({
+          where: { id: res.window.id },
+          data: { endNotifiedAt: w.deps.now() },
+        });
       },
 
       /** Only enqueued when the cancelled window had been announced. endNotifiedAt marks the notice as sent. */
       async 'status.maintenance.cancelled'(job, w) {
         const { db } = w.deps;
-        const win = await db.maintenanceWindow.findUnique({ where: { id: str(job.payload, 'windowId') }, include: { services: refSelect } });
+        const win = await db.maintenanceWindow.findUnique({
+          where: { id: str(job.payload, 'windowId') },
+          include: { services: refSelect },
+        });
         if (!win || win.status !== 'CANCELLED' || !win.announcedAt || win.endNotifiedAt) return;
         await postMaintenance(w, win.guildId, win, 'cancelled');
         await db.$transaction(async (tx) => {
           await tx.maintenanceWindow.update({ where: { id: win.id }, data: { endNotifiedAt: w.deps.now() } });
-          await enqueueDmChunk(tx, win.guildId, { kind: 'maintenance', windowId: win.id, phase: 'cancelled' }, w.deps.now());
+          await enqueueDmChunk(
+            tx,
+            win.guildId,
+            { kind: 'maintenance', windowId: win.id, phase: 'cancelled' },
+            w.deps.now(),
+          );
         });
       },
     },

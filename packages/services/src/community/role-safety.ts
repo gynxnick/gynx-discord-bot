@@ -36,11 +36,11 @@ export const DANGEROUS_PERMISSIONS = {
   ManageWebhooks: PermissionFlagsBits.ManageWebhooks,
 } as const satisfies Record<string, bigint>;
 
-export type RoleSafetyReason = 'EVERYONE' | 'MANAGED' | 'HIERARCHY' | 'DANGEROUS_PERMISSIONS' | 'PROTECTED' | 'INVALID';
+export type RoleSafetyReason =
+  'EVERYONE' | 'MANAGED' | 'HIERARCHY' | 'DANGEROUS_PERMISSIONS' | 'PROTECTED' | 'INVALID';
 
 export type RoleSafetyResult =
-  | { ok: true }
-  | { ok: false; reason: RoleSafetyReason; message: string; permissions?: string[] };
+  { ok: true } | { ok: false; reason: RoleSafetyReason; message: string; permissions?: string[] };
 
 function parseBits(raw: string): bigint | null {
   if (!/^\d{1,40}$/.test(raw)) return null;
@@ -63,17 +63,29 @@ export function dangerousPermissionsIn(bitfield: string): string[] {
 /** Evaluate whether a role may be handed out by the bot on a member's request. Fails closed. */
 export function assessRoleSafety(input: RoleSafetyInput): RoleSafetyResult {
   const { role, guildId } = input;
-  if (!/^\d{17,20}$/.test(role.id) || !Number.isFinite(role.position) || !Number.isFinite(input.botHighestPosition)) {
+  if (
+    !/^\d{17,20}$/.test(role.id) ||
+    !Number.isFinite(role.position) ||
+    !Number.isFinite(input.botHighestPosition)
+  ) {
     return { ok: false, reason: 'INVALID', message: 'Role information is invalid.' };
   }
   if (role.id === guildId) {
     return { ok: false, reason: 'EVERYONE', message: 'The @everyone role cannot be self-assigned.' };
   }
   if (role.managed) {
-    return { ok: false, reason: 'MANAGED', message: 'Integration/bot-managed roles cannot be self-assigned.' };
+    return {
+      ok: false,
+      reason: 'MANAGED',
+      message: 'Integration/bot-managed roles cannot be self-assigned.',
+    };
   }
   if (role.position >= input.botHighestPosition) {
-    return { ok: false, reason: 'HIERARCHY', message: "That role is at or above the bot's highest role, so the bot cannot assign it." };
+    return {
+      ok: false,
+      reason: 'HIERARCHY',
+      message: "That role is at or above the bot's highest role, so the bot cannot assign it.",
+    };
   }
   const dangerous = dangerousPermissionsIn(role.permissions);
   if (dangerous.length > 0) {
@@ -91,7 +103,11 @@ export function assessRoleSafety(input: RoleSafetyInput): RoleSafetyResult {
       : (protectedIds as ReadonlySet<string>).has(role.id)
     : false;
   if (isProtected) {
-    return { ok: false, reason: 'PROTECTED', message: 'Staff, partner and escalation roles cannot be self-assigned.' };
+    return {
+      ok: false,
+      reason: 'PROTECTED',
+      message: 'Staff, partner and escalation roles cannot be self-assigned.',
+    };
   }
   return { ok: true };
 }

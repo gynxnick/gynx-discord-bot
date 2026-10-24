@@ -1,6 +1,11 @@
 import { PermissionFlagsBits } from 'discord-api-types/v10';
 import { describe, expect, it } from 'vitest';
-import { assessRoleSafety, DANGEROUS_PERMISSIONS, dangerousPermissionsIn, type RoleMeta } from './role-safety';
+import {
+  assessRoleSafety,
+  DANGEROUS_PERMISSIONS,
+  dangerousPermissionsIn,
+  type RoleMeta,
+} from './role-safety';
 
 const guildId = '100000000000000001';
 const safeRole: RoleMeta = {
@@ -9,8 +14,16 @@ const safeRole: RoleMeta = {
   managed: false,
   permissions: (PermissionFlagsBits.ViewChannel | PermissionFlagsBits.SendMessages).toString(),
 };
-const check = (role: Partial<RoleMeta>, extra: { botHighestPosition?: number; protectedRoleIds?: string[] } = {}) =>
-  assessRoleSafety({ guildId, role: { ...safeRole, ...role }, botHighestPosition: extra.botHighestPosition ?? 10, protectedRoleIds: extra.protectedRoleIds });
+const check = (
+  role: Partial<RoleMeta>,
+  extra: { botHighestPosition?: number; protectedRoleIds?: string[] } = {},
+) =>
+  assessRoleSafety({
+    guildId,
+    role: { ...safeRole, ...role },
+    botHighestPosition: extra.botHighestPosition ?? 10,
+    protectedRoleIds: extra.protectedRoleIds,
+  });
 
 describe('assessRoleSafety', () => {
   it('accepts a plain cosmetic role below the bot', () => {
@@ -39,13 +52,23 @@ describe('assessRoleSafety', () => {
   });
 
   it('rejects unparseable permission bitfields (fail closed)', () => {
-    expect(check({ permissions: 'not-a-number' })).toMatchObject({ ok: false, reason: 'DANGEROUS_PERMISSIONS' });
+    expect(check({ permissions: 'not-a-number' })).toMatchObject({
+      ok: false,
+      reason: 'DANGEROUS_PERMISSIONS',
+    });
     expect(check({ permissions: '-8' })).toMatchObject({ ok: false });
   });
 
   it('rejects protected staff/partner/escalation roles', () => {
     expect(check({}, { protectedRoleIds: [safeRole.id] })).toMatchObject({ ok: false, reason: 'PROTECTED' });
-    expect(assessRoleSafety({ guildId, role: safeRole, botHighestPosition: 10, protectedRoleIds: new Set([safeRole.id]) })).toMatchObject({ ok: false });
+    expect(
+      assessRoleSafety({
+        guildId,
+        role: safeRole,
+        botHighestPosition: 10,
+        protectedRoleIds: new Set([safeRole.id]),
+      }),
+    ).toMatchObject({ ok: false });
   });
 
   it('rejects malformed role ids', () => {

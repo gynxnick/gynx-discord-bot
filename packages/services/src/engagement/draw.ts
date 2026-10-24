@@ -33,7 +33,13 @@ export function drawWinners(
   const excluded = new Set(excludeIds);
   const pool = canonicalEntrants(entrantIds).filter((id) => !excluded.has(id));
   const winnerIds = rng ? secureSample(pool, count, rng) : secureSample(pool, count);
-  return { winnerIds, pool, entrantCount: pool.length, entrantsHash: entrantsHash(pool), algorithm: DRAW_ALGORITHM };
+  return {
+    winnerIds,
+    pool,
+    entrantCount: pool.length,
+    entrantsHash: entrantsHash(pool),
+    algorithm: DRAW_ALGORITHM,
+  };
 }
 
 export interface DrawRecordLike {
@@ -64,5 +70,12 @@ export function verifyDraw(draw: DrawRecordLike, entrantIds: readonly string[]):
   const winnersAreEntrants = draw.winnerIds.every((w) => set.has(w));
   const winnersDistinct = new Set(draw.winnerIds).size === draw.winnerIds.length;
   const knownAlgorithm = draw.algorithm === DRAW_ALGORITHM;
-  return { hashMatches, countMatches, winnersAreEntrants, winnersDistinct, knownAlgorithm, valid: hashMatches && countMatches && winnersAreEntrants && winnersDistinct && knownAlgorithm };
+  return {
+    hashMatches,
+    countMatches,
+    winnersAreEntrants,
+    winnersDistinct,
+    knownAlgorithm,
+    valid: hashMatches && countMatches && winnersAreEntrants && winnersDistinct && knownAlgorithm,
+  };
 }

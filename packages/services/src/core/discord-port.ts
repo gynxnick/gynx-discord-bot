@@ -22,13 +22,31 @@ export interface DiscordPort {
   editMessage(channelId: string, messageId: string, body: Partial<MessageBody>): Promise<void>;
   /** Returns null when the user has DMs closed / no mutual guild. */
   sendDm(userId: string, body: MessageBody): Promise<{ id: string } | null>;
-  getGuild(guildId: string): Promise<{ id: string; name: string; ownerId: string; memberCount: number | null } | null>;
-  getMember(guildId: string, userId: string): Promise<{ userId: string; roles: string[]; joinedAt: string | null; username: string; avatar: string | null } | null>;
-  listRoles(guildId: string): Promise<Array<{ id: string; name: string; position: number; managed: boolean; permissions: string }>>;
-  listChannels(guildId: string): Promise<Array<{ id: string; name: string; type: number; parentId: string | null }>>;
+  getGuild(
+    guildId: string,
+  ): Promise<{ id: string; name: string; ownerId: string; memberCount: number | null } | null>;
+  getMember(
+    guildId: string,
+    userId: string,
+  ): Promise<{
+    userId: string;
+    roles: string[];
+    joinedAt: string | null;
+    username: string;
+    avatar: string | null;
+  } | null>;
+  listRoles(
+    guildId: string,
+  ): Promise<Array<{ id: string; name: string; position: number; managed: boolean; permissions: string }>>;
+  listChannels(
+    guildId: string,
+  ): Promise<Array<{ id: string; name: string; type: number; parentId: string | null }>>;
   addRole(guildId: string, userId: string, roleId: string, reason: string): Promise<void>;
   removeRole(guildId: string, userId: string, roleId: string, reason: string): Promise<void>;
-  createInvite(channelId: string, opts: { maxAgeSeconds: number; maxUses: number; reason: string }): Promise<{ code: string }>;
+  createInvite(
+    channelId: string,
+    opts: { maxAgeSeconds: number; maxUses: number; reason: string },
+  ): Promise<{ code: string }>;
   listInvites(guildId: string): Promise<Array<{ code: string; uses: number; inviterId: string | null }>>;
   deleteChannel(channelId: string, reason: string): Promise<void>;
 }
@@ -46,7 +64,9 @@ export function createRestDiscordPort(token: string): DiscordPort {
 
   return {
     async sendMessage(channelId, body) {
-      const msg = (await rest.post(Routes.channelMessages(channelId), { body: withSafeMentions(body) })) as APIMessage;
+      const msg = (await rest.post(Routes.channelMessages(channelId), {
+        body: withSafeMentions(body),
+      })) as APIMessage;
       return { id: msg.id };
     },
     async editMessage(channelId, messageId, body) {
@@ -55,7 +75,9 @@ export function createRestDiscordPort(token: string): DiscordPort {
     async sendDm(userId, body) {
       try {
         const dm = (await rest.post(Routes.userChannels(), { body: { recipient_id: userId } })) as APIChannel;
-        const msg = (await rest.post(Routes.channelMessages(dm.id), { body: withSafeMentions(body) })) as APIMessage;
+        const msg = (await rest.post(Routes.channelMessages(dm.id), {
+          body: withSafeMentions(body),
+        })) as APIMessage;
         return { id: msg.id };
       } catch (e) {
         if (isStatus(e, 400, 403)) return null; // DMs closed
@@ -64,8 +86,15 @@ export function createRestDiscordPort(token: string): DiscordPort {
     },
     async getGuild(guildId) {
       try {
-        const g = (await rest.get(Routes.guild(guildId), { query: new URLSearchParams({ with_counts: 'true' }) })) as APIGuild;
-        return { id: g.id, name: g.name, ownerId: g.owner_id, memberCount: g.approximate_member_count ?? null };
+        const g = (await rest.get(Routes.guild(guildId), {
+          query: new URLSearchParams({ with_counts: 'true' }),
+        })) as APIGuild;
+        return {
+          id: g.id,
+          name: g.name,
+          ownerId: g.owner_id,
+          memberCount: g.approximate_member_count ?? null,
+        };
       } catch (e) {
         if (isStatus(e, 403, 404)) return null;
         throw e;
@@ -88,7 +117,13 @@ export function createRestDiscordPort(token: string): DiscordPort {
     },
     async listRoles(guildId) {
       const roles = (await rest.get(Routes.guildRoles(guildId))) as APIRole[];
-      return roles.map((r) => ({ id: r.id, name: r.name, position: r.position, managed: r.managed, permissions: r.permissions }));
+      return roles.map((r) => ({
+        id: r.id,
+        name: r.name,
+        position: r.position,
+        managed: r.managed,
+        permissions: r.permissions,
+      }));
     },
     async listChannels(guildId) {
       const chans = (await rest.get(Routes.guildChannels(guildId))) as APIChannel[];

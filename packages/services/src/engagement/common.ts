@@ -12,7 +12,11 @@ export const cleanText = (s: string): string => redactSecrets(s, { maskIps: fals
 export const displayText = (s: string): string => neutraliseMentions(s);
 
 /** Jump link to a posted message, or null when it has not been posted yet. */
-export function messageLink(guildId: string, channelId: string | null, messageId: string | null): string | null {
+export function messageLink(
+  guildId: string,
+  channelId: string | null,
+  messageId: string | null,
+): string | null {
   if (!channelId || !messageId) return null;
   return `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
 }
@@ -33,9 +37,16 @@ type LockTable = 'CommunityEvent' | 'Poll' | 'Suggestion' | 'Giveaway';
  * must see each other's effects (capacity checks, vote counters, draw sequences);
  * `FOR SHARE` lets readers proceed concurrently while blocking a status change.
  */
-export async function lockRow(tx: Db, table: LockTable, id: string, mode: 'update' | 'share' = 'update'): Promise<boolean> {
+export async function lockRow(
+  tx: Db,
+  table: LockTable,
+  id: string,
+  mode: 'update' | 'share' = 'update',
+): Promise<boolean> {
   const lock = mode === 'update' ? Prisma.sql`FOR UPDATE` : Prisma.sql`FOR SHARE`;
-  const rows = await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM ${Prisma.raw(`"${table}"`)} WHERE "id" = ${id} ${lock}`;
+  const rows = await tx.$queryRaw<
+    Array<{ id: string }>
+  >`SELECT "id" FROM ${Prisma.raw(`"${table}"`)} WHERE "id" = ${id} ${lock}`;
   return rows.length > 0;
 }
 

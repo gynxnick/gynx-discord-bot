@@ -23,14 +23,26 @@ export const CID = {
 
 export function eventEmbed(ev: CommunityEvent, counts: EventCounts): APIEmbed {
   const status =
-    ev.status === 'CANCELLED' ? '**Cancelled**' : ev.status === 'COMPLETED' ? '**Completed**' : ev.startsAt.getTime() <= Date.now() ? 'Started' : 'Scheduled';
+    ev.status === 'CANCELLED'
+      ? '**Cancelled**'
+      : ev.status === 'COMPLETED'
+        ? '**Completed**'
+        : ev.startsAt.getTime() <= Date.now()
+          ? 'Started'
+          : 'Scheduled';
   const capacity = ev.capacity ? `${counts.going}/${ev.capacity}` : `${counts.going}`;
   const fields = [
-    { name: 'When', value: `${discordTimestamp(ev.startsAt, 'F')} (${discordTimestamp(ev.startsAt, 'R')})\n${formatInZone(ev.startsAt, ev.timezone)} ${ev.timezone}`, inline: false },
+    {
+      name: 'When',
+      value: `${discordTimestamp(ev.startsAt, 'F')} (${discordTimestamp(ev.startsAt, 'R')})\n${formatInZone(ev.startsAt, ev.timezone)} ${ev.timezone}`,
+      inline: false,
+    },
     ...(ev.endsAt ? [{ name: 'Ends', value: discordTimestamp(ev.endsAt, 'f'), inline: true }] : []),
     ...(ev.location ? [{ name: 'Where', value: u(truncate(ev.location, 100)), inline: true }] : []),
     { name: 'Going', value: capacity, inline: true },
-    ...(ev.capacity && ev.waitlistEnabled ? [{ name: 'Waitlist', value: `${counts.waitlist}`, inline: true }] : []),
+    ...(ev.capacity && ev.waitlistEnabled
+      ? [{ name: 'Waitlist', value: `${counts.waitlist}`, inline: true }]
+      : []),
     { name: 'Status', value: status, inline: true },
     ...(ev.summary ? [{ name: 'Summary', value: u(truncate(ev.summary, 1024)), inline: false }] : []),
   ];
@@ -39,7 +51,8 @@ export function eventEmbed(ev: CommunityEvent, counts: EventCounts): APIEmbed {
     description: u(truncate(ev.description, 2000)),
     color: ev.status === 'CANCELLED' ? EMBED_COLORS.neutral : EMBED_COLORS.primary,
     fields,
-    footer: ev.status === 'SCHEDULED' ? 'RSVP with the buttons below · times show in your local zone' : undefined,
+    footer:
+      ev.status === 'SCHEDULED' ? 'RSVP with the buttons below · times show in your local zone' : undefined,
   });
 }
 
@@ -56,17 +69,34 @@ export function eventComponents(ev: CommunityEvent): Row[] {
   ];
 }
 
-export function eventDmEmbed(ev: CommunityEvent, kind: 'event.reminder' | 'event.cancelled' | 'event.promoted', link: string | null, minutes?: number): APIEmbed {
+export function eventDmEmbed(
+  ev: CommunityEvent,
+  kind: 'event.reminder' | 'event.cancelled' | 'event.promoted',
+  link: string | null,
+  minutes?: number,
+): APIEmbed {
   const when = `${discordTimestamp(ev.startsAt, 'F')} (${discordTimestamp(ev.startsAt, 'R')})`;
   const jump = link ? `\n\n[View event](${link})` : '';
   if (kind === 'event.reminder') {
-    const lead = minutes && minutes >= 60 ? `${Math.round(minutes / 60)} hour(s)` : `${minutes ?? 0} minute(s)`;
-    return brandEmbed({ title: `⏰ Starting in ${lead}: ${u(ev.title)}`, description: `${when}${ev.location ? `\nWhere: ${u(ev.location)}` : ''}${jump}` });
+    const lead =
+      minutes && minutes >= 60 ? `${Math.round(minutes / 60)} hour(s)` : `${minutes ?? 0} minute(s)`;
+    return brandEmbed({
+      title: `⏰ Starting in ${lead}: ${u(ev.title)}`,
+      description: `${when}${ev.location ? `\nWhere: ${u(ev.location)}` : ''}${jump}`,
+    });
   }
   if (kind === 'event.cancelled') {
-    return brandEmbed({ title: `Event cancelled: ${u(ev.title)}`, color: EMBED_COLORS.neutral, description: `This event (${when}) has been cancelled by the team. Sorry for the change of plans.${jump}` });
+    return brandEmbed({
+      title: `Event cancelled: ${u(ev.title)}`,
+      color: EMBED_COLORS.neutral,
+      description: `This event (${when}) has been cancelled by the team. Sorry for the change of plans.${jump}`,
+    });
   }
-  return brandEmbed({ title: `🎉 You're in: ${u(ev.title)}`, color: EMBED_COLORS.success, description: `A spot opened up and you have been moved from the waitlist to **Going**.\n${when}${jump}\n\nCan't make it any more? Press "Can't go" on the event so someone else can take the spot.` });
+  return brandEmbed({
+    title: `🎉 You're in: ${u(ev.title)}`,
+    color: EMBED_COLORS.success,
+    description: `A spot opened up and you have been moved from the waitlist to **Going**.\n${when}${jump}\n\nCan't make it any more? Press "Can't go" on the event so someone else can take the spot.`,
+  });
 }
 
 // ─── Polls ──────────────────────────────────────────────────────────────────
@@ -85,7 +115,10 @@ export function pollEmbed(r: PollResults, showTally: boolean): APIEmbed {
     const pct = totalVotes ? Math.round((o.votes / totalVotes) * 100) : 0;
     return `**${i + 1}.** ${u(o.label)}\n\`${bar(pct)}\` ${pct}% · ${o.votes} vote${o.votes === 1 ? '' : 's'}`;
   });
-  const rules = [r.multipleChoice ? `Pick up to ${r.maxChoices}` : 'Pick one', r.anonymous ? 'Anonymous' : 'Votes visible to staff'].join(' · ');
+  const rules = [
+    r.multipleChoice ? `Pick up to ${r.maxChoices}` : 'Pick one',
+    r.anonymous ? 'Anonymous' : 'Votes visible to staff',
+  ].join(' · ');
   return brandEmbed({
     title: `${closed ? '📊 Final results' : '📊 Poll'}: ${u(truncate(r.question, 200))}`,
     description: lines.join('\n\n'),
@@ -94,7 +127,9 @@ export function pollEmbed(r: PollResults, showTally: boolean): APIEmbed {
       { name: closed ? 'Closed' : 'Ends', value: discordTimestamp(r.endsAt, 'R'), inline: true },
       { name: 'Voters', value: String(r.totalBallots), inline: true },
       { name: 'Rules', value: rules, inline: true },
-      ...(!showTally && !closed ? [{ name: 'Results', value: 'Shown when the poll closes.', inline: false }] : []),
+      ...(!showTally && !closed
+        ? [{ name: 'Results', value: 'Shown when the poll closes.', inline: false }]
+        : []),
     ],
   });
 }
@@ -111,7 +146,10 @@ export function pollComponents(r: PollResults): Row[] {
           placeholder: r.multipleChoice ? `Choose up to ${r.maxChoices} option(s)` : 'Choose an option',
           min_values: 1,
           max_values: r.multipleChoice ? r.maxChoices : 1,
-          options: r.options.map((o, i) => ({ label: truncate(`${i + 1}. ${u(o.label)}`, 100), value: o.optionId })),
+          options: r.options.map((o, i) => ({
+            label: truncate(`${i + 1}. ${u(o.label)}`, 100),
+            value: o.optionId,
+          })),
         },
       ],
     },
@@ -130,17 +168,29 @@ const SUGGESTION_COLORS: Record<Suggestion['status'], number> = {
 
 export function suggestionEmbed(s: Suggestion, duplicateOfRef?: string | null): APIEmbed {
   if (s.hidden) {
-    return brandEmbed({ title: `Suggestion ${s.ref}`, description: '_This suggestion was removed by the moderators._', color: EMBED_COLORS.neutral });
+    return brandEmbed({
+      title: `Suggestion ${s.ref}`,
+      description: '_This suggestion was removed by the moderators._',
+      color: EMBED_COLORS.neutral,
+    });
   }
   return brandEmbed({
     title: `💡 ${s.ref} · ${u(truncate(s.title, 200))}`,
     description: u(truncate(s.body, 2000)),
     color: SUGGESTION_COLORS[s.status],
     fields: [
-      { name: 'Status', value: SUGGESTION_STATUS_LABELS[s.status] + (s.status === 'DUPLICATE' && duplicateOfRef ? ` of ${duplicateOfRef}` : ''), inline: true },
+      {
+        name: 'Status',
+        value:
+          SUGGESTION_STATUS_LABELS[s.status] +
+          (s.status === 'DUPLICATE' && duplicateOfRef ? ` of ${duplicateOfRef}` : ''),
+        inline: true,
+      },
       { name: 'Votes', value: `👍 ${s.upvotes} · 👎 ${s.downvotes}`, inline: true },
       { name: 'Submitted by', value: `<@${s.authorId}>`, inline: true },
-      ...(s.staffResponse ? [{ name: 'Team response', value: u(truncate(s.staffResponse, 1024)), inline: false }] : []),
+      ...(s.staffResponse
+        ? [{ name: 'Team response', value: u(truncate(s.staffResponse, 1024)), inline: false }]
+        : []),
     ],
   });
 }
@@ -153,8 +203,20 @@ export function suggestionComponents(s: Suggestion): Row[] {
     rows.push({
       type: 1,
       components: [
-        { type: 2, style: 2, emoji: { name: '👍' }, label: String(s.upvotes), custom_id: CID.suggestionVote(s.id, 'up') },
-        { type: 2, style: 2, emoji: { name: '👎' }, label: String(s.downvotes), custom_id: CID.suggestionVote(s.id, 'down') },
+        {
+          type: 2,
+          style: 2,
+          emoji: { name: '👍' },
+          label: String(s.upvotes),
+          custom_id: CID.suggestionVote(s.id, 'up'),
+        },
+        {
+          type: 2,
+          style: 2,
+          emoji: { name: '👎' },
+          label: String(s.downvotes),
+          custom_id: CID.suggestionVote(s.id, 'down'),
+        },
       ],
     });
   }
@@ -167,7 +229,11 @@ export function suggestionComponents(s: Suggestion): Row[] {
         placeholder: 'Staff: set status',
         min_values: 1,
         max_values: 1,
-        options: (Object.keys(SUGGESTION_STATUS_LABELS) as Suggestion['status'][]).map((k) => ({ label: SUGGESTION_STATUS_LABELS[k], value: k, default: k === s.status })),
+        options: (Object.keys(SUGGESTION_STATUS_LABELS) as Suggestion['status'][]).map((k) => ({
+          label: SUGGESTION_STATUS_LABELS[k],
+          value: k,
+          default: k === s.status,
+        })),
       },
     ],
   });
@@ -197,13 +263,25 @@ export function giveawayEmbed(g: Giveaway, entrantCount: number, latestWinners: 
         : `Ended ${discordTimestamp(g.endedAt ?? g.endsAt, 'R')}`;
   return brandEmbed({
     title: `🎁 Giveaway: ${u(truncate(g.prize, 200))}`,
-    description: [g.description ? u(truncate(g.description, 1000)) : null, statusLine].filter(Boolean).join('\n\n'),
+    description: [g.description ? u(truncate(g.description, 1000)) : null, statusLine]
+      .filter(Boolean)
+      .join('\n\n'),
     color: g.status === 'ACTIVE' ? EMBED_COLORS.accent : EMBED_COLORS.neutral,
     fields: [
       { name: 'Winners', value: String(g.winnerCount), inline: true },
       { name: 'Entries', value: String(entrantCount), inline: true },
       ...(req.length ? [{ name: 'Requirements', value: req.join('\n'), inline: false }] : []),
-      ...(latestWinners ? [{ name: 'Winner(s)', value: latestWinners.length ? latestWinners.map((w) => `<@${w}>`).join(', ') : 'No valid entries', inline: false }] : []),
+      ...(latestWinners
+        ? [
+            {
+              name: 'Winner(s)',
+              value: latestWinners.length
+                ? latestWinners.map((w) => `<@${w}>`).join(', ')
+                : 'No valid entries',
+              inline: false,
+            },
+          ]
+        : []),
     ],
     footer: 'Free community giveaway · winners drawn with a cryptographically secure, audited draw',
   });
@@ -230,7 +308,11 @@ export function winnerAnnouncementContent(g: Giveaway, draw: GiveawayDraw): stri
     if (draw.winnerIds.length === 0) return `🔁 Reroll for **${prize}**: no remaining eligible entrants.`;
     return `🔁 Reroll for **${prize}**: congratulations ${mentions}!`;
   }
-  if (draw.winnerIds.length === 0) return `The giveaway for **${prize}** has ended with no valid entries, so there is no winner.`;
-  const short = draw.entrantCount < g.winnerCount ? `\n_Only ${draw.entrantCount} eligible entr${draw.entrantCount === 1 ? 'y' : 'ies'} for ${g.winnerCount} prize(s), so every entrant wins._` : '';
+  if (draw.winnerIds.length === 0)
+    return `The giveaway for **${prize}** has ended with no valid entries, so there is no winner.`;
+  const short =
+    draw.entrantCount < g.winnerCount
+      ? `\n_Only ${draw.entrantCount} eligible entr${draw.entrantCount === 1 ? 'y' : 'ies'} for ${g.winnerCount} prize(s), so every entrant wins._`
+      : '';
   return `🎉 Congratulations ${mentions}! You won **${prize}**.${short}\nThe team will contact you about your prize.`;
 }

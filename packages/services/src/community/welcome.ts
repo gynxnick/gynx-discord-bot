@@ -16,8 +16,14 @@ const welcomeMessageSchema = z
   .min(1)
   .max(2000)
   .superRefine((msg, c) => {
-    const unknown = [...msg.matchAll(/\{([^{}\s]{1,32})\}/g)].map((m) => m[1]!).filter((p) => !ALLOWED_PLACEHOLDERS.has(p));
-    if (unknown.length) c.addIssue({ code: 'custom', message: `Unknown placeholder(s): ${unknown.map((p) => `{${p}}`).join(', ')}. Use {user} and {server}.` });
+    const unknown = [...msg.matchAll(/\{([^{}\s]{1,32})\}/g)]
+      .map((m) => m[1]!)
+      .filter((p) => !ALLOWED_PLACEHOLDERS.has(p));
+    if (unknown.length)
+      c.addIssue({
+        code: 'custom',
+        message: `Unknown placeholder(s): ${unknown.map((p) => `{${p}}`).join(', ')}. Use {user} and {server}.`,
+      });
   });
 
 export const welcomeConfigUpdateSchema = z
@@ -81,7 +87,16 @@ export async function updateWelcomeConfig(
 
   return ctx.db.$transaction(async (tx) => {
     const updated = await tx.welcomeConfig.update({ where: { guildId: ctx.guildId }, data: input });
-    await audit(ctx, { action: 'community.welcome.update', targetType: 'WelcomeConfig', targetId: ctx.guildId, metadata: { fields: Object.keys(input) } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'community.welcome.update',
+        targetType: 'WelcomeConfig',
+        targetId: ctx.guildId,
+        metadata: { fields: Object.keys(input) },
+      },
+      tx,
+    );
     return updated;
   });
 }
@@ -95,6 +110,9 @@ export function renderWelcomeMessage(template: string, vars: { userId: string; s
 
 /** Support link: onboarding-specific override, else the guild-wide external support URL. */
 export async function resolveSupportUrl(db: Db, guildId: string): Promise<string | null> {
-  const [w, cfg] = await Promise.all([db.welcomeConfig.findUnique({ where: { guildId } }), getGuildConfig(db, guildId)]);
+  const [w, cfg] = await Promise.all([
+    db.welcomeConfig.findUnique({ where: { guildId } }),
+    getGuildConfig(db, guildId),
+  ]);
   return w?.supportUrl ?? cfg.supportUrl ?? null;
 }

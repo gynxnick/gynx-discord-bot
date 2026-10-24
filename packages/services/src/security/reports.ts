@@ -48,7 +48,10 @@ const evidenceUrl = z
 const discordMessageLink = z
   .string()
   .trim()
-  .regex(/^https:\/\/(?:ptb\.|canary\.)?discord(?:app)?\.com\/channels\/\d{17,20}\/\d{17,20}\/\d{17,20}$/, 'Must be a Discord message link');
+  .regex(
+    /^https:\/\/(?:ptb\.|canary\.)?discord(?:app)?\.com\/channels\/\d{17,20}\/\d{17,20}\/\d{17,20}$/,
+    'Must be a Discord message link',
+  );
 
 export const submitReportSchema = z.object({
   category: z.enum(REPORT_CATEGORIES),
@@ -67,7 +70,8 @@ const TRANSITIONS: Record<AbuseReportStatus, readonly AbuseReportStatus[]> = {
   RESOLVED: [],
   DISMISSED: [],
 };
-export const canTransitionReport = (from: AbuseReportStatus, to: AbuseReportStatus) => TRANSITIONS[from].includes(to);
+export const canTransitionReport = (from: AbuseReportStatus, to: AbuseReportStatus) =>
+  TRANSITIONS[from].includes(to);
 
 const DUPLICATE_WINDOW_MS = 24 * 3_600_000;
 const MAX_OPEN_PER_REPORTER = 5;
@@ -81,7 +85,8 @@ export async function submitReport(ctx: Ctx, raw: SubmitReportInput): Promise<Ab
   const input = submitReportSchema.parse(raw);
   await requireRate(ctx, 'security.report', 3, 3600);
 
-  if (input.reportedUserId === ctx.actor.userId) throw new AppError('VALIDATION', 'You cannot report yourself.');
+  if (input.reportedUserId === ctx.actor.userId)
+    throw new AppError('VALIDATION', 'You cannot report yourself.');
 
   const openStatuses: AbuseReportStatus[] = ['NEW', 'TRIAGED', 'INVESTIGATING'];
   const [duplicate, openCount] = await Promise.all([
@@ -96,10 +101,14 @@ export async function submitReport(ctx: Ctx, raw: SubmitReportInput): Promise<Ab
       },
       select: { ref: true },
     }),
-    ctx.db.abuseReport.count({ where: { guildId: ctx.guildId, reporterId: ctx.actor.userId, status: { in: openStatuses } } }),
+    ctx.db.abuseReport.count({
+      where: { guildId: ctx.guildId, reporterId: ctx.actor.userId, status: { in: openStatuses } },
+    }),
   ]);
-  if (duplicate) throw conflict(`You already have an open report about this (${duplicate.ref}). Staff will review it.`);
-  if (openCount >= MAX_OPEN_PER_REPORTER) throw conflict('You have several open reports already. Please wait for staff to review them.');
+  if (duplicate)
+    throw conflict(`You already have an open report about this (${duplicate.ref}). Staff will review it.`);
+  if (openCount >= MAX_OPEN_PER_REPORTER)
+    throw conflict('You have several open reports already. Please wait for staff to review them.');
 
   return ctx.db.$transaction(async (tx) => {
     const number = await nextSequence(tx, ctx.guildId, 'abuse_report');
@@ -117,7 +126,16 @@ export async function submitReport(ctx: Ctx, raw: SubmitReportInput): Promise<Ab
       },
     });
     // Audit intentionally excludes the description (allegations stay in the access-controlled report).
-    await audit(ctx, { action: 'security.report.submit', targetType: 'AbuseReport', targetId: report.id, metadata: { ref: report.ref, category: report.category } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'security.report.submit',
+        targetType: 'AbuseReport',
+        targetId: report.id,
+        metadata: { ref: report.ref, category: report.category },
+      },
+      tx,
+    );
     await enqueueJob(tx, {
       type: 'security.report.notify',
       dedupeKey: `security.report.notify:${report.id}`,
@@ -143,7 +161,10 @@ export const listReportsSchema = paginationSchema.extend({
   q: z.string().trim().max(100).optional(),
 });
 
-export async function listReports(ctx: Ctx, raw: z.input<typeof listReportsSchema>): Promise<Page<ReportView>> {
+export async function listReports(
+  ctx: Ctx,
+  raw: z.input<typeof listReportsSchema>,
+): Promise<Page<ReportView>> {
   await requirePermission(ctx, 'security.reports.view');
   const f = listReportsSchema.parse(raw);
   const where: Prisma.AbuseReportWhereInput = {
@@ -153,7 +174,11 @@ export async function listReports(ctx: Ctx, raw: z.input<typeof listReportsSchem
     assigneeId: f.assigneeId,
     ...(f.q ? { OR: [{ ref: { equals: f.q.toUpperCase() } }, { reportedUserId: f.q }] } : {}),
   };
-  const rows = await ctx.db.abuseReport.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], ...cursorArgs(f) });
+  const rows = await ctx.db.abuseReport.findMany({
+    where,
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    ...cursorArgs(f),
+  });
   const page = toPage(rows, f.limit);
   return { ...page, items: page.items.map((r) => project(ctx, r)) };
 }
@@ -179,7 +204,8 @@ async function loadForUpdate(ctx: Ctx, id: string): Promise<AbuseReport> {
 export async function claimReport(ctx: Ctx, id: string): Promise<AbuseReport> {
   const r = await loadForUpdate(ctx, id);
   if (r.assigneeId === ctx.actor.userId) return r;
-  if (r.status === 'RESOLVED' || r.status === 'DISMISSED') throw invalidState('This report is already closed.');
+  if (r.status === 'RESOLVED' || r.status === 'DISMISSED')
+    throw invalidState('This report is already closed.');
   return ctx.db.$transaction(async (tx) => {
     // Conditional update prevents two staff claiming simultaneously.
     const res = await tx.abuseReport.updateMany({
@@ -187,7 +213,16 @@ export async function claimReport(ctx: Ctx, id: string): Promise<AbuseReport> {
       data: { assigneeId: ctx.actor.userId, status: r.status === 'NEW' ? 'TRIAGED' : r.status },
     });
     if (res.count === 0) throw conflict('Someone else just claimed this report.');
-    await audit(ctx, { action: 'security.report.claim', targetType: 'AbuseReport', targetId: id, metadata: { previousAssignee: r.assigneeId } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'security.report.claim',
+        targetType: 'AbuseReport',
+        targetId: id,
+        metadata: { previousAssignee: r.assigneeId },
+      },
+      tx,
+    );
     return tx.abuseReport.findUniqueOrThrow({ where: { id } });
   });
 }
@@ -197,14 +232,19 @@ export const updateStatusSchema = z.object({
   resolution: z.string().trim().max(2000).optional(),
 });
 
-export async function updateReportStatus(ctx: Ctx, id: string, raw: z.input<typeof updateStatusSchema>): Promise<AbuseReport> {
+export async function updateReportStatus(
+  ctx: Ctx,
+  id: string,
+  raw: z.input<typeof updateStatusSchema>,
+): Promise<AbuseReport> {
   const input = updateStatusSchema.parse(raw);
   const r = await loadForUpdate(ctx, id);
   if (!canTransitionReport(r.status, input.status)) {
     throw invalidState(`A ${r.status.toLowerCase()} report cannot move to ${input.status.toLowerCase()}.`);
   }
   const closing = input.status === 'RESOLVED' || input.status === 'DISMISSED';
-  if (closing && !input.resolution) throw new AppError('VALIDATION', 'A resolution summary is required to close a report.');
+  if (closing && !input.resolution)
+    throw new AppError('VALIDATION', 'A resolution summary is required to close a report.');
 
   const cfg = await getGuildConfig(ctx.db, ctx.guildId);
   return ctx.db.$transaction(async (tx) => {
@@ -217,7 +257,16 @@ export async function updateReportStatus(ctx: Ctx, id: string, raw: z.input<type
         assigneeId: r.assigneeId ?? ctx.actor.userId,
       },
     });
-    await audit(ctx, { action: 'security.report.status', targetType: 'AbuseReport', targetId: id, metadata: { from: r.status, to: input.status } }, tx);
+    await audit(
+      ctx,
+      {
+        action: 'security.report.status',
+        targetType: 'AbuseReport',
+        targetId: id,
+        metadata: { from: r.status, to: input.status },
+      },
+      tx,
+    );
     if (closing && r.notifyReporter && cfg.reportNotifyReporter) {
       await enqueueJob(tx, {
         type: 'security.report.reporter-update',

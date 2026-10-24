@@ -9,7 +9,15 @@ import { AppError } from './errors';
  * re-resolving the hostname, which defeats DNS rebinding.
  */
 
-const BLOCKED_HOSTNAMES = [/^localhost$/i, /\.localhost$/i, /\.local$/i, /\.internal$/i, /\.lan$/i, /\.home\.arpa$/i, /^metadata(\.|$)/i];
+const BLOCKED_HOSTNAMES = [
+  /^localhost$/i,
+  /\.localhost$/i,
+  /\.local$/i,
+  /\.internal$/i,
+  /\.lan$/i,
+  /\.home\.arpa$/i,
+  /^metadata(\.|$)/i,
+];
 
 function ipv4ToInt(ip: string): number {
   return ip.split('.').reduce((acc, octet) => (acc << 8) + Number(octet), 0) >>> 0;
@@ -128,7 +136,8 @@ function blockedErr(reason: string): AppError {
  */
 export async function resolveSafeTarget(rawHost: string, opts: SafeTargetOptions = {}): Promise<SafeTarget> {
   const hostname = rawHost.trim().replace(/\.$/, '').toLowerCase();
-  if (!hostname || !isValidHostname(hostname)) throw new AppError('VALIDATION', 'That hostname is not valid.');
+  if (!hostname || !isValidHostname(hostname))
+    throw new AppError('VALIDATION', 'That hostname is not valid.');
 
   const literal = isIP(hostname);
   if (!literal && BLOCKED_HOSTNAMES.some((re) => re.test(hostname))) throw blockedErr('blocked-hostname');

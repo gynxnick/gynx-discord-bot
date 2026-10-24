@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { applyCheckResult, resolveThresholds, type ApplyOutcome, type ServiceSnapshot, type Thresholds } from './state-machine';
+import {
+  applyCheckResult,
+  resolveThresholds,
+  type ApplyOutcome,
+  type ServiceSnapshot,
+  type Thresholds,
+} from './state-machine';
 import type { CheckResult } from './types';
 
 const T: Thresholds = { failureThreshold: 3, recoveryThreshold: 2, cooldownMs: 15 * 60_000 };
@@ -18,13 +24,20 @@ const fresh = (over: Partial<ServiceSnapshot> = {}): ServiceSnapshot => ({
 });
 
 /** Feed a sequence of results one minute apart; returns the final snapshot and every outcome. */
-function run(start: ServiceSnapshot, results: CheckResult[], opts: { t?: Thresholds; startAt?: number; stepMs?: number; inMaintenance?: boolean } = {}) {
+function run(
+  start: ServiceSnapshot,
+  results: CheckResult[],
+  opts: { t?: Thresholds; startAt?: number; stepMs?: number; inMaintenance?: boolean } = {},
+) {
   let s = start;
   const history: CheckResult[] = [];
   const outcomes: ApplyOutcome[] = [];
   let at = opts.startAt ?? Date.UTC(2026, 0, 1);
   for (const r of results) {
-    const out = applyCheckResult(s, r, opts.t ?? T, new Date(at), { inMaintenance: opts.inMaintenance, previous: [...history].reverse() });
+    const out = applyCheckResult(s, r, opts.t ?? T, new Date(at), {
+      inMaintenance: opts.inMaintenance,
+      previous: [...history].reverse(),
+    });
     outcomes.push(out);
     history.push(r);
     s = { ...s, ...out.update };
@@ -43,7 +56,13 @@ describe('status state machine', () => {
 
   it('declares OUTAGE only after failureThreshold consecutive failures, alerting once', () => {
     const { s, outcomes, alerts } = run(fresh({ state: 'OPERATIONAL' }), [FAIL, FAIL, FAIL, FAIL, FAIL]);
-    expect(outcomes.map((o) => o.update.state)).toEqual(['OPERATIONAL', 'OPERATIONAL', 'OUTAGE', 'OUTAGE', 'OUTAGE']);
+    expect(outcomes.map((o) => o.update.state)).toEqual([
+      'OPERATIONAL',
+      'OPERATIONAL',
+      'OUTAGE',
+      'OUTAGE',
+      'OUTAGE',
+    ]);
     expect(alerts).toEqual(['OUTAGE']);
     expect(s.consecutiveFailures).toBe(5);
     expect(s.lastAlertState).toBe('OUTAGE');
@@ -66,7 +85,11 @@ describe('status state machine', () => {
 
   it('per-service thresholds override guild defaults', () => {
     const cfg = { statusFailureThreshold: 3, statusRecoveryThreshold: 2, statusAlertCooldownMinutes: 15 };
-    expect(resolveThresholds({ failureThreshold: null, recoveryThreshold: null }, cfg)).toEqual({ failureThreshold: 3, recoveryThreshold: 2, cooldownMs: 900_000 });
+    expect(resolveThresholds({ failureThreshold: null, recoveryThreshold: null }, cfg)).toEqual({
+      failureThreshold: 3,
+      recoveryThreshold: 2,
+      cooldownMs: 900_000,
+    });
     const t = resolveThresholds({ failureThreshold: 1, recoveryThreshold: 5 }, cfg);
     expect(t).toMatchObject({ failureThreshold: 1, recoveryThreshold: 5 });
     const { s } = run(fresh({ state: 'OPERATIONAL' }), [FAIL], { t });
@@ -96,8 +119,24 @@ describe('status state machine', () => {
   });
 
   it('DEGRADED requires failureThreshold consecutive degraded results and recovers after recoveryThreshold clean ones', () => {
-    const { outcomes, alerts, s } = run(fresh({ state: 'OPERATIONAL' }), [SLOW, OK, SLOW, SLOW, SLOW, OK, OK]);
-    expect(outcomes.map((o) => o.update.state)).toEqual(['OPERATIONAL', 'OPERATIONAL', 'OPERATIONAL', 'OPERATIONAL', 'DEGRADED', 'DEGRADED', 'OPERATIONAL']);
+    const { outcomes, alerts, s } = run(fresh({ state: 'OPERATIONAL' }), [
+      SLOW,
+      OK,
+      SLOW,
+      SLOW,
+      SLOW,
+      OK,
+      OK,
+    ]);
+    expect(outcomes.map((o) => o.update.state)).toEqual([
+      'OPERATIONAL',
+      'OPERATIONAL',
+      'OPERATIONAL',
+      'OPERATIONAL',
+      'DEGRADED',
+      'DEGRADED',
+      'OPERATIONAL',
+    ]);
     expect(alerts).toEqual(['DEGRADED', 'OPERATIONAL']);
     expect(s.state).toBe('OPERATIONAL');
   });
@@ -110,7 +149,9 @@ describe('status state machine', () => {
   });
 
   it('MAINTENANCE suppresses outage alerts while a window is in progress', () => {
-    const { s, alerts, outcomes } = run(fresh({ state: 'OPERATIONAL' }), [FAIL, FAIL, FAIL, FAIL], { inMaintenance: true });
+    const { s, alerts, outcomes } = run(fresh({ state: 'OPERATIONAL' }), [FAIL, FAIL, FAIL, FAIL], {
+      inMaintenance: true,
+    });
     expect(s.state).toBe('MAINTENANCE');
     expect(outcomes.filter((o) => o.transition)).toHaveLength(1);
     expect(alerts).toEqual([]);
@@ -118,7 +159,10 @@ describe('status state machine', () => {
   });
 
   it('after maintenance (state reset to UNKNOWN) the next clean check sets the real state silently', () => {
-    const { s, alerts } = run(fresh({ state: 'UNKNOWN', lastAlertState: 'OPERATIONAL', lastAlertAt: new Date(0) }), [OK]);
+    const { s, alerts } = run(
+      fresh({ state: 'UNKNOWN', lastAlertState: 'OPERATIONAL', lastAlertAt: new Date(0) }),
+      [OK],
+    );
     expect(s.state).toBe('OPERATIONAL');
     expect(alerts).toEqual([]);
   });
@@ -129,7 +173,13 @@ describe('status state machine', () => {
   });
 
   it('never alerts for UNKNOWN or MAINTENANCE', () => {
-    const out = applyCheckResult(fresh({ state: 'OPERATIONAL', lastAlertState: 'OUTAGE' }), FAIL, T, new Date(), { inMaintenance: true });
+    const out = applyCheckResult(
+      fresh({ state: 'OPERATIONAL', lastAlertState: 'OUTAGE' }),
+      FAIL,
+      T,
+      new Date(),
+      { inMaintenance: true },
+    );
     expect(out.update.state).toBe('MAINTENANCE');
     expect(out.alert).toBeNull();
   });

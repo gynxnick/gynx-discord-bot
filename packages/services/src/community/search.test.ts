@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { rankFaqEntries, scoreFaq, tokenize, type SearchableFaq } from './search';
 
-const e = (id: string, over: Partial<SearchableFaq>): SearchableFaq => ({ id, question: '', answer: '', keywords: [], views: 0, ...over });
+const e = (id: string, over: Partial<SearchableFaq>): SearchableFaq => ({
+  id,
+  question: '',
+  answer: '',
+  keywords: [],
+  views: 0,
+  ...over,
+});
 
 describe('FAQ search ranking', () => {
   const kw = e('kw', { question: 'How do I change things?', answer: 'Open settings.', keywords: ['port'] });
@@ -20,7 +27,10 @@ describe('FAQ search ranking', () => {
   it('a single keyword hit outranks many question and answer hits', () => {
     const manyQ = e('manyQ', { question: 'server port reset mod', answer: 'server port reset mod' });
     const oneKw = e('oneKw', { keywords: ['reset'] });
-    expect(rankFaqEntries([manyQ, oneKw], 'server port reset mod').map((x) => x.id)).toEqual(['oneKw', 'manyQ']);
+    expect(rankFaqEntries([manyQ, oneKw], 'server port reset mod').map((x) => x.id)).toEqual([
+      'oneKw',
+      'manyQ',
+    ]);
   });
 
   it('breaks ties by views', () => {

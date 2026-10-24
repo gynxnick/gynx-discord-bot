@@ -40,7 +40,10 @@ describe('A2S_INFO parsing', () => {
   });
 
   it('recognises a challenge and rejects malformed or split packets', () => {
-    expect(parseA2SResponse(Buffer.from('ffffffff41deadbeef', 'hex'))).toEqual({ type: 'challenge', challenge: Buffer.from('deadbeef', 'hex') });
+    expect(parseA2SResponse(Buffer.from('ffffffff41deadbeef', 'hex'))).toEqual({
+      type: 'challenge',
+      challenge: Buffer.from('deadbeef', 'hex'),
+    });
     expect(() => parseA2SResponse(RUST_CAPTURE.subarray(0, 30))).toThrow(/Truncated/);
     expect(() => parseA2SResponse(Buffer.from('feffffff0000000000', 'hex'))).toThrow(/Split/);
     expect(() => parseA2SResponse(Buffer.from('0000000049', 'hex'))).toThrow();
@@ -62,7 +65,9 @@ function fakeSourceServer(): Promise<{ port: number; requests: Buffer[] }> {
     sock.on('message', (msg, rinfo) => {
       requests.push(msg);
       const hasChallenge = msg.length === 25 + 4 && msg.subarray(-4).equals(challenge);
-      const reply = hasChallenge ? RUST_CAPTURE : Buffer.concat([Buffer.from('ffffffff41', 'hex'), challenge]);
+      const reply = hasChallenge
+        ? RUST_CAPTURE
+        : Buffer.concat([Buffer.from('ffffffff41', 'hex'), challenge]);
       sock.send(reply, rinfo.port, rinfo.address);
     });
     sock.bind(0, '127.0.0.1', () => resolve({ port: sock.address().port, requests }));
@@ -82,7 +87,9 @@ describe('a2sInfo against a local fake UDP server', () => {
   it('times out when nothing answers', async () => {
     const silent = createSocket('udp4');
     sockets.push(silent);
-    const port = await new Promise<number>((r) => silent.bind(0, '127.0.0.1', () => r(silent.address().port)));
+    const port = await new Promise<number>((r) =>
+      silent.bind(0, '127.0.0.1', () => r(silent.address().port)),
+    );
     await expect(a2sInfo('127.0.0.1', port, { timeoutMs: 300 })).rejects.toThrow(/did not respond/);
   });
 });

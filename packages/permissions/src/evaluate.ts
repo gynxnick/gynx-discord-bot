@@ -34,7 +34,10 @@ function expand(permission: string): PermissionKey[] {
  *  3. Any matching DENY (role or user) removes the key — deny always wins.
  *  4. Unknown keys are ignored (fail closed).
  */
-export function resolvePermissions(principal: Principal, grants: readonly PermissionGrant[]): Set<PermissionKey> {
+export function resolvePermissions(
+  principal: Principal,
+  grants: readonly PermissionGrant[],
+): Set<PermissionKey> {
   if (principal.isGuildOwner) return new Set(ALL_PERMISSIONS);
   const roleSet = new Set(principal.roleIds);
   const applies = (g: PermissionGrant) =>

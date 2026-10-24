@@ -63,7 +63,8 @@ org.bukkit.plugin.UnknownDependencyException: Unknown/missing dependency plugins
 
 const LAG = Array.from(
   { length: 6 },
-  (_, i) => `[12:0${i}:00] [Server thread/WARN]: Can't keep up! Is the server overloaded? Running ${2000 + i * 1500}ms or ${40 + i * 30} ticks behind`,
+  (_, i) =>
+    `[12:0${i}:00] [Server thread/WARN]: Can't keep up! Is the server overloaded? Running ${2000 + i * 1500}ms or ${40 + i * 30} ticks behind`,
 ).join('\n');
 
 const CONNECT_REFUSED = `[12:00:00] [Render thread/INFO]: Connecting to mc.example.net, 25565
@@ -133,7 +134,8 @@ describe('Minecraft analyzers', () => {
     expect(single.confidence).toBe('possible');
   });
 
-  it('client/server version mismatch', () => expect(ids(VERSION_MISMATCH, 'minecraft')).toContain('mc-version-mismatch'));
+  it('client/server version mismatch', () =>
+    expect(ids(VERSION_MISMATCH, 'minecraft')).toContain('mc-version-mismatch'));
 });
 
 describe('generic analyzers', () => {
@@ -145,7 +147,20 @@ describe('generic analyzers', () => {
   });
 
   it('every finding is phrased as a likely cause, not a confirmed diagnosis', () => {
-    for (const fx of [JAVA_VERSION, OOM, FORGE_DEPS, FABRIC_DEPS, MIXIN, PORT_IN_USE, EULA, CHUNK, TICKING, PLUGIN, LAG, CONNECT_REFUSED]) {
+    for (const fx of [
+      JAVA_VERSION,
+      OOM,
+      FORGE_DEPS,
+      FABRIC_DEPS,
+      MIXIN,
+      PORT_IN_USE,
+      EULA,
+      CHUNK,
+      TICKING,
+      PLUGIN,
+      LAG,
+      CONNECT_REFUSED,
+    ]) {
       for (const f of diagnoseText(fx).findings) {
         expect(f.explanation).toMatch(/not a confirmed diagnosis/);
         expect(f.evidence.length).toBeLessThanOrEqual(200);
@@ -178,7 +193,9 @@ rcon.password=secret
 
   it('never exposes the password or IPs in findings or excerpt', () => {
     const r = diagnoseText(SECRET_LOG);
-    expect(r.findings.map((f) => f.id)).toEqual(expect.arrayContaining(['mc-port-in-use', 'mc-out-of-memory']));
+    expect(r.findings.map((f) => f.id)).toEqual(
+      expect.arrayContaining(['mc-port-in-use', 'mc-out-of-memory']),
+    );
     const everything = JSON.stringify(r);
     expect(everything).not.toContain('secret');
     expect(everything).not.toContain('51.38.12.99');
@@ -189,12 +206,17 @@ rcon.password=secret
   });
 
   it('caps the excerpt at 1500 chars', () => {
-    const noisy = Array.from({ length: 500 }, (_, i) => `[10:00:00] [Server thread/INFO]: line ${i} ${'x'.repeat(150)}`).join('\n');
+    const noisy = Array.from(
+      { length: 500 },
+      (_, i) => `[10:00:00] [Server thread/INFO]: line ${i} ${'x'.repeat(150)}`,
+    ).join('\n');
     expect(diagnoseText(noisy).excerpt.length).toBeLessThanOrEqual(MAX_EXCERPT);
   });
 
   it('masks IPv6 without touching timestamps or Java method refs', () => {
-    expect(maskIPv6('at 12:34:56 from fe80::1ff:fe23:4567:890a and Foo::bar')).toBe('at 12:34:56 from [IP] and Foo::bar');
+    expect(maskIPv6('at 12:34:56 from fe80::1ff:fe23:4567:890a and Foo::bar')).toBe(
+      'at 12:34:56 from [IP] and Foo::bar',
+    );
     expect(redactLog('connect 10.0.0.5:25565')).toBe('connect [IP]:25565');
   });
 });

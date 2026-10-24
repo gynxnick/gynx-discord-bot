@@ -40,8 +40,15 @@ export function createAnalyticsJobs(options: AnalyticsJobsOptions = {}): WorkerM
     handlers: {
       /** Deliver a generated report. Retries (with backoff) re-run delivery only — never generation. */
       async [analytics.DELIVER_JOB](job, w) {
-        const outcome = await analytics.deliverReport(w.deps.db, reportIdOf(job.payload), senderFor(w), { now: w.deps.now(), dashboardUrl: w.env.DASHBOARD_URL });
-        if (outcome === 'no-channel') w.log.warn({ reportId: reportIdOf(job.payload) }, 'report generated but no report channel configured');
+        const outcome = await analytics.deliverReport(w.deps.db, reportIdOf(job.payload), senderFor(w), {
+          now: w.deps.now(),
+          dashboardUrl: w.env.DASHBOARD_URL,
+        });
+        if (outcome === 'no-channel')
+          w.log.warn(
+            { reportId: reportIdOf(job.payload) },
+            'report generated but no report channel configured',
+          );
       },
     },
     periodic: [
@@ -53,7 +60,12 @@ export function createAnalyticsJobs(options: AnalyticsJobsOptions = {}): WorkerM
           const cfg = await getGuildConfig(w.deps.db, guildId);
           const tz = isValidTimeZone(cfg.timezone) ? cfg.timezone : 'UTC';
           const days = await analytics.runDailyRollup(w.deps.db, guildId, tz, now);
-          const purged = await analytics.purgeExpiredActivity(w.deps.db, guildId, dateKeyInZone(now, tz), cfg.activityRetentionDays);
+          const purged = await analytics.purgeExpiredActivity(
+            w.deps.db,
+            guildId,
+            dateKeyInZone(now, tz),
+            cfg.activityRetentionDays,
+          );
           w.log.debug({ days, purged }, 'analytics rollup done');
         },
       },

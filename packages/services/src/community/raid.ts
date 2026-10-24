@@ -11,7 +11,12 @@ export interface RaidDetection {
  * A raid is `threshold` or more joins within the trailing `windowSeconds`.
  * Timestamps in the future (clock skew) or outside the window are ignored.
  */
-export function detectRaid(recentJoinTimestamps: readonly Date[], now: Date, threshold: number, windowSeconds: number): RaidDetection {
+export function detectRaid(
+  recentJoinTimestamps: readonly Date[],
+  now: Date,
+  threshold: number,
+  windowSeconds: number,
+): RaidDetection {
   const end = now.getTime();
   const start = end - windowSeconds * 1000;
   let joinsInWindow = 0;
@@ -39,4 +44,5 @@ export function raidBucket(now: Date, windowSeconds: number): number {
   return Math.floor(now.getTime() / (Math.max(1, windowSeconds) * 1000));
 }
 
-export const raidAlertDedupeKey = (guildId: string, bucket: number) => `community.raid-alert:${guildId}:${bucket}`;
+export const raidAlertDedupeKey = (guildId: string, bucket: number) =>
+  `community.raid-alert:${guildId}:${bucket}`;
