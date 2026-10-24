@@ -82,6 +82,7 @@ tests             Integration tests and helpers
 - [Security](docs/security.md): threat model, retention, credential rotation, incident response
 - [Deployment](docs/deployment.md): Discord setup, production topology, releases, migrations, backups
 - [Development](docs/development.md): conventions, adding features, testing
+- [Release checklist](docs/release-checklist.md): first-release setup and known limitations
 
 ## License
 
