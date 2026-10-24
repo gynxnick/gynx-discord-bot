@@ -1,0 +1,59 @@
+{
+  "name": "gynx-discord-bot",
+  "private": true,
+  "version": "0.1.0",
+  "description": "GYNX.GG Discord community, support, status, security and analytics platform",
+  "type": "module",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev:bot": "pnpm --filter @gynx/bot dev",
+    "dev:worker": "pnpm --filter @gynx/worker dev",
+    "dev:dashboard": "pnpm --filter @gynx/dashboard dev",
+    "build": "pnpm db:generate && pnpm -r --filter ./apps/* build",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "pnpm db:generate && pnpm -r typecheck",
+    "test": "pnpm db:generate && vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "db:generate": "pnpm --filter @gynx/database generate",
+    "db:migrate": "pnpm --filter @gynx/database migrate:deploy",
+    "db:migrate:dev": "pnpm --filter @gynx/database migrate:dev",
+    "db:seed": "pnpm --filter @gynx/database seed",
+    "commands:register": "pnpm --filter @gynx/bot commands:register",
+    "audit:deps": "pnpm audit --prod"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@gynx/config": "workspace:^",
+    "@gynx/database": "workspace:^",
+    "@gynx/permissions": "workspace:^",
+    "@gynx/services": "workspace:^",
+    "@gynx/shared": "workspace:^",
+    "@types/node": "^22.10.0",
+    "embedded-postgres": "18.4.0-beta.17",
+    "eslint": "^9.17.0",
+    "globals": "^15.14.0",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "typescript": "~5.7.2",
+    "typescript-eslint": "^8.18.0",
+    "vitest": "^3.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "esbuild",
+      "sharp",
+      "@embedded-postgres/windows-x64",
+      "@embedded-postgres/linux-x64",
+      "msgpackr-extract"
+    ]
+  }
+}
