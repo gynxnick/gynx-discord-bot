@@ -324,6 +324,13 @@ export function GeneralSettingsForm({
               checked={form.reportNotifyReporter}
               onChange={(v) => set('reportNotifyReporter', v)}
             />
+            <Switch
+              id="set-suggestion-threads"
+              label="Discussion threads for suggestions"
+              description="Open a thread under each suggestion card so members discuss it there and the channel stays a clean list. Needs the Create Public Threads permission."
+              checked={form.suggestionThreads}
+              onChange={(v) => set('suggestionThreads', v)}
+            />
           </CardBody>
         </Card>
       </div>

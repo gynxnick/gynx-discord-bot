@@ -11,13 +11,14 @@ import {
   type ChatInputCommandInteraction,
   type ModalSubmitInteraction,
 } from 'discord.js';
-import { brandEmbed, getGuildConfig, marketing, type Ctx } from '@gynx/services';
+import { brandEmbed, CoreText, getGuildConfig, marketing, type Ctx } from '@gynx/services';
 import { AppError, discordTimestamp, truncate } from '@gynx/shared';
 import { replySuccess, respond } from '../../framework/reply';
 import type { ComponentHandler, ComponentInteraction, HandlerCtx, SlashCommand } from '../../framework/types';
 
 type MentionMode = (typeof marketing.MENTION_MODES)[number];
 type AnnouncementType = (typeof marketing.ANNOUNCEMENT_TYPES)[number];
+const T = marketing.MarketingText;
 
 const MENTION_CODES: Record<MentionMode, string> = { NONE: 'N', HERE: 'H', EVERYONE: 'E', ROLE: 'R' };
 const MENTION_FROM_CODE = Object.fromEntries(Object.entries(MENTION_CODES).map(([k, v]) => [v, k])) as Record<
@@ -121,13 +122,13 @@ const scheduleData = new SlashCommandBuilder()
 function contentModal(customId: string, title: string, prefill?: { title?: string; body?: string }) {
   const titleInput = new TextInputBuilder()
     .setCustomId('title')
-    .setLabel('Title')
+    .setLabel(T.annModalTitleLabel().slice(0, 45))
     .setStyle(TextInputStyle.Short)
     .setMaxLength(256)
     .setRequired(true);
   const bodyInput = new TextInputBuilder()
     .setCustomId('body')
-    .setLabel('Body')
+    .setLabel(T.annModalBodyLabel().slice(0, 45))
     .setStyle(TextInputStyle.Paragraph)
     .setMaxLength(4000)
     .setRequired(true);
@@ -135,14 +136,14 @@ function contentModal(customId: string, title: string, prefill?: { title?: strin
   if (prefill?.body) bodyInput.setValue(truncate(prefill.body, 4000));
   return new ModalBuilder()
     .setCustomId(customId)
-    .setTitle(title)
+    .setTitle(title.slice(0, 45))
     .addComponents(
       new ActionRowBuilder<TextInputBuilder>().addComponents(titleInput),
       new ActionRowBuilder<TextInputBuilder>().addComponents(bodyInput),
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder()
           .setCustomId('image')
-          .setLabel('Image URL (https, optional)')
+          .setLabel(T.annModalImageLabel().slice(0, 45))
           .setStyle(TextInputStyle.Short)
           .setMaxLength(1000)
           .setRequired(false),
@@ -150,7 +151,7 @@ function contentModal(customId: string, title: string, prefill?: { title?: strin
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder()
           .setCustomId('color')
-          .setLabel('Colour (hex, optional)')
+          .setLabel(T.annModalColorLabel().slice(0, 45))
           .setStyle(TextInputStyle.Short)
           .setMaxLength(7)
           .setRequired(false)
@@ -181,16 +182,21 @@ async function showPreview(
       ? (i.guild.roles.cache.get(a.mentionRoleId)?.members.size ?? null)
       : null;
   const p = await marketing.previewAnnouncement(h.ctx, id, { roleMemberCount });
-  const when = epoch ? `scheduled for ${discordTimestamp(new Date(epoch * 1000), 'F')}` : 'published now';
-  const header = `**Preview** · <#${p.channelId}> · will be ${when}${p.warning ? `\n⚠️ ${p.warning}` : ''}\n\n${p.payload.content ? `Message text: \`${p.payload.content}\`` : ''}`;
+  const when = epoch
+    ? T.previewWhenScheduled({ time: discordTimestamp(new Date(epoch * 1000), 'F') })
+    : T.previewWhenNow();
+  const header = `${T.previewHeader({ channel: `<#${p.channelId}>`, when })}${p.warning ? `\n${T.previewWarningLine({ warning: p.warning })}` : ''}\n\n${p.payload.content ? T.previewMessageText({ content: p.payload.content }) : ''}`;
   const components = withControls
     ? [
         new ActionRowBuilder<ButtonBuilder>().addComponents(
           new ButtonBuilder()
             .setCustomId(confirmId(p.id, p.version, epoch, 1))
-            .setLabel(epoch ? 'Schedule' : 'Publish now')
+            .setLabel(epoch ? T.btnSchedule() : T.btnPublishNow())
             .setStyle(ButtonStyle.Primary),
-          new ButtonBuilder().setCustomId('ann:dismiss').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder()
+            .setCustomId('ann:dismiss')
+            .setLabel(T.btnCancel())
+            .setStyle(ButtonStyle.Secondary),
         ),
       ]
     : [];
@@ -217,7 +223,7 @@ async function idAutocomplete(i: Parameters<NonNullable<SlashCommand['autocomple
           .filter((t) => t.name.toLowerCase().includes(q))
           .slice(0, 25)
           .map((t) => ({
-            name: truncate(`${t.name} (${marketing.ANNOUNCEMENT_TYPE_LABELS[t.type]})`, 100),
+            name: truncate(`${t.name} (${marketing.announcementTypeLabel(t.type)})`, 100),
             value: t.id,
           })),
       );
@@ -252,19 +258,18 @@ export const announceCommand: SlashCommand = {
       const role = i.options.getRole('role');
       const type = i.options.getString('type') as AnnouncementType | null;
       const templateId = i.options.getString('template');
-      if (mention === 'ROLE' && !role)
-        throw new AppError('VALIDATION', 'Pick the role to ping with the `role` option.');
+      if (mention === 'ROLE' && !role) throw new AppError('VALIDATION', T.roleOptionRequired());
       let prefill: { title?: string; body?: string } | undefined;
       let tplType: AnnouncementType | undefined;
       if (templateId) {
         const tpl = (await marketing.listTemplates(h.ctx)).find((t) => t.id === templateId);
-        if (!tpl) throw new AppError('NOT_FOUND', 'Template was not found.');
+        if (!tpl) throw new AppError('NOT_FOUND', T.templateNotFound());
         prefill = { title: tpl.title, body: tpl.body };
         tplType = tpl.type;
       }
       const typeIdx = marketing.ANNOUNCEMENT_TYPES.indexOf(type ?? tplType ?? 'GENERAL');
       const customId = `ann:create:${channel?.id ?? '-'}:${MENTION_CODES[mention]}:${mention === 'ROLE' ? role!.id : '-'}:${typeIdx}`;
-      await i.showModal(contentModal(customId, 'New announcement', prefill));
+      await i.showModal(contentModal(customId, T.annModalTitleNew(), prefill));
       return;
     }
     if (sub === 'preview' || sub === 'publish') {
@@ -279,7 +284,7 @@ export const announceCommand: SlashCommand = {
     }
     if (sub === 'cancel') {
       const a = await marketing.cancelAnnouncement(h.ctx, i.options.getString('id', true));
-      await replySuccess(i, 'Announcement cancelled', `“${truncate(a.title, 200)}” will not be posted.`);
+      await replySuccess(i, T.cancelledTitle(), T.cancelledBody({ title: truncate(a.title, 200) }));
       return;
     }
     if (sub === 'list') {
@@ -289,20 +294,18 @@ export const announceCommand: SlashCommand = {
           `\`${a.id}\` · **${truncate(a.title, 60)}** · ${a.status.toLowerCase()}${a.scheduledFor && a.status === 'SCHEDULED' ? ` · ${discordTimestamp(a.scheduledFor, 'f')}` : ''}${a.publishedAt ? ` · ${discordTimestamp(a.publishedAt, 'R')}` : ''}`,
       );
       await respond(i, {
-        embeds: [
-          brandEmbed({ title: 'Announcements', description: lines.join('\n') || 'No announcements yet.' }),
-        ],
+        embeds: [brandEmbed({ title: T.listTitle(), description: lines.join('\n') || T.listEmpty() })],
       });
       return;
     }
     if (sub === 'templates') {
       const templates = await marketing.listTemplates(h.ctx);
-      const lines = templates.map((t) => `**${t.name}** · ${marketing.ANNOUNCEMENT_TYPE_LABELS[t.type]}`);
+      const lines = templates.map((t) => `**${t.name}** · ${marketing.announcementTypeLabel(t.type)}`);
       await respond(i, {
         embeds: [
           brandEmbed({
-            title: 'Announcement templates',
-            description: `${lines.join('\n')}\n\nUse \`/announce create template:\` to start from one.`,
+            title: T.templatesTitle(),
+            description: `${lines.join('\n')}\n\n${T.templatesHint()}`,
           }),
         ],
       });
@@ -327,7 +330,7 @@ export const scheduleCommand: SlashCommand = {
     }
     const channel = i.options.getChannel('channel');
     await i.showModal(
-      contentModal(`ann:createsched:${channel?.id ?? '-'}:${epoch}`, 'Schedule an announcement'),
+      contentModal(`ann:createsched:${channel?.id ?? '-'}:${epoch}`, T.annModalTitleSchedule()),
     );
   },
 };
@@ -353,12 +356,12 @@ export const announceComponents: ComponentHandler = {
         type: marketing.ANNOUNCEMENT_TYPES[Number(typeIdx)] ?? 'GENERAL',
       });
       await respond(i, {
-        content: `Draft saved: \`${a.id}\`. Preview it before publishing.`,
+        content: T.draftSaved({ id: a.id }),
         components: [
           new ActionRowBuilder<ButtonBuilder>().addComponents(
             new ButtonBuilder()
               .setCustomId(`ann:preview:${a.id}`)
-              .setLabel('Preview')
+              .setLabel(T.btnPreview())
               .setStyle(ButtonStyle.Primary),
           ),
         ],
@@ -378,17 +381,17 @@ export const announceComponents: ComponentHandler = {
       // New announcements created here never ping; show the normal confirmation step.
       const runAt = new Date(Number(epochStr) * 1000);
       await respond(i, {
-        content: `Draft saved: \`${a.id}\`. Confirm to schedule it for ${discordTimestamp(runAt, 'F')}.`,
+        content: T.draftSavedSchedule({ id: a.id, time: discordTimestamp(runAt, 'F') }),
         embeds: (await marketing.previewAnnouncement(h.ctx, a.id)).payload.embeds ?? [],
         components: [
           new ActionRowBuilder<ButtonBuilder>().addComponents(
             new ButtonBuilder()
               .setCustomId(confirmId(a.id, a.version, Number(epochStr), 1))
-              .setLabel('Schedule')
+              .setLabel(T.btnSchedule())
               .setStyle(ButtonStyle.Primary),
             new ButtonBuilder()
               .setCustomId('ann:dismiss')
-              .setLabel('Keep as draft')
+              .setLabel(T.btnKeepDraft())
               .setStyle(ButtonStyle.Secondary),
           ),
         ],
@@ -407,26 +410,21 @@ export const announceComponents: ComponentHandler = {
       const epoch = Number(epochStr);
       // Re-validated server-side: permission, version unchanged, mention rights.
       const p = await marketing.previewAnnouncement(h.ctx, id);
-      if (p.version !== version)
-        throw new AppError('CONFLICT', 'This announcement was edited after this preview. Preview it again.');
+      if (p.version !== version) throw new AppError('CONFLICT', T.previewOutdated());
       if (p.requiresMentionConfirmation && stage !== '2') {
-        if (!p.canMassMention)
-          throw new AppError(
-            'FORBIDDEN',
-            'You need the mass-mention permission to ping @everyone, @here or roles.',
-          );
+        if (!p.canMassMention) throw new AppError('FORBIDDEN', T.massMentionRequired());
         await i.update({
-          content: `⚠️ **Second confirmation required**\n${p.warning}\n\nAre you sure?`,
+          content: T.secondConfirm({ warning: p.warning ?? '' }),
           allowedMentions: { parse: [] },
           components: [
             new ActionRowBuilder<ButtonBuilder>().addComponents(
               new ButtonBuilder()
                 .setCustomId(confirmId(id, version, epoch, 2))
-                .setLabel('Yes, notify members')
+                .setLabel(T.btnConfirmNotify())
                 .setStyle(ButtonStyle.Danger),
               new ButtonBuilder()
                 .setCustomId('ann:dismiss')
-                .setLabel('Cancel')
+                .setLabel(T.btnCancel())
                 .setStyle(ButtonStyle.Secondary),
             ),
           ],
@@ -436,8 +434,8 @@ export const announceComponents: ComponentHandler = {
       const a = await queue(h.ctx, id, version, epoch, stage === '2');
       await i.update({
         content: epoch
-          ? `✅ Scheduled for ${discordTimestamp(a.scheduledFor ?? new Date(epoch * 1000), 'F')}. Use \`/announce cancel\` to stop it.`
-          : '✅ Queued — it will be posted within a few seconds.',
+          ? T.scheduledDone({ time: discordTimestamp(a.scheduledFor ?? new Date(epoch * 1000), 'F') })
+          : T.queuedDone(),
         allowedMentions: { parse: [] },
         components: [],
       });
@@ -446,7 +444,7 @@ export const announceComponents: ComponentHandler = {
 
     if (action === 'dismiss' && i.isButton()) {
       await i.update({
-        content: 'Cancelled. Nothing was posted.',
+        content: T.dismissed(),
         embeds: [],
         components: [],
         allowedMentions: { parse: [] },
@@ -454,6 +452,6 @@ export const announceComponents: ComponentHandler = {
       return;
     }
 
-    if (i.isRepliable()) await respond(i, { content: 'This control is no longer active.' });
+    if (i.isRepliable()) await respond(i, { content: CoreText.controlExpired() });
   },
 };

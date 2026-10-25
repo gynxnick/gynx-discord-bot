@@ -10,8 +10,9 @@ import { brandEmbed } from '../core/render';
 import type { Finding } from './analyzers';
 import type { SearchHit } from './articles';
 import { supportText } from './common';
-import { UPLOAD_WARNING, type DiagnosisOutcome } from './diagnostics';
+import type { DiagnosisOutcome } from './diagnostics';
 import type { ArticleRef, StepView } from './flows';
+import { TroubleshootingText as T } from './texts';
 
 /**
  * Component customIds (prefixes owned by this module):
@@ -32,7 +33,10 @@ const button = (custom_id: string, label: string, style: 1 | 2 | 3 | 4 = 2): API
 });
 
 export function supportRow(supportUrl: string | null, extra: APIButtonComponent[] = []): Row[] {
-  const buttons = [...extra, ...(supportUrl ? [linkButton('Contact support', supportUrl)] : [])].slice(0, 5);
+  const buttons = [...extra, ...(supportUrl ? [linkButton(T.contactSupportButton(), supportUrl)] : [])].slice(
+    0,
+    5,
+  );
   return buttons.length ? [{ type: 1, components: buttons }] : [];
 }
 
@@ -44,37 +48,37 @@ export function articleEmbed(a: KnowledgeArticle, supportUrl: string | null): AP
     description: truncate(`${a.body}\n\n${supportText(supportUrl)}`, 4000),
     footer:
       votes > 0
-        ? `${Math.round((a.helpfulYes / votes) * 100)}% found this helpful · general guidance, not a guarantee`
-        : 'General guidance — your setup may differ',
+        ? T.articleFooterRated({ percent: Math.round((a.helpfulYes / votes) * 100) })
+        : T.articleFooterUnrated(),
   });
 }
 
 export function articleComponents(a: KnowledgeArticle, supportUrl: string | null): Row[] {
   const row: APIButtonComponent[] = [
-    button(`tskb:vote:${a.id}:y`, 'This helped', 3),
-    button(`tskb:vote:${a.id}:n`, 'Still stuck', 2),
+    button(`tskb:vote:${a.id}:y`, T.helpedButton(), 3),
+    button(`tskb:vote:${a.id}:n`, T.stillStuckButton(), 2),
   ];
-  if (a.url) row.push(linkButton('Open full article', a.url));
+  if (a.url) row.push(linkButton(T.openArticleButton(), a.url));
   return supportRow(supportUrl, row);
 }
 
 export function searchResultsEmbed(query: string, hits: SearchHit[], total: number): APIEmbed {
   if (hits.length === 0) {
     return brandEmbed({
-      title: 'Knowledge base',
-      description: `No articles matched **${truncate(query, 80)}**. Try fewer or different words, use \`/troubleshoot\` for a guided check, or contact the support team.`,
+      title: T.searchTitle(),
+      description: T.searchNoResults({ query: truncate(query, 80) }),
       color: EMBED_COLORS.neutral,
     });
   }
   return brandEmbed({
-    title: `Knowledge base · ${total} result${total === 1 ? '' : 's'}`,
+    title: T.searchResultsTitle({ count: total, plural: total === 1 ? '' : 's' }),
     description: hits
       .map(
         (h, i) =>
           `**${i + 1}. ${h.article.url ? `[${h.article.title}](${h.article.url})` : h.article.title}**\n${truncate(h.article.summary, 200)}`,
       )
       .join('\n\n'),
-    footer: 'Press a button to read an article here.',
+    footer: T.searchResultsFooter(),
   });
 }
 
@@ -93,15 +97,14 @@ export function searchResultsComponents(hits: SearchHit[]): Row[] {
 export function flowPickerEmbed(flows: TroubleshootingFlow[]): APIEmbed {
   if (!flows.length) {
     return brandEmbed({
-      title: 'Troubleshooting',
-      description:
-        'No guided troubleshooting is available for that game yet. Try `/knowledge-search` or `/diagnose` with your log file.',
+      title: T.noFlowsTitle(),
+      description: T.noFlowsDescription(),
       color: EMBED_COLORS.neutral,
     });
   }
   return brandEmbed({
-    title: 'Guided troubleshooting',
-    description: 'Pick the problem that matches yours. Only you can see and answer these steps.',
+    title: T.flowPickerTitle(),
+    description: T.flowPickerDescription(),
     fields: flows.slice(0, 10).map((f) => ({ name: f.title, value: truncate(f.description, 200) })),
   });
 }
@@ -115,7 +118,7 @@ export function flowPickerComponents(flows: TroubleshootingFlow[]): Row[] {
         {
           type: 3,
           custom_id: 'tshoot:flow',
-          placeholder: 'Choose a problem…',
+          placeholder: T.flowPickerPlaceholder(),
           min_values: 1,
           max_values: 1,
           options: flows.slice(0, 25).map((f) => ({
@@ -136,22 +139,22 @@ export function stepEmbed(v: StepView): APIEmbed {
   if (v.kind === 'node') {
     return brandEmbed({
       title: v.flowTitle,
-      description: `${v.prompt}${v.hint ? `\n\n📄 Related: ${articleLine(v.hint)}` : ''}`,
+      description: `${v.prompt}${v.hint ? `\n\n${T.stepRelated({ article: articleLine(v.hint) })}` : ''}`,
     });
   }
   if (v.kind === 'resolved') {
     return brandEmbed({
-      title: v.article ? 'This should help' : 'Glad that’s sorted!',
+      title: v.article ? T.resolvedWithArticleTitle() : T.resolvedTitle(),
       color: EMBED_COLORS.success,
       description: v.article
-        ? `${articleLine(v.article)}\n\nIf this does not solve it, press **Still stuck**.`
-        : 'Great — you are all set. If the problem comes back, run `/troubleshoot` again.',
+        ? T.resolvedWithArticle({ article: articleLine(v.article) })
+        : T.resolvedDescription(),
     });
   }
   return brandEmbed({
-    title: 'Let’s get you to the support team',
+    title: T.escalatedTitle(),
     color: EMBED_COLORS.warning,
-    description: `${v.article ? `${articleLine(v.article)}\n\n` : ''}${supportText(v.supportUrl)}\nPlease include the game, what you tried in this guide, and any error messages.`,
+    description: `${v.article ? `${articleLine(v.article)}\n\n` : ''}${supportText(v.supportUrl)}\n${T.escalatedFlowHint()}`,
   });
 }
 
@@ -167,48 +170,53 @@ export function stepComponents(v: StepView): Row[] {
     ];
   }
   const articleBtn: APIButtonComponent[] = v.article
-    ? [button(`tskb:view:${v.article.slug}`, 'Read article', 1)]
+    ? [button(`tskb:view:${v.article.slug}`, T.readArticleButton(), 1)]
     : [];
   if (v.kind === 'resolved')
-    return [{ type: 1, components: [...articleBtn, button(`tshoot:esc:${v.sessionId}`, 'Still stuck', 2)] }];
+    return [
+      { type: 1, components: [...articleBtn, button(`tshoot:esc:${v.sessionId}`, T.stillStuckButton(), 2)] },
+    ];
   return supportRow(v.supportUrl, articleBtn);
 }
 
 export const escalatedEmbed = (supportUrl: string | null): APIEmbed =>
   brandEmbed({
-    title: 'Let’s get you to the support team',
+    title: T.escalatedTitle(),
     color: EMBED_COLORS.warning,
-    description: `${supportText(supportUrl)}\nPlease include the game, what you already tried, and any error messages. Never share passwords.`,
+    description: `${supportText(supportUrl)}\n${T.escalatedHint()}`,
   });
 
 const utcLabel = (d: Date) => `${d.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
 
 /** Shown before/alongside every upload. */
 export const uploadWarningEmbed = (): APIEmbed =>
-  brandEmbed({ title: 'Before you upload a log', description: UPLOAD_WARNING, color: EMBED_COLORS.warning });
+  brandEmbed({ title: T.uploadWarningTitle(), description: T.uploadWarning(), color: EMBED_COLORS.warning });
 
-const confidenceLabel = (c: Finding['confidence']) => (c === 'likely' ? 'Likely cause' : 'Possible cause');
+const diagnosisFooter = (o: DiagnosisOutcome) =>
+  T.diagnosisFooter({ warning: T.uploadWarning(), time: utcLabel(o.expiresAt) });
+
+const confidenceLabel = (c: Finding['confidence']) => (c === 'likely' ? T.likelyCause() : T.possibleCause());
 
 export function diagnosisEmbed(o: DiagnosisOutcome, fileName: string): APIEmbed {
   if (o.findings.length === 0) {
     return brandEmbed({
-      title: 'No known issue detected',
+      title: T.noIssueTitle(),
       color: EMBED_COLORS.neutral,
-      description:
-        `I checked **${truncate(fileName, 80)}** against known ${o.game === 'unknown' ? '' : `${o.game} `}problems and did not find a match. ` +
-        'That does not mean the log is fine — it may be an issue I do not recognise yet.\n\n' +
-        'Try `/troubleshoot` or `/knowledge-search`, or press **Still stuck** to contact the support team.',
-      footer: `${UPLOAD_WARNING} Stored summary expires ${utcLabel(o.expiresAt)}.`,
+      description: T.noIssueDescription({
+        file: truncate(fileName, 80),
+        game: o.game === 'unknown' ? '' : `${o.game} `,
+      }),
+      footer: diagnosisFooter(o),
     });
   }
   return brandEmbed({
-    title: `Log analysis · ${o.findings.length} finding${o.findings.length === 1 ? '' : 's'}`,
-    description: `Results for **${truncate(fileName, 80)}**. These are likely causes based on known log patterns — not a confirmed diagnosis.`,
+    title: T.diagnosisTitle({ count: o.findings.length, plural: o.findings.length === 1 ? '' : 's' }),
+    description: T.diagnosisDescription({ file: truncate(fileName, 80) }),
     fields: o.findings.slice(0, 8).map((f) => ({
       name: `${confidenceLabel(f.confidence)}: ${f.title}`,
       value: truncate(`${f.explanation}\n\`\`\`\n${f.evidence.replace(/`/g, "'")}\n\`\`\``, 1024),
     })),
-    footer: `${UPLOAD_WARNING} Stored summary expires ${utcLabel(o.expiresAt)}.`,
+    footer: diagnosisFooter(o),
   });
 }
 
@@ -221,15 +229,17 @@ export function diagnosisComponents(o: DiagnosisOutcome): Row[] {
     {
       type: 1,
       components: [
-        button(`tsdiag:fb:${o.recordId}:y`, 'This helped', 3),
-        button(`tsdiag:fb:${o.recordId}:n`, 'Still stuck', 2),
+        button(`tsdiag:fb:${o.recordId}:y`, T.helpedButton(), 3),
+        button(`tsdiag:fb:${o.recordId}:n`, T.stillStuckButton(), 2),
       ],
     },
   ];
   if (slugs.length)
     rows.push({
       type: 1,
-      components: slugs.map((s) => button(`tskb:view:${s}`, `Guide: ${s.replace(/-/g, ' ')}`, 1)),
+      components: slugs.map((s) =>
+        button(`tskb:view:${s}`, T.guideButton({ guide: s.replace(/-/g, ' ') }), 1),
+      ),
     });
   return rows;
 }

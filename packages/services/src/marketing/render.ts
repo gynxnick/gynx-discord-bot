@@ -2,7 +2,8 @@ import type { APIActionRowComponent, APIComponentInMessageActionRow, APIEmbed } 
 import type { PartnerApplication } from '@gynx/database';
 import { EMBED_COLORS, discordTimestamp, neutraliseMentions, truncate } from '@gynx/shared';
 import { brandEmbed } from '../core/render';
-import { PARTNER_CATEGORY_LABELS, PARTNER_QUESTIONS } from './partners';
+import { PARTNER_QUESTIONS, partnerCategoryLabel, partnerQuestionLabel } from './partners';
+import { MarketingText as T } from './texts';
 
 const answersOf = (app: PartnerApplication): Record<string, string> =>
   app.answers && typeof app.answers === 'object' && !Array.isArray(app.answers)
@@ -13,16 +14,19 @@ const answersOf = (app: PartnerApplication): Record<string, string> =>
 export function partnerApplicationEmbed(app: PartnerApplication): APIEmbed {
   const answers = answersOf(app);
   return brandEmbed({
-    title: `Partner application ${app.ref} · ${PARTNER_CATEGORY_LABELS[app.category]}`,
+    title: T.reviewEmbedTitle({ ref: app.ref, category: partnerCategoryLabel(app.category) }),
     color: EMBED_COLORS.accent,
     fields: [
-      { name: 'Applicant', value: `<@${app.applicantId}> (\`${app.applicantId}\`)`, inline: true },
-      { name: 'Submitted', value: discordTimestamp(app.createdAt, 'R'), inline: true },
+      { name: T.reviewApplicant(), value: `<@${app.applicantId}> (\`${app.applicantId}\`)`, inline: true },
+      { name: T.reviewSubmitted(), value: discordTimestamp(app.createdAt, 'R'), inline: true },
       ...PARTNER_QUESTIONS[app.category]
         .filter((q) => answers[q.id])
-        .map((q) => ({ name: q.label, value: truncate(neutraliseMentions(String(answers[q.id])), 1000) })),
+        .map((q) => ({
+          name: partnerQuestionLabel(q),
+          value: truncate(neutraliseMentions(String(answers[q.id])), 1000),
+        })),
     ],
-    footer: 'Review with /partners review-queue or the dashboard.',
+    footer: T.reviewFooter(),
   });
 }
 
@@ -31,15 +35,15 @@ export function partnerStaffButtons(
   dashboardUrl?: string,
 ): APIActionRowComponent<APIComponentInMessageActionRow>[] {
   const buttons: APIComponentInMessageActionRow[] = [
-    { type: 2, style: 2, label: 'Start review', custom_id: `partner:start:${app.id}` },
-    { type: 2, style: 3, label: 'Approve', custom_id: `partner:approve:${app.id}` },
-    { type: 2, style: 4, label: 'Reject', custom_id: `partner:reject:${app.id}` },
+    { type: 2, style: 2, label: T.btnStartReview(), custom_id: `partner:start:${app.id}` },
+    { type: 2, style: 3, label: T.btnApprove(), custom_id: `partner:approve:${app.id}` },
+    { type: 2, style: 4, label: T.btnReject(), custom_id: `partner:reject:${app.id}` },
   ];
   if (dashboardUrl)
     buttons.push({
       type: 2,
       style: 5,
-      label: 'Open in dashboard',
+      label: T.btnOpenDashboard(),
       url: `${dashboardUrl}/partners/applications/${app.id}`,
     });
   return [{ type: 1, components: buttons }];
@@ -52,20 +56,14 @@ export function partnerDecisionEmbed(
 ): APIEmbed {
   const approved = app.status === 'APPROVED';
   return brandEmbed({
-    title: approved
-      ? `Your partner application ${app.ref} was approved`
-      : `Update on your partner application ${app.ref}`,
+    title: approved ? T.decisionApprovedTitle({ ref: app.ref }) : T.decisionUpdateTitle({ ref: app.ref }),
     color: approved ? EMBED_COLORS.success : EMBED_COLORS.neutral,
     description: [
-      approved
-        ? 'Welcome aboard! The GYNX.GG team will be in touch about next steps.'
-        : 'Thank you for your interest in partnering with GYNX.GG. We are unable to approve your application at this time.',
+      approved ? T.decisionApprovedBody() : T.decisionRejectedBody(),
       app.decisionNote
-        ? `\n**Note from the team:** ${truncate(neutraliseMentions(app.decisionNote), 1000)}`
+        ? `\n${T.decisionNote({ note: truncate(neutraliseMentions(app.decisionNote), 1000) })}`
         : '',
-      supportUrl
-        ? `\nQuestions? Contact the support team: ${supportUrl}`
-        : '\nQuestions? Contact the support team.',
+      supportUrl ? `\n${T.decisionContactUrl({ url: supportUrl })}` : `\n${T.decisionContact()}`,
     ].join('\n'),
   });
 }

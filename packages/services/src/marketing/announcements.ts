@@ -25,6 +25,7 @@ import {
   renderAnnouncement,
 } from './announcement-render';
 import { hexColor, publicHttpsUrl, snowflakeSchema } from './common';
+import { MarketingText as T } from './texts';
 
 export const ANNOUNCEMENT_PUBLISH_JOB = 'marketing.announcement.publish';
 export const announcementJobKey = (id: string, version: number) => `announcement:${id}:v${version}`;
@@ -142,7 +143,7 @@ export async function createTemplate(ctx: Ctx, raw: z.input<typeof templateSchem
       return t;
     });
   } catch (e) {
-    if (isUniqueViolation(e)) throw conflict('A template with that name already exists.');
+    if (isUniqueViolation(e)) throw conflict(T.templateNameTaken());
     throw e;
   }
 }
@@ -168,7 +169,7 @@ export async function updateTemplate(ctx: Ctx, id: string, raw: Partial<z.input<
       return t;
     });
   } catch (e) {
-    if (isUniqueViolation(e)) throw conflict('A template with that name already exists.');
+    if (isUniqueViolation(e)) throw conflict(T.templateNameTaken());
     throw e;
   }
 }
@@ -214,9 +215,8 @@ export const updateAnnouncementSchema = announcementFields.partial();
 export type UpdateAnnouncementInput = z.input<typeof updateAnnouncementSchema>;
 
 function checkMentionShape(mention: string, roleId: string | null | undefined, guildId: string) {
-  if (mention === 'ROLE' && !roleId) throw validation('Choose a role to mention.');
-  if (mention === 'ROLE' && roleId === guildId)
-    throw validation('Use the @everyone mention mode instead of the @everyone role.');
+  if (mention === 'ROLE' && !roleId) throw validation(T.mentionChooseRole());
+  if (mention === 'ROLE' && roleId === guildId) throw validation(T.mentionEveryoneRole());
 }
 
 export async function createAnnouncement(ctx: Ctx, raw: CreateAnnouncementInput): Promise<Announcement> {
@@ -233,9 +233,9 @@ export async function createAnnouncement(ctx: Ctx, raw: CreateAnnouncementInput)
   }
   const title = input.title ?? tpl?.title;
   const body = input.body ?? tpl?.body;
-  if (!title || !body) throw validation('A title and body are required.');
+  if (!title || !body) throw validation(T.titleBodyRequired());
   const channelId = input.channelId ?? cfg.announcementChannelId;
-  if (!channelId) throw validation('Choose a channel (no default announcement channel is configured).');
+  if (!channelId) throw validation(T.channelRequired());
   const mention = input.mention ?? 'NONE';
   const mentionRoleId = mention === 'ROLE' ? (input.mentionRoleId ?? null) : null;
   checkMentionShape(mention, mentionRoleId, ctx.guildId);
@@ -319,7 +319,7 @@ async function requireMentionPermission(
     result: 'DENIED',
     metadata: { mention },
   });
-  throw new AppError('FORBIDDEN', 'You need the mass-mention permission to ping @everyone, @here or roles.');
+  throw new AppError('FORBIDDEN', T.massMentionRequired());
 }
 
 const EDITABLE: readonly AnnouncementStatus[] = ['DRAFT', 'SCHEDULED', 'FAILED', 'CANCELLED'];
@@ -340,9 +340,8 @@ export async function updateAnnouncement(
   await requireModule(ctx, 'announcements');
   const input = updateAnnouncementSchema.parse(raw);
   const a = await loadAnnouncement(ctx, id);
-  if (!EDITABLE.includes(a.status)) throw invalidState('This announcement can no longer be edited.');
-  if (expectedVersion !== undefined && expectedVersion !== a.version)
-    throw conflict('This announcement changed in the meantime. Reload and try again.');
+  if (!EDITABLE.includes(a.status)) throw invalidState(T.notEditable());
+  if (expectedVersion !== undefined && expectedVersion !== a.version) throw conflict(T.changedReload());
 
   const mention = input.mention ?? a.mention;
   const mentionRoleId =
@@ -367,7 +366,7 @@ export async function updateAnnouncement(
         ...(scheduled ? { publishedById: ctx.actor.userId } : {}),
       },
     });
-    if (res.count === 0) throw conflict('This announcement changed in the meantime. Reload and try again.');
+    if (res.count === 0) throw conflict(T.changedReload());
     if (scheduled && a.scheduledFor) {
       await cancelJob(tx, announcementJobKey(id, a.version));
       await enqueueJob(tx, {
@@ -396,11 +395,10 @@ export async function updateAnnouncement(
 export async function deleteAnnouncement(ctx: Ctx, id: string): Promise<void> {
   await requirePermission(ctx, 'announcements.create');
   const a = await loadAnnouncement(ctx, id);
-  if (!['DRAFT', 'CANCELLED', 'FAILED'].includes(a.status))
-    throw invalidState('Only drafts, cancelled or failed announcements can be deleted.');
+  if (!['DRAFT', 'CANCELLED', 'FAILED'].includes(a.status)) throw invalidState(T.notDeletable());
   await ctx.db.$transaction(async (tx) => {
     const r = await tx.announcement.deleteMany({ where: { id, status: a.status, version: a.version } });
-    if (r.count === 0) throw conflict('This announcement changed in the meantime.');
+    if (r.count === 0) throw conflict(T.changed());
     await audit(
       ctx,
       {
@@ -480,19 +478,13 @@ async function queueAnnouncement(
   await requireModule(ctx, 'announcements');
   const a = await loadAnnouncement(ctx, id);
   if (!QUEUEABLE.includes(a.status))
-    throw invalidState(
-      a.status === 'PUBLISHED'
-        ? 'This announcement was already published.'
-        : 'This announcement is being published right now.',
-    );
+    throw invalidState(a.status === 'PUBLISHED' ? T.alreadyPublished() : T.publishingNow());
   if (opts.expectedVersion !== undefined && opts.expectedVersion !== a.version) {
-    throw conflict(
-      'This announcement was edited after you previewed it. Preview it again before publishing.',
-    );
+    throw conflict(T.editedSincePreview());
   }
   await requireMentionPermission(ctx, a.mention, id);
   if (a.mention !== 'NONE' && !opts.confirmMentions) {
-    throw validation('This announcement pings members. Confirm the mention warning to continue.');
+    throw validation(T.confirmMentions());
   }
   checkMentionShape(a.mention, a.mentionRoleId, ctx.guildId);
 
@@ -507,7 +499,7 @@ async function queueAnnouncement(
         publishedById: ctx.actor.userId,
       },
     });
-    if (res.count === 0) throw conflict('This announcement changed in the meantime. Preview it again.');
+    if (res.count === 0) throw conflict(T.changedPreviewAgain());
     await cancelJob(tx, announcementJobKey(id, a.version));
     await enqueueJob(tx, {
       type: ANNOUNCEMENT_PUBLISH_JOB,
@@ -567,11 +559,9 @@ export async function scheduleAnnouncement(
 
 /** Validate that a UTC instant is an acceptable schedule time. */
 export function assertSchedulable(runAt: Date, now: Date): void {
-  if (Number.isNaN(runAt.getTime())) throw validation('That time is not valid.');
-  if (runAt.getTime() < now.getTime() + 60_000)
-    throw validation('Pick a time at least one minute in the future.');
-  if (runAt.getTime() > now.getTime() + MAX_SCHEDULE_AHEAD_MS)
-    throw validation('Announcements can be scheduled at most a year ahead.');
+  if (Number.isNaN(runAt.getTime())) throw validation(T.scheduleInvalidTime());
+  if (runAt.getTime() < now.getTime() + 60_000) throw validation(T.scheduleTooSoon());
+  if (runAt.getTime() > now.getTime() + MAX_SCHEDULE_AHEAD_MS) throw validation(T.scheduleTooFar());
 }
 
 /** Schedule at an already-resolved UTC instant (e.g. from a confirmation button). */
@@ -589,17 +579,13 @@ export async function cancelAnnouncement(ctx: Ctx, id: string): Promise<Announce
   await requirePermission(ctx, 'announcements.publish', 'announcements.cancel');
   const a = await loadAnnouncement(ctx, id);
   if (a.status !== 'SCHEDULED')
-    throw invalidState(
-      a.status === 'PUBLISHING'
-        ? 'This announcement is being published right now and can no longer be cancelled.'
-        : 'Only scheduled announcements can be cancelled.',
-    );
+    throw invalidState(a.status === 'PUBLISHING' ? T.cancelPublishing() : T.cancelNotScheduled());
   return ctx.db.$transaction(async (tx) => {
     const res = await tx.announcement.updateMany({
       where: { id, status: 'SCHEDULED', version: a.version },
       data: { status: 'CANCELLED' },
     });
-    if (res.count === 0) throw conflict('This announcement changed in the meantime.');
+    if (res.count === 0) throw conflict(T.changed());
     await cancelJob(tx, announcementJobKey(id, a.version));
     await audit(
       ctx,

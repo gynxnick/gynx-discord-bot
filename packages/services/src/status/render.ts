@@ -10,6 +10,7 @@ import type {
   PublicStatus,
   UptimeRow,
 } from './public';
+import { StatusText } from './texts';
 
 /**
  * Member-facing renderers. They only accept public projections, so monitoring
@@ -24,38 +25,81 @@ export const STATE_EMOJI: Record<ServiceState, string> = {
   UNKNOWN: '⚪',
 };
 
-export const STATE_LABEL: Record<ServiceState, string> = {
-  OPERATIONAL: 'Operational',
-  DEGRADED: 'Degraded performance',
-  OUTAGE: 'Outage',
-  MAINTENANCE: 'Under maintenance',
-  UNKNOWN: 'Status unknown',
-};
+/** Service state label, resolved at call time so server overrides apply. */
+export function stateLabel(state: ServiceState): string {
+  switch (state) {
+    case 'OPERATIONAL':
+      return StatusText.stateOperational();
+    case 'DEGRADED':
+      return StatusText.stateDegraded();
+    case 'OUTAGE':
+      return StatusText.stateOutage();
+    case 'MAINTENANCE':
+      return StatusText.stateMaintenance();
+    default:
+      return StatusText.stateUnknown();
+  }
+}
 
-export const INCIDENT_STATUS_LABEL: Record<IncidentStatus, string> = {
-  INVESTIGATING: 'Investigating',
-  IDENTIFIED: 'Identified',
-  MONITORING: 'Monitoring',
-  RESOLVED: 'Resolved',
-};
+export function incidentStatusLabel(s: IncidentStatus): string {
+  switch (s) {
+    case 'INVESTIGATING':
+      return StatusText.incidentInvestigating();
+    case 'IDENTIFIED':
+      return StatusText.incidentIdentified();
+    case 'MONITORING':
+      return StatusText.incidentMonitoring();
+    default:
+      return StatusText.incidentResolved();
+  }
+}
 
+export function severityLabel(s: IncidentSeverity): string {
+  switch (s) {
+    case 'MINOR':
+      return StatusText.severityMinor();
+    case 'MAJOR':
+      return StatusText.severityMajor();
+    default:
+      return StatusText.severityCritical();
+  }
+}
+
+/**
+ * Default severity names, only for slash-command choices (registered statically
+ * with Discord, so not editable). Everything rendered uses `severityLabel()`.
+ */
 export const SEVERITY_LABEL: Record<IncidentSeverity, string> = {
   MINOR: 'Minor',
   MAJOR: 'Major',
   CRITICAL: 'Critical',
 };
 
-const OVERALL: Record<OverallState, { text: string; color: number }> = {
-  OPERATIONAL: { text: '🟢 All systems operational', color: EMBED_COLORS.success },
-  DEGRADED: { text: '🟡 Some systems are experiencing degraded performance', color: EMBED_COLORS.warning },
-  OUTAGE: { text: '🔴 Some systems are experiencing an outage', color: EMBED_COLORS.danger },
-  MAINTENANCE: { text: '🔧 Scheduled maintenance in progress', color: EMBED_COLORS.primary },
-  UNKNOWN: {
-    text: '⚪ Status is not available yet — checks are still starting up',
-    color: EMBED_COLORS.neutral,
-  },
-  NO_SERVICES: { text: '⚪ No services are being monitored publicly yet', color: EMBED_COLORS.neutral },
+const OVERALL_COLOR: Record<OverallState, number> = {
+  OPERATIONAL: EMBED_COLORS.success,
+  DEGRADED: EMBED_COLORS.warning,
+  OUTAGE: EMBED_COLORS.danger,
+  MAINTENANCE: EMBED_COLORS.primary,
+  UNKNOWN: EMBED_COLORS.neutral,
+  NO_SERVICES: EMBED_COLORS.neutral,
 };
+
+function overallText(o: OverallState): string {
+  switch (o) {
+    case 'OPERATIONAL':
+      return StatusText.overallOperational();
+    case 'DEGRADED':
+      return StatusText.overallDegraded();
+    case 'OUTAGE':
+      return StatusText.overallOutage();
+    case 'MAINTENANCE':
+      return StatusText.overallMaintenance();
+    case 'UNKNOWN':
+      return StatusText.overallUnknown();
+    default:
+      return StatusText.overallNoServices();
+  }
+}
 
 const STATE_COLOR: Record<ServiceState, number> = {
   OPERATIONAL: EMBED_COLORS.success,
@@ -66,14 +110,16 @@ const STATE_COLOR: Record<ServiceState, number> = {
 };
 
 export const serviceLine = (s: PublicService) =>
-  `${STATE_EMOJI[s.state]} **${s.name}**${s.region ? ` · ${s.region}` : ''} — ${STATE_LABEL[s.state]}`;
+  `${STATE_EMOJI[s.state]} **${s.name}**${s.region ? ` · ${s.region}` : ''} — ${stateLabel(s.state)}`;
 
 const incidentLine = (i: PublicIncident) =>
-  `**${i.ref}** · ${truncate(i.title, 80)} · ${INCIDENT_STATUS_LABEL[i.status]} · ${SEVERITY_LABEL[i.severity]} · since ${discordTimestamp(i.startedAt, 'R')}`;
+  `**${i.ref}** · ${truncate(i.title, 80)} · ${incidentStatusLabel(i.status)} · ${severityLabel(i.severity)} · ${StatusText.incidentSince({ time: discordTimestamp(i.startedAt, 'R') })}`;
 
 const maintenanceLine = (m: PublicMaintenance) =>
-  `🔧 **${truncate(m.title, 80)}** · ${discordTimestamp(m.startsAt, 'f')} → ${discordTimestamp(m.endsAt, 't')}${m.status === 'IN_PROGRESS' ? ' · in progress' : ''}${
-    m.services.length ? `\n   Affects: ${m.services.map((s) => s.name).join(', ')}` : ''
+  `🔧 **${truncate(m.title, 80)}** · ${discordTimestamp(m.startsAt, 'f')} → ${discordTimestamp(m.endsAt, 't')}${m.status === 'IN_PROGRESS' ? ` · ${StatusText.maintenanceInProgress()}` : ''}${
+    m.services.length
+      ? `\n   ${StatusText.maintenanceAffects({ services: m.services.map((s) => s.name).join(', ') })}`
+      : ''
   }`;
 
 /** Join lines but stay under Discord's field limit. */
@@ -82,7 +128,7 @@ function joinCapped(lines: string[], max = 1000): string {
   let len = 0;
   for (const [idx, l] of lines.entries()) {
     if (len + l.length + 1 > max - 20) {
-      out.push(`…and ${lines.length - idx} more`);
+      out.push(StatusText.listMore({ count: lines.length - idx }));
       break;
     }
     out.push(l);
@@ -92,28 +138,29 @@ function joinCapped(lines: string[], max = 1000): string {
 }
 
 export function statusPageEmbed(s: PublicStatus): APIEmbed {
-  const o = OVERALL[s.overall];
   return brandEmbed({
-    title: 'GYNX.GG Service Status',
-    color: o.color,
-    description: o.text,
+    title: StatusText.pageTitle(),
+    color: OVERALL_COLOR[s.overall],
+    description: overallText(s.overall),
     fields: [
       {
-        name: 'Services',
-        value: s.services.length ? joinCapped(s.services.map(serviceLine)) : 'No public services configured.',
+        name: StatusText.pageServicesField(),
+        value: s.services.length ? joinCapped(s.services.map(serviceLine)) : StatusText.pageNoServices(),
       },
       {
-        name: 'Active incidents',
-        value: s.activeIncidents.length ? joinCapped(s.activeIncidents.map(incidentLine)) : 'None',
+        name: StatusText.pageIncidentsField(),
+        value: s.activeIncidents.length
+          ? joinCapped(s.activeIncidents.map(incidentLine))
+          : StatusText.pageNoIncidents(),
       },
       {
-        name: 'Upcoming maintenance',
+        name: StatusText.pageMaintenanceField(),
         value: s.upcomingMaintenance.length
           ? joinCapped(s.upcomingMaintenance.slice(0, 3).map(maintenanceLine))
-          : 'None scheduled',
+          : StatusText.pageNoMaintenance(),
       },
     ],
-    footer: 'Status is checked automatically · Times shown in your local time zone',
+    footer: StatusText.pageFooter(),
     timestamp: s.generatedAt,
   });
 }
@@ -127,26 +174,33 @@ export function statusButtons(): APIActionRowComponent<APIComponentInMessageActi
         {
           type: 2,
           style: 1,
-          label: 'Notify me about incidents',
+          label: StatusText.buttonSubscribe(),
           custom_id: 'statusui:sub:all',
           emoji: { name: '🔔' },
         },
-        { type: 2, style: 2, label: 'Stop notifications', custom_id: 'statusui:unsub:all' },
-        { type: 2, style: 2, label: 'Incident history', custom_id: 'statusui:history:-' },
+        { type: 2, style: 2, label: StatusText.buttonUnsubscribe(), custom_id: 'statusui:unsub:all' },
+        { type: 2, style: 2, label: StatusText.buttonHistory(), custom_id: 'statusui:history:-' },
       ],
     },
   ];
 }
 
 export function uptimeEmbed(rows: UptimeRow[], days: number): APIEmbed {
-  const lines = rows.map(
-    (r) => `**${r.name}** — ${r.label}${r.totalChecks ? ` (${r.okChecks}/${r.totalChecks} checks)` : ''}`,
-  );
+  const lines = rows.map((r) => {
+    const line = StatusText.uptimeLine({
+      service: r.name,
+      uptime: r.uptimePct === null ? StatusText.uptimeNoData() : r.label,
+    });
+    return r.totalChecks
+      ? `${line} ${StatusText.uptimeChecks({ ok: r.okChecks, total: r.totalChecks })}`
+      : line;
+  });
   return brandEmbed({
-    title: `Uptime · last ${days === 1 ? '24 hours' : `${days} days`}`,
-    description: lines.length ? joinCapped(lines, 3900) : 'No public services are being monitored yet.',
-    footer:
-      'Uptime = successful checks ÷ total checks. "no data" means no checks were recorded in this period.',
+    title: StatusText.uptimeTitle({
+      period: days === 1 ? StatusText.uptimePeriod24h() : StatusText.uptimePeriodDays({ days }),
+    }),
+    description: lines.length ? joinCapped(lines, 3900) : StatusText.uptimeEmpty(),
+    footer: StatusText.uptimeFooter(),
   });
 }
 
@@ -162,29 +216,49 @@ export function incidentEmbed(i: PublicIncident): APIEmbed {
     .slice(0, 5)
     .map(
       (u) =>
-        `${discordTimestamp(u.createdAt, 'f')} · **${INCIDENT_STATUS_LABEL[u.status]}** — ${truncate(u.message, 300)}`,
+        `${discordTimestamp(u.createdAt, 'f')} · **${incidentStatusLabel(u.status)}** — ${truncate(u.message, 300)}`,
     );
+  const titleVars = { ref: i.ref, title: i.title };
   return brandEmbed({
-    title: `${i.status === 'RESOLVED' ? '✅' : '⚠️'} ${i.ref} · ${i.title}`,
+    title:
+      i.status === 'RESOLVED'
+        ? StatusText.incidentTitleResolved(titleVars)
+        : StatusText.incidentTitleOpen(titleVars),
     color: incidentColor(i),
     description: truncate(i.description, 1500),
     fields: [
-      { name: 'Status', value: INCIDENT_STATUS_LABEL[i.status], inline: true },
-      { name: 'Severity', value: SEVERITY_LABEL[i.severity], inline: true },
-      { name: 'Started', value: discordTimestamp(i.startedAt, 'f'), inline: true },
+      { name: StatusText.fieldStatus(), value: incidentStatusLabel(i.status), inline: true },
+      { name: StatusText.fieldSeverity(), value: severityLabel(i.severity), inline: true },
+      { name: StatusText.fieldStarted(), value: discordTimestamp(i.startedAt, 'f'), inline: true },
       ...(i.services.length
-        ? [{ name: 'Affected services', value: i.services.map((s) => s.name).join(', '), inline: false }]
+        ? [
+            {
+              name: StatusText.fieldAffectedServices(),
+              value: i.services.map((s) => s.name).join(', '),
+              inline: false,
+            },
+          ]
         : []),
-      ...(i.regions.length ? [{ name: 'Regions', value: i.regions.join(', '), inline: false }] : []),
+      ...(i.regions.length
+        ? [{ name: StatusText.fieldRegions(), value: i.regions.join(', '), inline: false }]
+        : []),
       ...(i.resolvedAt
-        ? [{ name: 'Resolved', value: discordTimestamp(i.resolvedAt, 'f'), inline: true }]
+        ? [{ name: StatusText.fieldResolved(), value: discordTimestamp(i.resolvedAt, 'f'), inline: true }]
         : []),
       ...(i.resolutionSummary
-        ? [{ name: 'Resolution', value: truncate(i.resolutionSummary, 1000), inline: false }]
+        ? [
+            {
+              name: StatusText.fieldResolution(),
+              value: truncate(i.resolutionSummary, 1000),
+              inline: false,
+            },
+          ]
         : []),
-      ...(timeline.length ? [{ name: 'Updates', value: joinCapped(timeline), inline: false }] : []),
+      ...(timeline.length
+        ? [{ name: StatusText.fieldUpdates(), value: joinCapped(timeline), inline: false }]
+        : []),
     ],
-    footer: 'GYNX.GG Incident',
+    footer: StatusText.incidentFooter(),
   });
 }
 
@@ -194,7 +268,7 @@ export function incidentUpdateEmbed(
   u: { status: IncidentStatus; message: string; createdAt: Date },
 ): APIEmbed {
   return brandEmbed({
-    title: `${i.ref} · ${INCIDENT_STATUS_LABEL[u.status]}`,
+    title: StatusText.incidentUpdateTitle({ ref: i.ref, status: incidentStatusLabel(u.status) }),
     color: u.status === 'RESOLVED' ? EMBED_COLORS.success : SEVERITY_COLORS[i.severity],
     description: truncate(u.message, 2000),
     timestamp: u.createdAt,
@@ -207,16 +281,25 @@ export function incidentDmEmbed(
   guildName?: string,
 ): APIEmbed {
   return brandEmbed({
-    title: `${i.ref} · ${truncate(i.title, 200)}`,
+    title: StatusText.dmTitle({ ref: i.ref, title: truncate(i.title, 200) }),
     color: incidentColor({ status: u.status, severity: i.severity }),
-    description: `**${INCIDENT_STATUS_LABEL[u.status]}** — ${truncate(u.message, 1500)}`,
+    description: StatusText.dmDescription({
+      status: incidentStatusLabel(u.status),
+      message: truncate(u.message, 1500),
+    }),
     fields: [
-      { name: 'Severity', value: SEVERITY_LABEL[i.severity], inline: true },
+      { name: StatusText.fieldSeverity(), value: severityLabel(i.severity), inline: true },
       ...(i.services.length
-        ? [{ name: 'Affected', value: i.services.map((s) => s.name).join(', '), inline: true }]
+        ? [
+            {
+              name: StatusText.dmFieldAffected(),
+              value: i.services.map((s) => s.name).join(', '),
+              inline: true,
+            },
+          ]
         : []),
     ],
-    footer: `You're receiving this because you subscribed to status updates${guildName ? ` in ${guildName}` : ''}. Use /subscribe-status remove to stop.`,
+    footer: guildName ? StatusText.dmFooterGuild({ guild: guildName }) : StatusText.dmFooter(),
     timestamp: u.createdAt,
   });
 }
@@ -228,32 +311,46 @@ export function alertEmbed(
 ): APIEmbed {
   const recovered =
     s.state === 'OPERATIONAL' && from !== null && from !== 'OPERATIONAL' && from !== 'UNKNOWN';
+  const service = { service: s.name };
   return brandEmbed({
-    title: `${STATE_EMOJI[s.state]} ${s.name} · ${recovered ? 'Recovered' : STATE_LABEL[s.state]}`,
+    title: StatusText.alertTitle({
+      emoji: STATE_EMOJI[s.state],
+      service: s.name,
+      state: recovered ? StatusText.alertRecovered() : stateLabel(s.state),
+    }),
     color: STATE_COLOR[s.state],
     description:
       s.state === 'OUTAGE'
-        ? `We're seeing problems with **${s.name}** and are looking into it.`
+        ? StatusText.alertOutage(service)
         : s.state === 'DEGRADED'
-          ? `**${s.name}** is responding slower than usual or partially impaired.`
-          : `**${s.name}** is operating normally again.`,
-    fields: s.region ? [{ name: 'Region', value: s.region, inline: true }] : [],
-    footer: 'Automatic status alert · /status for the full overview',
+          ? StatusText.alertDegraded(service)
+          : StatusText.alertOperational(service),
+    fields: s.region ? [{ name: StatusText.alertFieldRegion(), value: s.region, inline: true }] : [],
+    footer: StatusText.alertFooter(),
   });
 }
 
 export type MaintenancePhase = 'scheduled' | 'rescheduled' | 'started' | 'completed' | 'cancelled';
 
+function maintenanceTitle(phase: MaintenancePhase, title: string): string {
+  const vars = { title };
+  switch (phase) {
+    case 'scheduled':
+      return StatusText.maintenanceScheduledTitle(vars);
+    case 'rescheduled':
+      return StatusText.maintenanceRescheduledTitle(vars);
+    case 'started':
+      return StatusText.maintenanceStartedTitle(vars);
+    case 'completed':
+      return StatusText.maintenanceCompletedTitle(vars);
+    default:
+      return StatusText.maintenanceCancelledTitle(vars);
+  }
+}
+
 export function maintenanceEmbed(m: PublicMaintenance, phase: MaintenancePhase): APIEmbed {
-  const titles: Record<MaintenancePhase, string> = {
-    scheduled: '🔧 Scheduled maintenance',
-    rescheduled: '🔧 Maintenance rescheduled',
-    started: '🔧 Maintenance started',
-    completed: '✅ Maintenance completed',
-    cancelled: 'Maintenance cancelled',
-  };
   return brandEmbed({
-    title: `${titles[phase]} · ${truncate(m.title, 180)}`,
+    title: maintenanceTitle(phase, truncate(m.title, 180)),
     color:
       phase === 'completed'
         ? EMBED_COLORS.success
@@ -261,12 +358,18 @@ export function maintenanceEmbed(m: PublicMaintenance, phase: MaintenancePhase):
           ? EMBED_COLORS.neutral
           : EMBED_COLORS.primary,
     description:
-      phase === 'cancelled' ? 'This maintenance will not take place.' : truncate(m.description, 1500),
+      phase === 'cancelled' ? StatusText.maintenanceCancelledBody() : truncate(m.description, 1500),
     fields: [
-      { name: 'Starts', value: discordTimestamp(m.startsAt, 'F'), inline: true },
-      { name: 'Ends', value: discordTimestamp(m.endsAt, 'F'), inline: true },
+      { name: StatusText.fieldStarts(), value: discordTimestamp(m.startsAt, 'F'), inline: true },
+      { name: StatusText.fieldEnds(), value: discordTimestamp(m.endsAt, 'F'), inline: true },
       ...(m.services.length
-        ? [{ name: 'Affected services', value: m.services.map((s) => s.name).join(', '), inline: false }]
+        ? [
+            {
+              name: StatusText.fieldAffectedServices(),
+              value: m.services.map((s) => s.name).join(', '),
+              inline: false,
+            },
+          ]
         : []),
     ],
   });
@@ -279,22 +382,25 @@ export function incidentsListEmbed(
 ): APIEmbed {
   const resolvedLines = resolved.map(
     (i) =>
-      `**${i.ref}** · ${truncate(i.title, 80)} · ${SEVERITY_LABEL[i.severity]} · ${discordTimestamp(i.startedAt, 'd')}${i.resolvedAt ? ` → resolved ${discordTimestamp(i.resolvedAt, 'R')}` : ''}`,
+      `**${i.ref}** · ${truncate(i.title, 80)} · ${severityLabel(i.severity)} · ${discordTimestamp(i.startedAt, 'd')}${i.resolvedAt ? ` ${StatusText.incidentsResolvedAt({ time: discordTimestamp(i.resolvedAt, 'R') })}` : ''}`,
   );
   return brandEmbed({
-    title: 'Incidents',
+    title: StatusText.incidentsTitle(),
     fields: [
       ...(page === 0
         ? [
             {
-              name: 'Active',
-              value: active.length ? joinCapped(active.map(incidentLine)) : 'No active incidents 🎉',
+              name: StatusText.incidentsActiveField(),
+              value: active.length ? joinCapped(active.map(incidentLine)) : StatusText.incidentsNoActive(),
             },
           ]
         : []),
       {
-        name: page === 0 ? 'Recently resolved' : `Resolved · page ${page + 1}`,
-        value: resolvedLines.length ? joinCapped(resolvedLines) : 'No resolved incidents on record.',
+        name:
+          page === 0
+            ? StatusText.incidentsRecentField()
+            : StatusText.incidentsResolvedPageField({ page: page + 1 }),
+        value: resolvedLines.length ? joinCapped(resolvedLines) : StatusText.incidentsNoResolved(),
       },
     ],
   });

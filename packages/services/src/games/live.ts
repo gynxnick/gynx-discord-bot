@@ -13,6 +13,7 @@ import { requireRate } from '../core/authz';
 import { requireModule } from '../core/config';
 import type { Ctx } from '../core/context';
 import { getGame } from './registry';
+import { GamesText } from './texts';
 import { emptyInfo, type GameServerInfo } from './types';
 
 /**
@@ -38,8 +39,7 @@ export interface LiveNetOptions {
   timeoutMs?: number;
 }
 
-export const LIVE_DISABLED_MESSAGE =
-  'Live server checks are disabled: no authorized GYNX endpoints are configured on this bot (PORTCHECK_ALLOWED_SUFFIXES).';
+export { LIVE_DISABLED_MESSAGE } from './texts';
 
 export function parseAllowedSuffixes(raw: string | undefined | null): string[] {
   return (raw ?? '')
@@ -53,7 +53,7 @@ export const liveChecksEnabled = (opts: Pick<LiveNetOptions, 'allowedSuffixes'>)
 
 /** Authorize + resolve + pin. Throws INVALID_STATE when live checks are disabled. */
 export async function resolveGameTarget(host: string, opts: LiveNetOptions): Promise<SafeTarget> {
-  if (!liveChecksEnabled(opts)) throw new AppError('INVALID_STATE', LIVE_DISABLED_MESSAGE);
+  if (!liveChecksEnabled(opts)) throw new AppError('INVALID_STATE', GamesText.liveDisabled());
   return resolveSafeTarget(host, {
     allowedSuffixes: [...opts.allowedSuffixes],
     resolver: opts.resolver,
@@ -91,7 +91,7 @@ export async function queryServer(
   await requireModule(ctx, 'games');
   const input = queryServerSchema.parse(raw);
   const game = getGame(input.game);
-  if (!liveChecksEnabled(opts)) throw new AppError('INVALID_STATE', LIVE_DISABLED_MESSAGE);
+  if (!liveChecksEnabled(opts)) throw new AppError('INVALID_STATE', GamesText.liveDisabled());
   await requireRate(ctx, 'games.query', 5, 60);
   const target = await resolveGameTarget(input.host, opts);
   const ports = game.queryPorts(input.port);
@@ -101,7 +101,7 @@ export async function queryServer(
   if (!game.query || game.queryProtocol === 'none') {
     return {
       ...base,
-      info: emptyInfo(firstPort, `${game.name} has no public query protocol, so live data is unavailable.`),
+      info: emptyInfo(firstPort, GamesText.noQueryProtocol({ game: game.name })),
     };
   }
   const budget = opts.timeoutMs ?? 5000;
@@ -125,10 +125,7 @@ export async function queryServer(
   );
   return {
     ...base,
-    info: emptyInfo(
-      firstPort,
-      'The server did not answer the status query. It may be offline, starting up, or have queries disabled.',
-    ),
+    info: emptyInfo(firstPort, GamesText.serverNoAnswer()),
   };
 }
 
@@ -180,7 +177,7 @@ export async function portCheck(
 ): Promise<PortCheckOutcome> {
   await requireModule(ctx, 'games');
   const input = portCheckSchema.parse(raw);
-  if (!liveChecksEnabled(opts)) throw new AppError('INVALID_STATE', LIVE_DISABLED_MESSAGE);
+  if (!liveChecksEnabled(opts)) throw new AppError('INVALID_STATE', GamesText.liveDisabled());
   await requireRate(ctx, 'games.portcheck', 3, 300);
 
   let target: SafeTarget;

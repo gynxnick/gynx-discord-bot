@@ -1,6 +1,7 @@
 import type { APIEmbed } from 'discord-api-types/v10';
 import { formatDuration, formatInZone, truncate } from '@gynx/shared';
 import { brandEmbed } from '../core/render';
+import { CoreText } from '../core/texts';
 import type {
   CommunitySection,
   InfrastructureSection,
@@ -10,26 +11,27 @@ import type {
   ReferralSection,
 } from './collect';
 import { compare, fmtNum, type Metric } from './metrics';
-import { ACTIVITY_NOTE, SUPPORT_NOTE, humanise, type ReportData } from './report';
+import { humanise, type ReportData } from './report';
+import { AnalyticsText as T } from './texts';
 
 type Field = { name: string; value: string; inline?: boolean };
 
 /** Compact "value (±x%)" for embeds. Unavailable metrics show "n/a" (reason in the dashboard/report). */
 export function short(m: Metric<number>, suffix = ''): string {
-  if (!m.available) return 'n/a';
+  if (!m.available) return T.na();
   if (m.previous === undefined) return `${fmtNum(m.value)}${suffix}`;
   const c = compare(m.value, m.previous);
-  const pct = c.pct === null ? 'n/a' : `${c.pct > 0 ? '+' : ''}${c.pct}%`;
+  const pct = c.pct === null ? T.na() : `${c.pct > 0 ? '+' : ''}${c.pct}%`;
   return `${fmtNum(m.value)}${suffix} (${pct})`;
 }
 
 const rec = (m: Metric<Record<string, number>>) =>
   !m.available
-    ? 'n/a'
+    ? T.na()
     : Object.entries(m.value)
         .sort((a, b) => b[1] - a[1])
         .map(([k, v]) => `${humanise(k)} ${v}`)
-        .join(', ') || 'none';
+        .join(', ') || T.none();
 
 const unavailableNote = (ms: Array<Metric<unknown>>) => {
   const reasons = [
@@ -37,49 +39,70 @@ const unavailableNote = (ms: Array<Metric<unknown>>) => {
       ms.filter((m): m is { available: false; reason: string } => !m.available).map((m) => m.reason),
     ),
   ];
-  return reasons.length ? `\n_Not available — ${reasons.join('; ')}_` : '';
+  return reasons.length ? `\n${T.unavailableNote({ reasons: reasons.join('; ') })}` : '';
 };
+
+const duration = (m: Metric<number>) => (m.available ? formatDuration(m.value * 60_000) : T.na());
 
 export function communityFields(c: CommunitySection): Field[] {
   const top =
     c.topChannels.available && c.topChannels.value.length
       ? c.topChannels.value.map((t) => `<#${t.channelId}> ${fmtNum(t.messages)}`).join('\n')
-      : 'n/a';
+      : T.na();
   return [
     {
-      name: 'Community growth',
+      name: T.communityGrowthField(),
       value:
-        `Members: **${c.totalMembers.available ? fmtNum(c.totalMembers.value) : 'n/a'}**${c.totalMembers.available && c.totalMembers.note ? ` (${c.totalMembers.note})` : ''}\n` +
-        `Joins ${short(c.joins)} · Leaves ${short(c.leaves)} · Net ${short(c.netGrowth)}` +
-        unavailableNote([c.totalMembers, c.joins]),
+        T.communityGrowthValue({
+          members: c.totalMembers.available ? fmtNum(c.totalMembers.value) : T.na(),
+          membersNote: c.totalMembers.available && c.totalMembers.note ? ` (${c.totalMembers.note})` : '',
+          joins: short(c.joins),
+          leaves: short(c.leaves),
+          net: short(c.netGrowth),
+        }) + unavailableNote([c.totalMembers, c.joins]),
     },
     {
-      name: 'Observed message activity',
+      name: T.activityField(),
       value:
-        `Active members (≥${c.activeMemberThreshold} msg): ${short(c.activeMembers)}\nMessages: ${short(c.messages)}\nDAU ${short(c.dau)} · WAU ${short(c.wau)} · MAU ${short(c.mau)}` +
-        unavailableNote([c.messages]),
+        T.activityValue({
+          threshold: c.activeMemberThreshold,
+          active: short(c.activeMembers),
+          messages: short(c.messages),
+          dau: short(c.dau),
+          wau: short(c.wau),
+          mau: short(c.mau),
+        }) + unavailableNote([c.messages]),
     },
-    { name: 'Top channels', value: top, inline: true },
+    { name: T.topChannelsField(), value: top, inline: true },
   ];
 }
 
 export function moderationFields(m: ModerationSection): Field[] {
   return [
     {
-      name: 'Moderation',
-      value: `Actions: ${short(m.actions)}\n${rec(m.actionsByType)}` + unavailableNote([m.actions]),
+      name: T.moderationField(),
+      value:
+        T.moderationValue({ actions: short(m.actions), byType: rec(m.actionsByType) }) +
+        unavailableNote([m.actions]),
     },
     {
-      name: 'Automod',
+      name: T.automodField(),
       value:
-        `Detections: ${short(m.automodDetections)} · False positives: ${short(m.automodFalsePositives)}\n${rec(m.automodByRule)}` +
-        unavailableNote([m.automodDetections]),
+        T.automodValue({
+          detections: short(m.automodDetections),
+          falsePositives: short(m.automodFalsePositives),
+          byRule: rec(m.automodByRule),
+        }) + unavailableNote([m.automodDetections]),
     },
     {
-      name: 'Abuse reports',
+      name: T.abuseReportsField(),
       value:
-        `Received ${short(m.reportsReceived)} · Resolved ${short(m.reportsResolved)} · Dismissed ${short(m.reportsDismissed)}\nOpen backlog: **${short(m.openReportBacklog)}**` +
-        unavailableNote([m.reportsReceived]),
+        T.abuseReportsValue({
+          received: short(m.reportsReceived),
+          resolved: short(m.reportsResolved),
+          dismissed: short(m.reportsDismissed),
+          backlog: short(m.openReportBacklog),
+        }) + unavailableNote([m.reportsReceived]),
     },
   ];
 }
@@ -88,63 +111,86 @@ export function infrastructureFields(i: InfrastructureSection): Field[] {
   const uptime = i.uptime.length
     ? i.uptime
         .slice(0, 10)
-        .map((s) => `${truncate(s.name, 40)}: ${s.uptimePct === null ? 'no data' : `${s.uptimePct}%`}`)
+        .map((s) => `${truncate(s.name, 40)}: ${s.uptimePct === null ? T.noData() : `${s.uptimePct}%`}`)
         .join('\n')
-    : 'No public monitored services';
+    : T.uptimeNone();
   return [
     {
-      name: 'Incidents',
+      name: T.incidentsField(),
       value:
-        `Opened ${short(i.incidentsOpened)} · Resolved ${short(i.incidentsResolved)}\n${rec(i.incidentsBySeverity)}\n` +
-        `Total time: ${i.incidentMinutes.available ? formatDuration(i.incidentMinutes.value * 60_000) : 'n/a'} · Auto ${short(i.autoIncidents)} / Manual ${short(i.manualIncidents)}` +
-        unavailableNote([i.incidentsOpened]),
+        T.incidentsValue({
+          opened: short(i.incidentsOpened),
+          resolved: short(i.incidentsResolved),
+          bySeverity: rec(i.incidentsBySeverity),
+          time: duration(i.incidentMinutes),
+          auto: short(i.autoIncidents),
+          manual: short(i.manualIncidents),
+        }) + unavailableNote([i.incidentsOpened]),
     },
-    { name: 'Uptime (public services)', value: uptime },
+    { name: T.uptimeField(), value: uptime },
   ];
 }
 
 export function marketingFields(k: MarketingSection, r?: ReferralSection): Field[] {
   const fields: Field[] = [
     {
-      name: 'Announcements & links',
-      value: `Published ${short(k.announcementsPublished)} · Reactions ${short(k.announcementReactions)}\nTracked link clicks: ${short(k.trackedLinkClicks)}${k.trackedLinkClicks.available && k.trackedLinkClicks.note ? ` (${k.trackedLinkClicks.note})` : ''}`,
+      name: T.announcementsField(),
+      value: T.announcementsValue({
+        published: short(k.announcementsPublished),
+        reactions: short(k.announcementReactions),
+        clicks: short(k.trackedLinkClicks),
+        clicksNote:
+          k.trackedLinkClicks.available && k.trackedLinkClicks.note ? ` (${k.trackedLinkClicks.note})` : '',
+      }),
     },
     {
-      name: 'Engagement',
-      value: `RSVPs ${short(k.eventRsvps)} · Giveaway entries ${short(k.giveawayEntries)}\nPoll ballots ${short(k.pollBallots)} · Suggestions ${short(k.suggestionsCreated)}`,
+      name: T.engagementField(),
+      value: T.engagementValue({
+        rsvps: short(k.eventRsvps),
+        giveaways: short(k.giveawayEntries),
+        polls: short(k.pollBallots),
+        suggestions: short(k.suggestionsCreated),
+      }),
     },
     {
-      name: 'Partner applications',
+      name: T.partnerApplicationsField(),
       value: `${short(k.partnerApplications)}\n${rec(k.partnerApplicationsByStatus)}`,
     },
   ];
   if (r) {
     fields.push({
-      name: 'Referrals',
+      name: T.referralsField(),
       value:
-        `Tracked joins ${short(r.attributedJoins)}\nConfirmed ${short(r.confirmed)} · Ambiguous ${short(r.ambiguous)} · Unknown ${short(r.unknown)}\nFlagged ${short(r.flagged)}` +
-        unavailableNote([r.attributedJoins]),
+        T.referralsValue({
+          joins: short(r.attributedJoins),
+          confirmed: short(r.confirmed),
+          ambiguous: short(r.ambiguous),
+          unknown: short(r.unknown),
+          flagged: short(r.flagged),
+        }) + unavailableNote([r.attributedJoins]),
     });
   }
   return fields;
 }
 
 export function outstandingField(o: OutstandingSection): Field {
-  const items = [
-    `Open reports > 72h: **${o.staleAbuseReports}**`,
-    `Active incidents: **${o.activeIncidents.length}**${
-      o.activeIncidents.length
-        ? ` (${o.activeIncidents
-            .slice(0, 3)
-            .map((a) => a.ref)
-            .join(', ')})`
-        : ''
-    }`,
-    `Dead-letter jobs: **${o.deadJobs}**`,
-    `Flagged referrals: **${o.flaggedReferrals}**`,
-    `Partner apps pending > 7d: **${o.stalePartnerApplications}**`,
-  ];
-  return { name: 'Needs attention', value: items.join('\n') };
+  const refs = o.activeIncidents.length
+    ? ` (${o.activeIncidents
+        .slice(0, 3)
+        .map((a) => a.ref)
+        .join(', ')})`
+    : '';
+  return {
+    name: T.needsAttentionField(),
+    value: T.needsAttentionValue({
+      staleReports: o.staleAbuseReports,
+      activeIncidents: o.activeIncidents.length,
+      incidentRefs: refs,
+      deadJobs: o.deadJobs,
+      flaggedReferrals: o.flaggedReferrals,
+      stalePartnerApps: o.stalePartnerApplications,
+    }),
+  };
 }
 
 export interface ReportEmbedOptions {
@@ -161,7 +207,7 @@ export function reportEmbeds(d: ReportData, opts: ReportEmbedOptions = {}): APIE
   const c = d.community;
   return [
     brandEmbed({
-      title: `${opts.title ?? 'Weekly CEO report'} · ${range}`,
+      title: T.reportEmbedTitle({ title: opts.title ?? T.reportDefaultTitle(), range }),
       url:
         opts.dashboardUrl && opts.reportId
           ? `${opts.dashboardUrl}/analytics/reports/${opts.reportId}`
@@ -169,32 +215,47 @@ export function reportEmbeds(d: ReportData, opts: ReportEmbedOptions = {}): APIE
       description: d.summary.map((b) => `• ${b}`).join('\n'),
       fields: [
         {
-          name: 'Community',
-          value: `Members ${c.totalMembers.available ? fmtNum(c.totalMembers.value) : 'n/a'} · Net ${short(c.netGrowth)}\nActive ${short(c.activeMembers)} · Messages ${short(c.messages)}`,
+          name: T.summaryCommunityField(),
+          value: T.summaryCommunityValue({
+            members: c.totalMembers.available ? fmtNum(c.totalMembers.value) : T.na(),
+            net: short(c.netGrowth),
+            active: short(c.activeMembers),
+            messages: short(c.messages),
+          }),
           inline: true,
         },
         {
-          name: 'Infrastructure',
-          value: `Incidents ${short(d.infrastructure.incidentsOpened)}\nIncident time ${d.infrastructure.incidentMinutes.available ? formatDuration(d.infrastructure.incidentMinutes.value * 60_000) : 'n/a'}`,
+          name: T.summaryInfrastructureField(),
+          value: T.summaryInfrastructureValue({
+            incidents: short(d.infrastructure.incidentsOpened),
+            time: duration(d.infrastructure.incidentMinutes),
+          }),
           inline: true,
         },
         {
-          name: 'Moderation & security',
-          value: `Actions ${short(d.moderation.actions)} · Automod ${short(d.moderation.automodDetections)}\nReports ${short(d.moderation.reportsReceived)} · Backlog ${short(d.moderation.openReportBacklog)}`,
+          name: T.summaryModerationField(),
+          value: T.summaryModerationValue({
+            actions: short(d.moderation.actions),
+            automod: short(d.moderation.automodDetections),
+            reports: short(d.moderation.reportsReceived),
+            backlog: short(d.moderation.openReportBacklog),
+          }),
           inline: true,
         },
         {
-          name: 'Announcements & referrals',
-          value: `Published ${short(d.marketing.announcementsPublished)} · Clicks ${short(d.marketing.trackedLinkClicks)}\nConfirmed referrals ${short(d.referrals.confirmed)} · Unknown ${short(d.referrals.unknown)}`,
+          name: T.summaryMarketingField(),
+          value: T.summaryMarketingValue({
+            published: short(d.marketing.announcementsPublished),
+            clicks: short(d.marketing.trackedLinkClicks),
+            confirmed: short(d.referrals.confirmed),
+            unknown: short(d.referrals.unknown),
+          }),
           inline: true,
         },
         outstandingField(d.outstanding),
-        { name: 'Support', value: SUPPORT_NOTE },
+        { name: T.summarySupportField(), value: T.supportNote() },
       ],
-      footer: truncate(
-        `Full report attached (Markdown) · ${ACTIVITY_NOTE.split(' — ')[0]} · ${opts.footer ?? 'GYNX.GG'}`,
-        2048,
-      ),
+      footer: truncate(T.summaryFooter({ footer: opts.footer ?? CoreText.embedFooter() }), 2048),
       timestamp: new Date(d.generatedAt),
     }),
   ];

@@ -5,7 +5,8 @@ import { brandEmbed } from '../core/render';
 import { displayText as u } from './common';
 import type { EventCounts } from './events';
 import type { PollResults } from './polls';
-import { SUGGESTION_STATUS_LABELS } from './suggestions';
+import { SUGGESTION_STATUSES, suggestionStatusLabel } from './suggestions';
+import { EngagementText as T } from './texts';
 
 type Row = APIActionRowComponent<APIComponentInMessageActionRow>;
 
@@ -24,35 +25,40 @@ export const CID = {
 export function eventEmbed(ev: CommunityEvent, counts: EventCounts): APIEmbed {
   const status =
     ev.status === 'CANCELLED'
-      ? '**Cancelled**'
+      ? T.eventStatusCancelled()
       : ev.status === 'COMPLETED'
-        ? '**Completed**'
+        ? T.eventStatusCompleted()
         : ev.startsAt.getTime() <= Date.now()
-          ? 'Started'
-          : 'Scheduled';
+          ? T.eventStatusStarted()
+          : T.eventStatusScheduled();
   const capacity = ev.capacity ? `${counts.going}/${ev.capacity}` : `${counts.going}`;
   const fields = [
     {
-      name: 'When',
+      name: T.eventFieldWhen(),
       value: `${discordTimestamp(ev.startsAt, 'F')} (${discordTimestamp(ev.startsAt, 'R')})\n${formatInZone(ev.startsAt, ev.timezone)} ${ev.timezone}`,
       inline: false,
     },
-    ...(ev.endsAt ? [{ name: 'Ends', value: discordTimestamp(ev.endsAt, 'f'), inline: true }] : []),
-    ...(ev.location ? [{ name: 'Where', value: u(truncate(ev.location, 100)), inline: true }] : []),
-    { name: 'Going', value: capacity, inline: true },
-    ...(ev.capacity && ev.waitlistEnabled
-      ? [{ name: 'Waitlist', value: `${counts.waitlist}`, inline: true }]
+    ...(ev.endsAt
+      ? [{ name: T.eventFieldEnds(), value: discordTimestamp(ev.endsAt, 'f'), inline: true }]
       : []),
-    { name: 'Status', value: status, inline: true },
-    ...(ev.summary ? [{ name: 'Summary', value: u(truncate(ev.summary, 1024)), inline: false }] : []),
+    ...(ev.location
+      ? [{ name: T.eventFieldWhere(), value: u(truncate(ev.location, 100)), inline: true }]
+      : []),
+    { name: T.eventFieldGoing(), value: capacity, inline: true },
+    ...(ev.capacity && ev.waitlistEnabled
+      ? [{ name: T.eventFieldWaitlist(), value: `${counts.waitlist}`, inline: true }]
+      : []),
+    { name: T.eventFieldStatus(), value: status, inline: true },
+    ...(ev.summary
+      ? [{ name: T.eventFieldSummary(), value: u(truncate(ev.summary, 1024)), inline: false }]
+      : []),
   ];
   return brandEmbed({
-    title: `📅 ${u(ev.title)}`,
+    title: T.eventTitle({ title: u(ev.title) }),
     description: u(truncate(ev.description, 2000)),
     color: ev.status === 'CANCELLED' ? EMBED_COLORS.neutral : EMBED_COLORS.primary,
     fields,
-    footer:
-      ev.status === 'SCHEDULED' ? 'RSVP with the buttons below · times show in your local zone' : undefined,
+    footer: ev.status === 'SCHEDULED' ? T.eventFooter() : undefined,
   });
 }
 
@@ -62,8 +68,8 @@ export function eventComponents(ev: CommunityEvent): Row[] {
     {
       type: 1,
       components: [
-        { type: 2, style: 3, label: 'Going', custom_id: CID.rsvp(ev.id, 'go') },
-        { type: 2, style: 2, label: "Can't go", custom_id: CID.rsvp(ev.id, 'no') },
+        { type: 2, style: 3, label: T.eventGoingButton(), custom_id: CID.rsvp(ev.id, 'go') },
+        { type: 2, style: 2, label: T.eventNotGoingButton(), custom_id: CID.rsvp(ev.id, 'no') },
       ],
     },
   ];
@@ -76,26 +82,28 @@ export function eventDmEmbed(
   minutes?: number,
 ): APIEmbed {
   const when = `${discordTimestamp(ev.startsAt, 'F')} (${discordTimestamp(ev.startsAt, 'R')})`;
-  const jump = link ? `\n\n[View event](${link})` : '';
+  const jump = link ? `\n\n[${T.eventDmViewLink()}](${link})` : '';
   if (kind === 'event.reminder') {
     const lead =
-      minutes && minutes >= 60 ? `${Math.round(minutes / 60)} hour(s)` : `${minutes ?? 0} minute(s)`;
+      minutes && minutes >= 60
+        ? T.eventReminderLeadHours({ count: Math.round(minutes / 60) })
+        : T.eventReminderLeadMinutes({ count: minutes ?? 0 });
     return brandEmbed({
-      title: `⏰ Starting in ${lead}: ${u(ev.title)}`,
-      description: `${when}${ev.location ? `\nWhere: ${u(ev.location)}` : ''}${jump}`,
+      title: T.eventReminderDmTitle({ lead, title: u(ev.title) }),
+      description: `${when}${ev.location ? `\n${T.eventReminderDmWhere({ location: u(ev.location) })}` : ''}${jump}`,
     });
   }
   if (kind === 'event.cancelled') {
     return brandEmbed({
-      title: `Event cancelled: ${u(ev.title)}`,
+      title: T.eventCancelledDmTitle({ title: u(ev.title) }),
       color: EMBED_COLORS.neutral,
-      description: `This event (${when}) has been cancelled by the team. Sorry for the change of plans.${jump}`,
+      description: `${T.eventCancelledDmBody({ when })}${jump}`,
     });
   }
   return brandEmbed({
-    title: `🎉 You're in: ${u(ev.title)}`,
+    title: T.eventPromotedDmTitle({ title: u(ev.title) }),
     color: EMBED_COLORS.success,
-    description: `A spot opened up and you have been moved from the waitlist to **Going**.\n${when}${jump}\n\nCan't make it any more? Press "Can't go" on the event so someone else can take the spot.`,
+    description: `${T.eventPromotedDmIntro()}\n${when}${jump}\n\n${T.eventPromotedDmOutro()}`,
   });
 }
 
@@ -113,22 +121,27 @@ export function pollEmbed(r: PollResults, showTally: boolean): APIEmbed {
   const lines = r.options.map((o, i) => {
     if (!showTally) return `**${i + 1}.** ${u(o.label)}`;
     const pct = totalVotes ? Math.round((o.votes / totalVotes) * 100) : 0;
-    return `**${i + 1}.** ${u(o.label)}\n\`${bar(pct)}\` ${pct}% · ${o.votes} vote${o.votes === 1 ? '' : 's'}`;
+    const votes = o.votes === 1 ? T.pollVotesOne({ count: o.votes }) : T.pollVotesMany({ count: o.votes });
+    return `**${i + 1}.** ${u(o.label)}\n\`${bar(pct)}\` ${pct}% · ${votes}`;
   });
   const rules = [
-    r.multipleChoice ? `Pick up to ${r.maxChoices}` : 'Pick one',
-    r.anonymous ? 'Anonymous' : 'Votes visible to staff',
+    r.multipleChoice ? T.pollRulePickUpTo({ max: r.maxChoices }) : T.pollRulePickOne(),
+    r.anonymous ? T.pollRuleAnonymous() : T.pollRuleVisible(),
   ].join(' · ');
   return brandEmbed({
-    title: `${closed ? '📊 Final results' : '📊 Poll'}: ${u(truncate(r.question, 200))}`,
+    title: (closed ? T.pollTitleClosed : T.pollTitleOpen)({ question: u(truncate(r.question, 200)) }),
     description: lines.join('\n\n'),
     color: closed ? EMBED_COLORS.neutral : EMBED_COLORS.primary,
     fields: [
-      { name: closed ? 'Closed' : 'Ends', value: discordTimestamp(r.endsAt, 'R'), inline: true },
-      { name: 'Voters', value: String(r.totalBallots), inline: true },
-      { name: 'Rules', value: rules, inline: true },
+      {
+        name: closed ? T.pollFieldClosed() : T.pollFieldEnds(),
+        value: discordTimestamp(r.endsAt, 'R'),
+        inline: true,
+      },
+      { name: T.pollFieldVoters(), value: String(r.totalBallots), inline: true },
+      { name: T.pollFieldRules(), value: rules, inline: true },
       ...(!showTally && !closed
-        ? [{ name: 'Results', value: 'Shown when the poll closes.', inline: false }]
+        ? [{ name: T.pollFieldResults(), value: T.pollResultsHidden(), inline: false }]
         : []),
     ],
   });
@@ -143,7 +156,12 @@ export function pollComponents(r: PollResults): Row[] {
         {
           type: 3,
           custom_id: CID.pollVote(r.pollId),
-          placeholder: r.multipleChoice ? `Choose up to ${r.maxChoices} option(s)` : 'Choose an option',
+          placeholder: truncate(
+            r.multipleChoice
+              ? T.pollSelectPlaceholderMulti({ max: r.maxChoices })
+              : T.pollSelectPlaceholder(),
+            150,
+          ),
           min_values: 1,
           max_values: r.multipleChoice ? r.maxChoices : 1,
           options: r.options.map((o, i) => ({
@@ -169,27 +187,32 @@ const SUGGESTION_COLORS: Record<Suggestion['status'], number> = {
 export function suggestionEmbed(s: Suggestion, duplicateOfRef?: string | null): APIEmbed {
   if (s.hidden) {
     return brandEmbed({
-      title: `Suggestion ${s.ref}`,
-      description: '_This suggestion was removed by the moderators._',
+      title: T.suggestionRemovedTitle({ ref: s.ref }),
+      description: T.suggestionRemovedBody(),
       color: EMBED_COLORS.neutral,
     });
   }
   return brandEmbed({
-    title: `💡 ${s.ref} · ${u(truncate(s.title, 200))}`,
+    title: T.suggestionTitle({ ref: s.ref, title: u(truncate(s.title, 200)) }),
     description: u(truncate(s.body, 2000)),
     color: SUGGESTION_COLORS[s.status],
     fields: [
       {
-        name: 'Status',
+        name: T.suggestionFieldStatus(),
         value:
-          SUGGESTION_STATUS_LABELS[s.status] +
-          (s.status === 'DUPLICATE' && duplicateOfRef ? ` of ${duplicateOfRef}` : ''),
+          s.status === 'DUPLICATE' && duplicateOfRef
+            ? T.suggestionDuplicateOf({ status: suggestionStatusLabel(s.status), ref: duplicateOfRef })
+            : suggestionStatusLabel(s.status),
         inline: true,
       },
-      { name: 'Votes', value: `👍 ${s.upvotes} · 👎 ${s.downvotes}`, inline: true },
-      { name: 'Submitted by', value: `<@${s.authorId}>`, inline: true },
+      {
+        name: T.suggestionFieldVotes(),
+        value: T.suggestionVotesValue({ up: s.upvotes, down: s.downvotes }),
+        inline: true,
+      },
+      { name: T.suggestionFieldAuthor(), value: `<@${s.authorId}>`, inline: true },
       ...(s.staffResponse
-        ? [{ name: 'Team response', value: u(truncate(s.staffResponse, 1024)), inline: false }]
+        ? [{ name: T.suggestionFieldResponse(), value: u(truncate(s.staffResponse, 1024)), inline: false }]
         : []),
     ],
   });
@@ -226,11 +249,11 @@ export function suggestionComponents(s: Suggestion): Row[] {
       {
         type: 3,
         custom_id: CID.suggestionStatus(s.id),
-        placeholder: 'Staff: set status',
+        placeholder: truncate(T.suggestionStatusPlaceholder(), 150),
         min_values: 1,
         max_values: 1,
-        options: (Object.keys(SUGGESTION_STATUS_LABELS) as Suggestion['status'][]).map((k) => ({
-          label: SUGGESTION_STATUS_LABELS[k],
+        options: SUGGESTION_STATUSES.map((k) => ({
+          label: truncate(suggestionStatusLabel(k), 100),
           value: k,
           default: k === s.status,
         })),
@@ -242,9 +265,9 @@ export function suggestionComponents(s: Suggestion): Row[] {
 
 export function suggestionStatusDmEmbed(s: Suggestion, link: string | null): APIEmbed {
   return brandEmbed({
-    title: `Your suggestion ${s.ref} is now: ${SUGGESTION_STATUS_LABELS[s.status]}`,
+    title: T.suggestionStatusDmTitle({ ref: s.ref, status: suggestionStatusLabel(s.status) }),
     color: SUGGESTION_COLORS[s.status],
-    description: `**${u(truncate(s.title, 200))}**${s.staffResponse ? `\n\n**Team response:** ${u(truncate(s.staffResponse, 1500))}` : ''}${link ? `\n\n[View on the board](${link})` : ''}`,
+    description: `**${u(truncate(s.title, 200))}**${s.staffResponse ? `\n\n${T.suggestionStatusDmResponse({ response: u(truncate(s.staffResponse, 1500)) })}` : ''}${link ? `\n\n[${T.suggestionDmViewLink()}](${link})` : ''}`,
   });
 }
 
@@ -252,38 +275,42 @@ export function suggestionStatusDmEmbed(s: Suggestion, link: string | null): API
 
 export function giveawayEmbed(g: Giveaway, entrantCount: number, latestWinners: string[] | null): APIEmbed {
   const req: string[] = [];
-  if (g.requiredRoleIds.length) req.push(`Role: ${g.requiredRoleIds.map((r) => `<@&${r}>`).join(' or ')}`);
-  if (g.minAccountAgeDays) req.push(`Account age ≥ ${g.minAccountAgeDays}d`);
-  if (g.minMemberDays) req.push(`Member for ≥ ${g.minMemberDays}d`);
+  if (g.requiredRoleIds.length)
+    req.push(T.giveawayReqRole({ roles: g.requiredRoleIds.map((r) => `<@&${r}>`).join(' or ') }));
+  if (g.minAccountAgeDays) req.push(T.giveawayReqAccountAge({ days: g.minAccountAgeDays }));
+  if (g.minMemberDays) req.push(T.giveawayReqMemberDays({ days: g.minMemberDays }));
   const statusLine =
     g.status === 'ACTIVE'
-      ? `Ends ${discordTimestamp(g.endsAt, 'R')} (${discordTimestamp(g.endsAt, 'f')})`
+      ? T.giveawayEndsLine({
+          relative: discordTimestamp(g.endsAt, 'R'),
+          time: discordTimestamp(g.endsAt, 'f'),
+        })
       : g.status === 'CANCELLED'
-        ? '**Cancelled**'
-        : `Ended ${discordTimestamp(g.endedAt ?? g.endsAt, 'R')}`;
+        ? T.giveawayCancelledLine()
+        : T.giveawayEndedLine({ relative: discordTimestamp(g.endedAt ?? g.endsAt, 'R') });
   return brandEmbed({
-    title: `🎁 Giveaway: ${u(truncate(g.prize, 200))}`,
+    title: T.giveawayTitle({ prize: u(truncate(g.prize, 200)) }),
     description: [g.description ? u(truncate(g.description, 1000)) : null, statusLine]
       .filter(Boolean)
       .join('\n\n'),
     color: g.status === 'ACTIVE' ? EMBED_COLORS.accent : EMBED_COLORS.neutral,
     fields: [
-      { name: 'Winners', value: String(g.winnerCount), inline: true },
-      { name: 'Entries', value: String(entrantCount), inline: true },
-      ...(req.length ? [{ name: 'Requirements', value: req.join('\n'), inline: false }] : []),
+      { name: T.giveawayFieldWinners(), value: String(g.winnerCount), inline: true },
+      { name: T.giveawayFieldEntries(), value: String(entrantCount), inline: true },
+      ...(req.length ? [{ name: T.giveawayFieldRequirements(), value: req.join('\n'), inline: false }] : []),
       ...(latestWinners
         ? [
             {
-              name: 'Winner(s)',
+              name: T.giveawayFieldWinnerList(),
               value: latestWinners.length
                 ? latestWinners.map((w) => `<@${w}>`).join(', ')
-                : 'No valid entries',
+                : T.giveawayNoValidEntries(),
               inline: false,
             },
           ]
         : []),
     ],
-    footer: 'Free community giveaway · winners drawn with a cryptographically secure, audited draw',
+    footer: T.giveawayFooter(),
   });
 }
 
@@ -293,8 +320,14 @@ export function giveawayComponents(g: Giveaway): Row[] {
     {
       type: 1,
       components: [
-        { type: 2, style: 1, label: 'Enter', emoji: { name: '🎉' }, custom_id: CID.giveawayEnter(g.id) },
-        { type: 2, style: 2, label: 'Leave', custom_id: CID.giveawayLeave(g.id) },
+        {
+          type: 2,
+          style: 1,
+          label: T.giveawayEnterButton(),
+          emoji: { name: '🎉' },
+          custom_id: CID.giveawayEnter(g.id),
+        },
+        { type: 2, style: 2, label: T.giveawayLeaveButton(), custom_id: CID.giveawayLeave(g.id) },
       ],
     },
   ];
@@ -305,14 +338,14 @@ export function winnerAnnouncementContent(g: Giveaway, draw: GiveawayDraw): stri
   const prize = u(truncate(g.prize, 200));
   const mentions = draw.winnerIds.map((w) => `<@${w}>`).join(', ');
   if (draw.kind === 'REROLL') {
-    if (draw.winnerIds.length === 0) return `🔁 Reroll for **${prize}**: no remaining eligible entrants.`;
-    return `🔁 Reroll for **${prize}**: congratulations ${mentions}!`;
+    if (draw.winnerIds.length === 0) return T.winnerRerollNone({ prize });
+    return T.winnerReroll({ prize, winners: mentions });
   }
-  if (draw.winnerIds.length === 0)
-    return `The giveaway for **${prize}** has ended with no valid entries, so there is no winner.`;
+  if (draw.winnerIds.length === 0) return T.winnerNoEntries({ prize });
+  const shortVars = { count: draw.entrantCount, prizes: g.winnerCount };
   const short =
     draw.entrantCount < g.winnerCount
-      ? `\n_Only ${draw.entrantCount} eligible entr${draw.entrantCount === 1 ? 'y' : 'ies'} for ${g.winnerCount} prize(s), so every entrant wins._`
+      ? `\n${draw.entrantCount === 1 ? T.winnerShortPoolOne(shortVars) : T.winnerShortPoolMany(shortVars)}`
       : '';
-  return `🎉 Congratulations ${mentions}! You won **${prize}**.${short}\nThe team will contact you about your prize.`;
+  return `${T.winnerAnnouncement({ winners: mentions, prize })}${short}\n${T.winnerContactNote()}`;
 }

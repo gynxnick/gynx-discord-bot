@@ -5,6 +5,7 @@ import { requireRate } from '../core/authz';
 import { requireModule } from '../core/config';
 import type { Ctx } from '../core/context';
 import { INCIDENT_SEVERITIES, severitiesAtOrBelow } from './incidents';
+import { StatusText } from './texts';
 
 export const ALL_SERVICES = '*';
 const MAX_SUBSCRIPTIONS_PER_MEMBER = 25;
@@ -48,8 +49,7 @@ export async function subscribe(ctx: Ctx, raw: SubscribeInput): Promise<StatusSu
     const count = await ctx.db.statusSubscription.count({
       where: { guildId: ctx.guildId, userId: ctx.actor.userId },
     });
-    if (count >= MAX_SUBSCRIPTIONS_PER_MEMBER)
-      throw conflict('You have reached the maximum number of status subscriptions.');
+    if (count >= MAX_SUBSCRIPTIONS_PER_MEMBER) throw conflict(StatusText.subscriptionLimit());
   }
   return ctx.db.statusSubscription.upsert({
     where: key,

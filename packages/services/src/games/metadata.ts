@@ -1,5 +1,6 @@
 import { readBodyCapped } from './http';
 import { getGame } from './registry';
+import { GamesText } from './texts';
 
 /**
  * Public game metadata from fixed, no-auth sources only:
@@ -15,7 +16,7 @@ export const MOJANG_MANIFEST_URL = 'https://piston-meta.mojang.com/mc/game/versi
 export const steamNewsUrl = (appId: number) =>
   `https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${appId}&count=1&maxlength=300`;
 export const steamStoreUrl = (appId: number) => `https://store.steampowered.com/app/${appId}/`;
-export const VERSION_UNAVAILABLE = 'Version info is currently unavailable. Please try again later.';
+export { VERSION_UNAVAILABLE } from './texts';
 
 const ALLOWED_HOSTS = new Set(['piston-meta.mojang.com', 'api.steampowered.com']);
 const CACHE_TTL_MS = 10 * 60_000;
@@ -72,7 +73,7 @@ export async function getMinecraftLatest(deps: MetadataDeps = {}): Promise<Versi
       versions?: Array<{ id?: unknown; releaseTime?: unknown }>;
     };
     const release = typeof data.latest?.release === 'string' ? data.latest.release : null;
-    if (!release) return { available: false, message: VERSION_UNAVAILABLE };
+    if (!release) return { available: false, message: GamesText.versionUnavailable() };
     const snapshot = typeof data.latest?.snapshot === 'string' ? data.latest.snapshot : null;
     const entry = Array.isArray(data.versions) ? data.versions.find((v) => v.id === release) : undefined;
     const releaseTime =
@@ -87,7 +88,7 @@ export async function getMinecraftLatest(deps: MetadataDeps = {}): Promise<Versi
       releaseTime,
     };
   } catch {
-    return { available: false, message: VERSION_UNAVAILABLE };
+    return { available: false, message: GamesText.versionUnavailable() };
   }
 }
 
@@ -116,8 +117,8 @@ export async function getSteamNews(appId: number, deps: MetadataDeps = {}): Prom
 export async function getLatestVersion(gameId: string, deps: MetadataDeps = {}): Promise<VersionInfo> {
   const game = getGame(gameId);
   if (game.id === 'minecraft') return getMinecraftLatest(deps);
-  if (!game.steamAppId) return { available: false, message: VERSION_UNAVAILABLE };
+  if (!game.steamAppId) return { available: false, message: GamesText.versionUnavailable() };
   const news = await getSteamNews(game.steamAppId, deps);
-  if (!news) return { available: false, message: VERSION_UNAVAILABLE };
+  if (!news) return { available: false, message: GamesText.versionUnavailable() };
   return { available: true, kind: 'steam-news', news, storeUrl: steamStoreUrl(game.steamAppId) };
 }

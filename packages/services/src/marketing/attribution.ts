@@ -1,4 +1,5 @@
 import type { AttributionConfidence } from '@gynx/database';
+import { MarketingText as T } from './texts';
 
 /**
  * Pure referral-attribution logic (no I/O), unit tested.
@@ -42,12 +43,19 @@ export const BURST_THRESHOLD = 5;
 
 export type AbuseFlag = 'NEW_ACCOUNT' | 'REJOIN' | 'SELF_REFERRAL' | 'BURST';
 
-export const ABUSE_FLAG_LABELS: Record<AbuseFlag, string> = {
-  NEW_ACCOUNT: `Account younger than ${MIN_ACCOUNT_AGE_DAYS} days`,
-  REJOIN: 'Member was already attributed before (rejoin)',
-  SELF_REFERRAL: 'Referrer invited themselves',
-  BURST: `More than ${BURST_THRESHOLD} joins via this invite within 10 minutes`,
-};
+/** Editable, human-readable reason stored on flagged referrals (resolved at call time). */
+export function abuseFlagLabel(flag: AbuseFlag): string {
+  switch (flag) {
+    case 'NEW_ACCOUNT':
+      return T.flagNewAccount({ days: MIN_ACCOUNT_AGE_DAYS });
+    case 'REJOIN':
+      return T.flagRejoin();
+    case 'SELF_REFERRAL':
+      return T.flagSelfReferral();
+    case 'BURST':
+      return T.flagBurst({ count: BURST_THRESHOLD });
+  }
+}
 
 export interface AbuseCheckInput {
   referrerId: string | null;

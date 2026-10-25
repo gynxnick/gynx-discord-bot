@@ -117,6 +117,9 @@ model GuildConfig {
   // Security reports
   reportNotifyReporter Boolean @default(true)
 
+  // Suggestions: open a discussion thread under each suggestion card
+  suggestionThreads Boolean @default(true)
+
   // Retention (enforced by the worker's retention job)
   diagnosticRetentionHours Int @default(24)
   reportRetentionDays      Int @default(365)
@@ -1055,6 +1058,8 @@ model Suggestion {
   downvotes     Int              @default(0)
   channelId     String?
   messageId     String?
+  /// Discussion thread opened on the suggestion card (if enabled)
+  threadId      String?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
   votes         SuggestionVote[]

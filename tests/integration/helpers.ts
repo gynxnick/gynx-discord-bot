@@ -50,6 +50,7 @@ export interface FakeDiscord extends DiscordPort {
   roleChanges: Array<{ op: 'add' | 'remove'; userId: string; roleId: string }>;
   deletedChannels: string[];
   deletedMessages: Array<{ channelId: string; messageId: string }>;
+  threads: Array<{ channelId: string; messageId: string; name: string }>;
   failNextSend?: Error;
 }
 
@@ -64,6 +65,7 @@ export function fakeDiscord(overrides: Partial<DiscordPort> = {}): FakeDiscord {
     roleChanges: [],
     deletedChannels: [],
     deletedMessages: [],
+    threads: [],
     async sendMessage(channelId, body) {
       if (fake.failNextSend) {
         const e = fake.failNextSend;
@@ -109,6 +111,10 @@ export function fakeDiscord(overrides: Partial<DiscordPort> = {}): FakeDiscord {
     },
     async deleteMessage(channelId, messageId) {
       fake.deletedMessages.push({ channelId, messageId });
+    },
+    async startThread(channelId, messageId, name) {
+      fake.threads.push({ channelId, messageId, name });
+      return { id: id() };
     },
     ...overrides,
   };

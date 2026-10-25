@@ -16,7 +16,7 @@ import type { Ctx } from '../core/context';
 import type { DiscordPort, MessageBody } from '../core/discord-port';
 import { enqueueJob } from '../core/jobs';
 import { brandEmbed } from '../core/render';
-import { GROUP_LABELS } from './render';
+import { CommunityText as T, groupLabel } from './texts';
 import { SELF_ROLE_GROUPS, snowflakeSchema } from './schemas';
 
 /**
@@ -80,21 +80,19 @@ export function renderRolePanel(
     const line = `${r.emoji ? `${r.emoji} ` : ''}**${neutraliseMentions(r.label)}**${r.description ? ` · ${neutraliseMentions(r.description)}` : ''}`;
     byGroup.set(r.group, [...(byGroup.get(r.group) ?? []), line]);
   }
-  const intro = panel.description
-    ? neutraliseMentions(panel.description)
-    : 'Click a button to add a role. Click it again to remove it.';
+  const intro = panel.description ? neutraliseMentions(panel.description) : T.panelIntro();
   const extra =
     roles.length > MAX_PANEL_ROLES
-      ? `\n\n${roles.length - MAX_PANEL_ROLES} more roles are available with \`/roles\`.`
+      ? `\n\n${T.panelMoreRoles({ count: roles.length - MAX_PANEL_ROLES })}`
       : '';
   const embed: APIEmbed = brandEmbed({
     title: truncate(panel.title, 256),
-    description: shown.length ? `${intro}${extra}` : 'No roles are available here yet.',
+    description: shown.length ? `${intro}${extra}` : T.panelEmpty(),
     fields: [...byGroup.entries()].map(([g, lines]) => ({
-      name: GROUP_LABELS[g] ?? g,
+      name: groupLabel(g),
       value: lines.join('\n'),
     })),
-    footer: 'Only you see the confirmation · Roles update instantly',
+    footer: T.panelFooter(),
   });
 
   const rows: Row[] = [];

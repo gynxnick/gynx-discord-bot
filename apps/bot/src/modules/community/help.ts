@@ -1,84 +1,31 @@
 import type { APIEmbed } from 'discord.js';
 import { brandEmbed, community } from '@gynx/services';
+import { truncate } from '@gynx/shared';
 
-/** Static, categorised overview of every command the bot offers. */
-export const HELP_SECTIONS: ReadonlyArray<{ name: string; lines: string[] }> = [
-  {
-    name: 'General',
-    lines: [
-      '`/help` · this overview',
-      '`/about` · about the GYNX.GG bot',
-      '`/faq` · search frequently asked questions',
-      '`/guides` · browse setup and how-to guides',
-      '`/rules` · read and accept the server rules',
-      '`/roles` · pick game and notification roles',
-    ],
-  },
-  {
-    name: 'Status',
-    lines: [
-      '`/status` · current service status',
-      '`/uptime` · recent uptime',
-      '`/incidents` · recent incidents',
-      '`/subscribe-status` · status alerts',
-    ],
-  },
-  {
-    name: 'Moderation (staff)',
-    lines: [
-      '`/warn` · `/warnings` · `/timeout` · `/kick` · `/ban`',
-      '`/appeal` · appeal a moderation action (members)',
-    ],
-  },
-  {
-    name: 'Troubleshooting',
-    lines: [
-      '`/troubleshoot` · guided troubleshooting',
-      '`/diagnose` · run safe diagnostics',
-      '`/knowledge-search` · search the knowledge base',
-    ],
-  },
-  {
-    name: 'Game utilities',
-    lines: ['`/gameinfo` · `/version` · `/playercount`', '`/minecraft` · `/steam` · `/portcheck`'],
-  },
-  {
-    name: 'Security',
-    lines: [
-      '`/report-abuse` · privately report spam, scams or abuse',
-      '`/audit-log` · security audit log (staff)',
-    ],
-  },
-  {
-    name: 'Community',
-    lines: [
-      '`/event` · community events',
-      '`/suggest` · share a suggestion',
-      '`/poll` · `/giveaway` (staff)',
-    ],
-  },
-  {
-    name: 'Marketing',
-    lines: [
-      '`/referral` · referral links',
-      '`/partners` · partner programme',
-      '`/announce` · `/schedule-announcement` (staff)',
-    ],
-  },
-  {
-    name: 'Analytics',
-    lines: ['`/analytics` · `/staff-stats` (staff)'],
-  },
-];
+/** Categorised overview of every command the bot offers (editable bot text, resolved per call). */
+export function helpSections(): Array<{ name: string; value: string }> {
+  const T = community.CommunityText;
+  return [
+    { name: T.helpGeneralName(), value: T.helpGeneralBody() },
+    { name: T.helpStatusName(), value: T.helpStatusBody() },
+    { name: T.helpModerationName(), value: T.helpModerationBody() },
+    { name: T.helpTroubleshootingName(), value: T.helpTroubleshootingBody() },
+    { name: T.helpGamesName(), value: T.helpGamesBody() },
+    { name: T.helpSecurityName(), value: T.helpSecurityBody() },
+    { name: T.helpCommunityName(), value: T.helpCommunityBody() },
+    { name: T.helpMarketingName(), value: T.helpMarketingBody() },
+    { name: T.helpAnalyticsName(), value: T.helpAnalyticsBody() },
+  ];
+}
 
 export function helpEmbed(supportUrl: string | null): APIEmbed {
+  const T = community.CommunityText;
   return brandEmbed({
-    title: 'GYNX.GG bot commands',
-    description:
-      'Some commands are only available to staff. Commands may be unavailable if a module is turned off on this server.',
+    title: T.helpTitle(),
+    description: T.helpDescription(),
     fields: [
-      ...HELP_SECTIONS.map((s) => ({ name: s.name, value: s.lines.join('\n') })),
-      { name: 'Support', value: community.supportLine(supportUrl) },
+      ...helpSections().map((s) => ({ name: truncate(s.name, 256), value: truncate(s.value, 1024) })),
+      { name: T.fieldSupport(), value: community.supportLine(supportUrl) },
     ],
   });
 }

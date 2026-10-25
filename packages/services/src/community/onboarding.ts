@@ -10,6 +10,7 @@ import { detectRaid, isNewAccount, raidAlertDedupeKey, raidBucket, type RaidDete
 import type { RoleMeta } from './role-safety';
 import { snowflakeSchema } from './schemas';
 import { assertRoleAssignable, type RoleChange } from './self-roles';
+import { CommunityText as T } from './texts';
 import { loadWelcomeConfig } from './welcome';
 
 export const RAID_ALERT_JOB = 'community.raid-alert';
@@ -316,14 +317,14 @@ export async function selectInterests(
   });
   const allowed = new Map(games.map((g) => [g.roleId, g]));
   const invalid = selected.filter((id) => !allowed.has(id));
-  if (invalid.length) throw forbidden('One or more of those roles is not a selectable game role.');
+  if (invalid.length) throw forbidden(T.interestsInvalid());
 
   const metaById = new Map(live.roles.map((r) => [r.id, r]));
   const add: RoleChange[] = [];
   for (const id of selected) {
     if (ctx.actor.roleIds.includes(id)) continue;
     const role = metaById.get(id);
-    if (!role) throw validation('That role no longer exists.');
+    if (!role) throw validation(T.roleGone());
     await assertRoleAssignable(ctx, id, { role, botHighestPosition: live.botHighestPosition }, 'forbidden');
     add.push({ roleId: id, label: allowed.get(id)!.label, action: 'add' });
   }

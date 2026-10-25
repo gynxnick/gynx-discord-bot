@@ -16,6 +16,7 @@ import type { Ctx } from '../core/context';
 import { cancelJob, enqueueJob } from '../core/jobs';
 import { JOBS, cleanText, lockRow, refreshBucket, snowflakeSchema } from './common';
 import { drawWinners, verifyDraw, type DrawVerification } from './draw';
+import { EngagementText as T } from './texts';
 
 // Giveaways are free community prizes only: there is deliberately no purchase,
 // payment or paid-entry concept anywhere in this module.
@@ -39,13 +40,13 @@ export function checkGiveawayEligibility(
   const reasons: string[] = [];
   const days = (d: Date) => (now.getTime() - d.getTime()) / 86_400_000;
   if (g.requiredRoleIds.length > 0 && !g.requiredRoleIds.some((r) => m.roleIds.includes(r))) {
-    reasons.push(`You need one of these roles: ${g.requiredRoleIds.map((r) => `<@&${r}>`).join(', ')}.`);
+    reasons.push(T.giveawayEligibilityRole({ roles: g.requiredRoleIds.map((r) => `<@&${r}>`).join(', ') }));
   }
   if (g.minAccountAgeDays > 0 && days(m.accountCreatedAt) < g.minAccountAgeDays) {
-    reasons.push(`Your Discord account must be at least ${g.minAccountAgeDays} day(s) old.`);
+    reasons.push(T.giveawayEligibilityAccountAge({ days: g.minAccountAgeDays }));
   }
   if (g.minMemberDays > 0 && (!m.joinedAt || days(m.joinedAt) < g.minMemberDays)) {
-    reasons.push(`You must have been a member of this server for at least ${g.minMemberDays} day(s).`);
+    reasons.push(T.giveawayEligibilityMemberDays({ days: g.minMemberDays }));
   }
   return { eligible: reasons.length === 0, reasons };
 }
@@ -218,9 +219,9 @@ export async function endGiveaway(ctx: Ctx, id: string): Promise<FinishResult> {
   await requireModule(ctx, 'engagement');
   await requirePermission(ctx, 'giveaways.manage', 'engagement.giveaway.end');
   const g = await loadGiveaway(ctx, id);
-  if (g.status !== 'ACTIVE') throw invalidState(`This giveaway is already ${g.status.toLowerCase()}.`);
+  if (g.status !== 'ACTIVE') throw invalidState(T.giveawayAlreadyStatus({ status: g.status.toLowerCase() }));
   const r = await finishGiveaway(ctx, id);
-  if (!r.draw) throw invalidState('This giveaway has already ended.');
+  if (!r.draw) throw invalidState(T.giveawayAlreadyEnded());
   return r;
 }
 
@@ -243,7 +244,7 @@ export async function rerollGiveaway(
   return ctx.db.$transaction(async (tx) => {
     if (!(await lockRow(tx, 'Giveaway', id))) throw notFound('Giveaway');
     const g = await loadGiveaway(ctx, id, tx);
-    if (g.status !== 'ENDED') throw invalidState('Only ended giveaways can be rerolled.');
+    if (g.status !== 'ENDED') throw invalidState(T.giveawayOnlyEndedReroll());
     const [draws, entries] = await Promise.all([
       tx.giveawayDraw.findMany({ where: { giveawayId: id }, orderBy: { seq: 'asc' } }),
       tx.giveawayEntry.findMany({
@@ -258,8 +259,7 @@ export async function rerollGiveaway(
       input.count ?? 1,
       previousWinners,
     );
-    if (result.winnerIds.length === 0)
-      throw conflict('There are no remaining eligible entrants to draw from.');
+    if (result.winnerIds.length === 0) throw conflict(T.giveawayNoRemainingEntrants());
     const seq = (draws[draws.length - 1]?.seq ?? 0) + 1;
     const reason = cleanText(input.reason);
     const draw = await tx.giveawayDraw.create({
@@ -312,7 +312,7 @@ export async function cancelGiveaway(ctx: Ctx, id: string, reason?: string): Pro
       where: { id, guildId: ctx.guildId, status: { in: ['ACTIVE', 'SCHEDULED'] } },
       data: { status: 'CANCELLED', endedAt: ctx.now() },
     });
-    if (res.count === 0) throw invalidState('Only active giveaways can be cancelled.');
+    if (res.count === 0) throw invalidState(T.giveawayOnlyActiveCancel());
     await cancelJob(tx, endKey(id));
     await audit(
       ctx,
@@ -341,22 +341,20 @@ export async function enterGiveaway(
   await requireRate(ctx, 'engagement.giveaway.enter', 10, 60);
   const g = await loadGiveaway(ctx, id);
   if (g.status !== 'ACTIVE' || g.endsAt.getTime() <= ctx.now().getTime())
-    throw invalidState('This giveaway is no longer accepting entries.');
+    throw invalidState(T.giveawayNotAccepting());
   const check = checkGiveawayEligibility(g, member, ctx.now());
   if (!check.eligible)
-    throw invalidState(
-      `You are not eligible for this giveaway:\n${check.reasons.map((r) => `• ${r}`).join('\n')}`,
-    );
+    throw invalidState(T.giveawayNotEligible({ reasons: check.reasons.map((r) => `• ${r}`).join('\n') }));
   try {
     await ctx.db.$transaction(async (tx) => {
       await lockRow(tx, 'Giveaway', id, 'share'); // blocks a concurrent end until the entry commits
       const cur = await tx.giveaway.findUniqueOrThrow({ where: { id }, select: { status: true } });
-      if (cur.status !== 'ACTIVE') throw invalidState('This giveaway is no longer accepting entries.');
+      if (cur.status !== 'ACTIVE') throw invalidState(T.giveawayNotAccepting());
       await tx.giveawayEntry.create({ data: { giveawayId: id, userId: ctx.actor.userId } });
       await enqueueGiveawayRefresh(ctx, tx, id);
     });
   } catch (e) {
-    if (isUniqueViolation(e)) throw conflict('You have already entered this giveaway.');
+    if (isUniqueViolation(e)) throw conflict(T.giveawayAlreadyEntered());
     throw e;
   }
   return { entrantCount: await ctx.db.giveawayEntry.count({ where: { giveawayId: id } }) };
@@ -366,11 +364,11 @@ export async function leaveGiveaway(ctx: Ctx, id: string): Promise<{ left: boole
   await requireModule(ctx, 'engagement');
   await requireRate(ctx, 'engagement.giveaway.enter', 10, 60);
   const g = await loadGiveaway(ctx, id);
-  if (g.status !== 'ACTIVE') throw invalidState('This giveaway has ended; entries can no longer change.');
+  if (g.status !== 'ACTIVE') throw invalidState(T.giveawayEntriesLocked());
   return ctx.db.$transaction(async (tx) => {
     await lockRow(tx, 'Giveaway', id, 'share');
     const cur = await tx.giveaway.findUniqueOrThrow({ where: { id }, select: { status: true } });
-    if (cur.status !== 'ACTIVE') throw invalidState('This giveaway has ended; entries can no longer change.');
+    if (cur.status !== 'ACTIVE') throw invalidState(T.giveawayEntriesLocked());
     const res = await tx.giveawayEntry.deleteMany({ where: { giveawayId: id, userId: ctx.actor.userId } });
     if (res.count > 0) await enqueueGiveawayRefresh(ctx, tx, id);
     return { left: res.count > 0 };

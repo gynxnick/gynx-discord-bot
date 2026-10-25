@@ -14,6 +14,7 @@ import { requirePermission } from '../core/authz';
 import { MODULES, getGuildConfig } from '../core/config';
 import type { Ctx } from '../core/context';
 import { DEFAULT_REPORT_NAME } from './reports';
+import { AnalyticsText } from './texts';
 import { changedKeys, diffMetadata } from './service';
 
 /** Channel kinds configurable with `/config channel set` → GuildConfig column. */
@@ -123,6 +124,7 @@ export const settingsPatchSchema = z
       .strict(),
     activeMemberMinMessages: int(1, 1000),
     reportNotifyReporter: z.boolean(),
+    suggestionThreads: z.boolean(),
     embedFooter: z.string().trim().min(1).max(100),
     reportSchedule: z
       .object({
@@ -157,6 +159,7 @@ export interface GuildSettings {
   };
   activeMemberMinMessages: number;
   reportNotifyReporter: boolean;
+  suggestionThreads: boolean;
   embedFooter: string;
   reportSchedule: {
     day: string;
@@ -206,6 +209,7 @@ function toView(
     },
     activeMemberMinMessages: cfg.activeMemberMinMessages,
     reportNotifyReporter: cfg.reportNotifyReporter,
+    suggestionThreads: cfg.suggestionThreads,
     embedFooter: cfg.embedFooter,
     reportSchedule: def
       ? {
@@ -254,6 +258,7 @@ function toColumns(p: z.output<typeof settingsPatchSchema>): ConfigColumns {
   if (r.activityDays !== undefined) c.activityRetentionDays = r.activityDays;
   if (p.activeMemberMinMessages !== undefined) c.activeMemberMinMessages = p.activeMemberMinMessages;
   if (p.reportNotifyReporter !== undefined) c.reportNotifyReporter = p.reportNotifyReporter;
+  if (p.suggestionThreads !== undefined) c.suggestionThreads = p.suggestionThreads;
   if (p.embedFooter !== undefined) c.embedFooter = p.embedFooter;
   return c;
 }
@@ -262,9 +267,7 @@ function toColumns(p: z.output<typeof settingsPatchSchema>): ConfigColumns {
 async function validateMerged(ctx: Ctx, merged: GuildConfig, changed: readonly string[]): Promise<void> {
   for (const [kind, col] of Object.entries(ROLE_KINDS)) {
     if (changed.includes(col) && merged[col] === ctx.guildId)
-      throw validation(
-        `The @everyone role cannot be used as the ${ROLE_KIND_LABELS[kind as RoleKind]} role.`,
-      );
+      throw validation(AnalyticsText.errorEveryoneRole({ kind: ROLE_KIND_LABELS[kind as RoleKind] }));
   }
   const partner = merged.partnerRoleId;
   if (partner) {
@@ -272,7 +275,7 @@ async function validateMerged(ctx: Ctx, merged: GuildConfig, changed: readonly s
       if (merged[ROLE_KINDS[kind]] === partner) {
         throw new AppError(
           'FORBIDDEN',
-          `The partner role cannot also be the ${ROLE_KIND_LABELS[kind]} role — partners must never receive staff pings or escalations.`,
+          AnalyticsText.errorPartnerRoleConflict({ kind: ROLE_KIND_LABELS[kind] }),
         );
       }
     }
@@ -285,7 +288,7 @@ async function validateMerged(ctx: Ctx, merged: GuildConfig, changed: readonly s
       if (privileged.length > 0) {
         throw new AppError(
           'FORBIDDEN',
-          `That role holds privileged staff permissions (${[...new Set(privileged)].join(', ')}) and cannot be the partner role.`,
+          AnalyticsText.errorPartnerRolePrivileged({ permissions: [...new Set(privileged)].join(', ') }),
         );
       }
     }
@@ -299,7 +302,10 @@ async function validateMerged(ctx: Ctx, merged: GuildConfig, changed: readonly s
         (changed.includes(CHANNEL_KINDS[priv]) || changed.includes(CHANNEL_KINDS[pub]))
       ) {
         throw validation(
-          `The ${CHANNEL_KIND_LABELS[priv]} channel is staff-only and cannot be the same as the public ${CHANNEL_KIND_LABELS[pub]} channel.`,
+          AnalyticsText.errorPrivateChannelConflict({
+            privateKind: CHANNEL_KIND_LABELS[priv],
+            publicKind: CHANNEL_KIND_LABELS[pub],
+          }),
         );
       }
     }

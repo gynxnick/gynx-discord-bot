@@ -13,6 +13,7 @@ import { can, requirePermission, requireRate } from '../core/authz';
 import { getGuildConfig, requireModule } from '../core/config';
 import type { Ctx } from '../core/context';
 import { gameKeySchema, supportUrlOf } from './common';
+import { TroubleshootingText } from './texts';
 import {
   flowDefinitionSchema,
   referencedArticleSlugs,
@@ -224,8 +225,7 @@ async function articleRef(ctx: Ctx, slug: string | undefined): Promise<ArticleRe
 
 function parseStored(flow: TroubleshootingFlow): FlowDefinition {
   const r = flowDefinitionSchema.safeParse(flow.definition);
-  if (!r.success)
-    throw invalidState('This troubleshooting flow is misconfigured. Please contact the support team.');
+  if (!r.success) throw invalidState(TroubleshootingText.flowMisconfigured());
   return r.data;
 }
 
@@ -255,8 +255,7 @@ export async function startSession(ctx: Ctx, flowSlug: string): Promise<StepView
   if (!flow) throw notFound('Troubleshooting flow');
   const def = parseStored(flow);
   const start = def.nodes[def.start];
-  if (!start)
-    throw invalidState('This troubleshooting flow is misconfigured. Please contact the support team.');
+  if (!start) throw invalidState(TroubleshootingText.flowMisconfigured());
 
   const session = await ctx.db.$transaction(async (tx) => {
     // One active session per member per flow: restarting abandons the old one.
@@ -293,9 +292,7 @@ async function loadOwnSession(ctx: Ctx, sessionId: string) {
       targetId: s.id,
       metadata: { reason: 'not-owner' },
     });
-    throw forbidden(
-      'Only the member who started this troubleshooting session can continue it. Run /troubleshoot to start your own.',
-    );
+    throw forbidden(TroubleshootingText.sessionNotOwner());
   }
   return s;
 }
@@ -312,19 +309,18 @@ export async function chooseOption(
 ): Promise<StepView> {
   const idx = z.number().int().min(0).max(4).parse(optionIndex);
   const s = await loadOwnSession(ctx, sessionId);
-  if (s.outcome !== 'IN_PROGRESS')
-    throw invalidState('This troubleshooting session has ended. Run /troubleshoot to start again.');
+  if (s.outcome !== 'IN_PROGRESS') throw invalidState(TroubleshootingText.sessionEnded());
   if (expectedNode !== undefined && expectedNode !== s.currentNode)
-    throw invalidState('That step is no longer current — use the latest message.');
+    throw invalidState(TroubleshootingText.stepStale());
 
   const def = parseStored(s.flow);
   const node = def.nodes[s.currentNode];
   if (!node) {
     await ctx.db.troubleshootingSession.update({ where: { id: s.id }, data: { outcome: 'ABANDONED' } });
-    throw invalidState('This flow was updated while you were using it. Please run /troubleshoot again.');
+    throw invalidState(TroubleshootingText.flowChanged());
   }
   const option = node.options[idx];
-  if (!option) throw validation('That option does not exist.');
+  if (!option) throw validation(TroubleshootingText.optionMissing());
 
   const nextNodeId = option.next;
   const outcome = nextNodeId ? 'IN_PROGRESS' : option.escalate ? 'ESCALATED' : 'RESOLVED';
@@ -333,7 +329,7 @@ export async function chooseOption(
     where: { id: s.id, currentNode: s.currentNode, outcome: 'IN_PROGRESS' },
     data: { currentNode: nextNodeId ?? s.currentNode, path: { push: `${s.currentNode}:${idx}` }, outcome },
   });
-  if (res.count === 0) throw conflict('That step was already answered.');
+  if (res.count === 0) throw conflict(TroubleshootingText.stepAlreadyAnswered());
 
   const article = await articleRef(ctx, option.articleSlug);
   if (nextNodeId) return nodeView(s, s.flow, nextNodeId, def.nodes[nextNodeId]!, article);
@@ -354,8 +350,7 @@ export async function chooseOption(
  */
 export async function escalateSession(ctx: Ctx, sessionId: string): Promise<{ supportUrl: string | null }> {
   const s = await loadOwnSession(ctx, sessionId);
-  if (s.outcome === 'ABANDONED')
-    throw invalidState('This troubleshooting session has expired. Run /troubleshoot to start again.');
+  if (s.outcome === 'ABANDONED') throw invalidState(TroubleshootingText.sessionExpired());
   if (s.outcome !== 'ESCALATED') {
     await ctx.db.troubleshootingSession.update({ where: { id: s.id }, data: { outcome: 'ESCALATED' } });
   }

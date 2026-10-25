@@ -5,3 +5,4 @@ export * from './suggestions';
 export * from './draw';
 export * from './giveaways';
 export * from './render';
+export * from './texts';

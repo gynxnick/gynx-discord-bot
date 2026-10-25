@@ -16,6 +16,7 @@ import { requireModule } from '../core/config';
 import type { Ctx } from '../core/context';
 import { enqueueJob, rescheduleJob } from '../core/jobs';
 import { JOBS, cleanText, lockRow, refreshBucket, snowflakeSchema } from './common';
+import { EngagementText as T } from './texts';
 
 export const POLL_MIN_DURATION_MS = 60_000;
 export const POLL_MAX_DURATION_MS = 14 * 86_400_000;
@@ -37,12 +38,12 @@ export function validatePollSelection(
   selected: readonly string[],
 ): string[] {
   const unique = [...new Set(selected)];
-  if (unique.length === 0) throw validation('Pick at least one option.');
+  if (unique.length === 0) throw validation(T.pollPickAtLeastOne());
   const valid = new Set(validOptionIds);
-  if (unique.some((id) => !valid.has(id))) throw validation('That option is not part of this poll.');
-  if (!rules.multipleChoice && unique.length !== 1) throw validation('This poll allows only one choice.');
+  if (unique.some((id) => !valid.has(id))) throw validation(T.pollOptionNotInPoll());
+  if (!rules.multipleChoice && unique.length !== 1) throw validation(T.pollSingleChoiceOnly());
   if (rules.multipleChoice && unique.length > rules.maxChoices)
-    throw validation(`You can pick at most ${rules.maxChoices} options.`);
+    throw validation(T.pollMaxChoices({ max: rules.maxChoices }));
   return unique;
 }
 
@@ -174,7 +175,7 @@ export async function votePoll(
       });
       if (!poll) throw notFound('Poll');
       if (poll.status !== 'OPEN' || poll.endsAt.getTime() <= ctx.now().getTime())
-        throw invalidState('This poll is closed.');
+        throw invalidState(T.pollIsClosed());
       const selection = validatePollSelection(
         poll,
         poll.options.map((o) => o.id),
@@ -234,7 +235,7 @@ export async function closePoll(ctx: Ctx, pollId: string): Promise<Poll> {
         where: { id: pollId, guildId: ctx.guildId },
         select: { id: true },
       });
-      throw exists ? invalidState('This poll is already closed.') : notFound('Poll');
+      throw exists ? invalidState(T.pollAlreadyClosed()) : notFound('Poll');
     }
     await audit(ctx, { action: 'engagement.poll.close', targetType: 'Poll', targetId: pollId }, tx);
     if (!(await rescheduleJob(tx, endKey(pollId), ctx.now()))) {
@@ -334,8 +335,7 @@ export async function getPollResults(
   const poll = await ctx.db.poll.findFirst({ where: { id: pollId, guildId: ctx.guildId } });
   if (!poll) throw notFound('Poll');
   const manager = can(ctx, 'polls.manage');
-  if (!manager && poll.status === 'OPEN' && !poll.liveResults)
-    throw forbidden('Results will be shown when the poll closes.');
+  if (!manager && poll.status === 'OPEN' && !poll.liveResults) throw forbidden(T.pollResultsNotYet());
   const results = await tallyPoll(ctx.db, pollId);
   if (!opts.includeVoters || poll.anonymous) return results;
   if (!manager) {

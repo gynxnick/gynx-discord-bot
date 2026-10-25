@@ -5,6 +5,7 @@ import { EMBED_COLORS, isValidTimeZone, validation, zonedToUtc } from '@gynx/sha
 import { brandEmbed } from '../core/render';
 import type { MessageBody } from '../core/discord-port';
 import { hexToInt } from './common';
+import { MarketingText as T } from './texts';
 
 export const ANNOUNCEMENT_TYPES = [
   'GENERAL',
@@ -29,6 +30,24 @@ export const ANNOUNCEMENT_TYPE_LABELS: Record<AnnouncementType, string> = {
   EVENT: 'Event',
   REFERRAL_CAMPAIGN: 'Referral campaign',
 };
+
+const TYPE_TEXT: Record<AnnouncementType, keyof typeof T> = {
+  GENERAL: 'typeGeneral',
+  MAINTENANCE: 'typeMaintenance',
+  GAME_LAUNCH: 'typeGameLaunch',
+  FEATURE_RELEASE: 'typeFeatureRelease',
+  MILESTONE: 'typeMilestone',
+  REVIEW_REQUEST: 'typeReviewRequest',
+  POLL: 'typePoll',
+  EVENT: 'typeEvent',
+  REFERRAL_CAMPAIGN: 'typeReferralCampaign',
+};
+
+/**
+ * Editable type name for messages sent in Discord (resolved at call time).
+ * ANNOUNCEMENT_TYPE_LABELS stays for static slash-command choices and the dashboard.
+ */
+export const announcementTypeLabel = (t: AnnouncementType): string => T[TYPE_TEXT[t]]();
 
 export const MENTION_MODES = ['NONE', 'HERE', 'EVERYONE', 'ROLE'] as const satisfies readonly MentionMode[];
 
@@ -56,7 +75,7 @@ export function mentionPayload(mode: MentionMode, roleId?: string | null): Menti
     case 'HERE':
       return { content: '@here', allowed_mentions: { parse: [AllowedMentionsTypes.Everyone] } };
     case 'ROLE':
-      if (!roleId || !/^\d{17,20}$/.test(roleId)) throw validation('A role is required for role mentions.');
+      if (!roleId || !/^\d{17,20}$/.test(roleId)) throw validation(T.mentionRoleRequired());
       return { content: `<@&${roleId}>`, allowed_mentions: { parse: [], roles: [roleId] } };
     case 'NONE':
     default:
@@ -100,16 +119,14 @@ export function mentionWarning(
   switch (mode) {
     case 'EVERYONE':
       return n(counts.memberCount)
-        ? `This will ping @everyone and notify about ${n(counts.memberCount)} members.`
-        : 'This will ping @everyone and notify every member of the server.';
+        ? T.warnEveryoneCount({ count: n(counts.memberCount)! })
+        : T.warnEveryone();
     case 'HERE':
-      return n(counts.memberCount)
-        ? `This will ping @here and notify every online member (up to ${n(counts.memberCount)} members).`
-        : 'This will ping @here and notify every online member.';
+      return n(counts.memberCount) ? T.warnHereCount({ count: n(counts.memberCount)! }) : T.warnHere();
     case 'ROLE':
       return n(counts.roleMemberCount)
-        ? `This will ping <@&${roleId}> and notify ${n(counts.roleMemberCount)} members.`
-        : `This will ping <@&${roleId}> and notify everyone with that role.`;
+        ? T.warnRoleCount({ role: `<@&${roleId}>`, count: n(counts.roleMemberCount)! })
+        : T.warnRole({ role: `<@&${roleId}>` });
     default:
       return null;
   }
@@ -120,15 +137,13 @@ export function mentionWarning(
  * Rejects impossible dates (e.g. 2026-02-30) and non-existent DST gap times.
  */
 export function parseScheduleInput(input: string, tz: string): Date {
-  if (!isValidTimeZone(tz))
-    throw validation(`Unknown time zone "${tz}". Use an IANA name like Europe/London.`);
+  if (!isValidTimeZone(tz)) throw validation(T.scheduleBadTimezone({ timezone: tz }));
   const m = /^\s*(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})\s*$/.exec(input);
-  if (!m) throw validation('Use the format YYYY-MM-DD HH:MM, e.g. 2026-11-05 18:30.');
+  if (!m) throw validation(T.scheduleBadFormat());
   const [year, month, day, hour, minute] = m.slice(1).map(Number) as [number, number, number, number, number];
-  if (month < 1 || month > 12 || hour > 23 || minute > 59)
-    throw validation('That date or time is not valid.');
+  if (month < 1 || month > 12 || hour > 23 || minute > 59) throw validation(T.scheduleInvalidDateTime());
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  if (day < 1 || day > daysInMonth) throw validation('That date does not exist.');
+  if (day < 1 || day > daysInMonth) throw validation(T.scheduleNoSuchDate());
   const utc = zonedToUtc(year, month, day, hour, minute, tz);
   // Round-trip check: wall times inside a DST gap don't exist.
   const back = new Intl.DateTimeFormat('en-CA', {
@@ -143,9 +158,7 @@ export function parseScheduleInput(input: string, tz: string): Date {
     .formatToParts(utc)
     .reduce<Record<string, string>>((acc, p) => ({ ...acc, [p.type]: p.value }), {});
   if (Number(back.hour) !== hour || Number(back.minute) !== minute || Number(back.day) !== day) {
-    throw validation(
-      'That time does not exist in this time zone (daylight-saving change). Pick another time.',
-    );
+    throw validation(T.scheduleDstGap());
   }
   return utc;
 }

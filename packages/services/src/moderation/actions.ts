@@ -33,6 +33,7 @@ import {
   snowflake,
 } from './common';
 import { checkHierarchy, isStaffPermissionSet } from './hierarchy';
+import { ModerationText as T } from './texts';
 
 /** Action types a moderator (or automod) can request. MESSAGE_DELETE is recorded by automod events instead. */
 export const MANUAL_ACTION_TYPES = ['WARN', 'TIMEOUT', 'UNTIMEOUT', 'KICK', 'BAN', 'UNBAN'] as const;
@@ -45,16 +46,6 @@ export const ACTION_PERMISSION: Record<ManualActionType, PermissionKey> = {
   KICK: 'moderation.execute',
   BAN: 'moderation.ban',
   UNBAN: 'moderation.ban',
-};
-
-export const ACTION_LABELS: Record<ModerationType, string> = {
-  WARN: 'Warning',
-  TIMEOUT: 'Timeout',
-  UNTIMEOUT: 'Timeout removed',
-  KICK: 'Kick',
-  BAN: 'Ban',
-  UNBAN: 'Unban',
-  MESSAGE_DELETE: 'Message deleted',
 };
 
 /** Types whose Discord effect requires the bot to outrank the target. */
@@ -111,22 +102,20 @@ export interface ActionResult {
 
 function resolveDuration(type: ManualActionType, raw: string | undefined): number | null {
   if (type === 'TIMEOUT') {
-    if (!raw) throw validation('A duration is required for a timeout (e.g. 30m, 2h, 1d).');
+    if (!raw) throw validation(T.timeoutDurationRequired());
     const ms = parseDuration(raw);
-    if (ms === null) throw validation('Invalid duration. Use a format like 30m, 2h or 1d.');
-    if (ms < TIMEOUT_MIN_MS || ms > TIMEOUT_MAX_MS)
-      throw validation('Timeouts must be between 1 minute and 28 days.');
+    if (ms === null) throw validation(T.timeoutDurationInvalid());
+    if (ms < TIMEOUT_MIN_MS || ms > TIMEOUT_MAX_MS) throw validation(T.timeoutDurationRange());
     return ms;
   }
   if (type === 'BAN') {
     if (!raw) return null; // permanent
     const ms = parseDuration(raw);
-    if (ms === null) throw validation('Invalid duration. Use a format like 12h, 7d or 4w.');
-    if (ms < TEMPBAN_MIN_MS || ms > TEMPBAN_MAX_MS)
-      throw validation('Temporary bans must be between 1 minute and 365 days.');
+    if (ms === null) throw validation(T.banDurationInvalid());
+    if (ms < TEMPBAN_MIN_MS || ms > TEMPBAN_MAX_MS) throw validation(T.banDurationRange());
     return ms;
   }
-  if (raw) throw validation(`A duration cannot be set for ${type.toLowerCase()}.`);
+  if (raw) throw validation(T.durationNotAllowed({ action: type.toLowerCase() }));
   return null;
 }
 
@@ -147,13 +136,12 @@ export async function prepareAction(
   if (input.automodEventId && !ctx.actor.isSystem) throw forbidden();
 
   const durationMs = resolveDuration(input.type, input.duration);
-  if (input.deleteMessageDays && input.type !== 'BAN')
-    throw validation('Message deletion only applies to bans.');
+  if (input.deleteMessageDays && input.type !== 'BAN') throw validation(T.deleteMessagesBanOnly());
 
   if (HIERARCHY_CHECKED.includes(input.type)) {
-    if (!subject) throw validation('Member information is required for this action.');
+    if (!subject) throw validation(T.memberInfoRequired());
     if (subject.targetIsBot && (input.type === 'WARN' || input.type === 'TIMEOUT')) {
-      throw validation('Bots cannot be warned or timed out. Kick or ban them instead.');
+      throw validation(T.botsCannotBeWarned());
     }
     const grants = await ctx.db.staffPermission.findMany({
       where: { guildId: ctx.guildId },
@@ -248,7 +236,7 @@ export async function recordAction(
         durationSeconds: plan.durationMs ? Math.round(plan.durationMs / 1000) : null,
         expiresAt,
         status: applied ? 'APPLIED' : 'FAILED',
-        failureReason: applied ? null : (result.error ?? 'Discord rejected the action.'),
+        failureReason: applied ? null : (result.error ?? T.discordRejectedDefault()),
         dmSent: result.dmSent,
         moderatorNote: plan.moderatorNote,
         automodEventId: plan.automodEventId,
@@ -368,7 +356,8 @@ export async function expireAction(
   if (action.expiresAt && action.expiresAt.getTime() > ctx.now().getTime())
     throw invalidState('Action has not expired yet.');
 
-  if (action.type === 'BAN') await unban(ctx.guildId, action.targetId, `Temporary ban ${action.ref} expired`);
+  const expiredReason = T.tempBanExpiredReason({ ref: action.ref });
+  if (action.type === 'BAN') await unban(ctx.guildId, action.targetId, expiredReason);
 
   return ctx.db.$transaction(async (tx) => {
     const res = await tx.moderationAction.updateMany({
@@ -394,7 +383,7 @@ export async function expireAction(
         type: 'UNBAN',
         targetId: action.targetId,
         moderatorId: SYSTEM_MODERATOR_ID,
-        reason: `Temporary ban ${action.ref} expired`,
+        reason: expiredReason,
         status: 'APPLIED',
       },
       ctx.now(),

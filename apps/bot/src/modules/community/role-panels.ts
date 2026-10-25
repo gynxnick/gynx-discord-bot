@@ -1,15 +1,18 @@
-import { ChannelType, SlashCommandBuilder } from 'discord.js';
+import { ChannelType, SlashCommandBuilder, type SlashCommandStringOption } from 'discord.js';
 import { brandEmbed, community } from '@gynx/services';
 import { discordTimestamp, truncate } from '@gynx/shared';
 import { respond, replySuccess } from '../../framework/reply';
 import type { SlashCommand } from '../../framework/types';
 
+const T = community.CommunityText;
+
+// Slash command choices are registered statically with Discord, so they use the default English names.
 const GROUP_CHOICES = [
   { name: 'All roles', value: 'all' },
   ...community.SELF_ROLE_GROUPS.map((g) => ({ name: community.GROUP_LABELS[g] ?? g, value: g })),
 ];
 
-const panelOption = (o: import('discord.js').SlashCommandStringOption) =>
+const panelOption = (o: SlashCommandStringOption) =>
   o.setName('panel').setDescription('Which panel').setRequired(true).setAutocomplete(true);
 
 /** /role-panel: staff manage the public self-role button panels. */
@@ -83,12 +86,7 @@ export const rolePanelCommand: SlashCommand = {
         description: i.options.getString('description') ?? undefined,
         groups: group === 'all' ? [] : [group as community.SelfRoleGroup],
       });
-      await replySuccess(
-        i,
-        'Role panel created',
-        `It will appear in <#${panel.channelId}> within a few seconds and update itself when roles change.\n` +
-          'Make sure the bot can **View Channel**, **Send Messages** and **Embed Links** there.',
-      );
+      await replySuccess(i, T.panelCreatedTitle(), T.panelCreatedBody({ channel: `<#${panel.channelId}>` }));
       return;
     }
 
@@ -96,15 +94,17 @@ export const rolePanelCommand: SlashCommand = {
       const panels = await community.listRolePanels(h.ctx);
       const lines = panels.map(
         (p) =>
-          `**${truncate(p.title, 60)}** · <#${p.channelId}> · ${p.groups.length ? p.groups.join(', ') : 'all roles'} · ${
-            p.messageId ? `synced ${p.syncedAt ? discordTimestamp(p.syncedAt, 'R') : ''}` : 'not posted yet'
+          `**${truncate(p.title, 60)}** · <#${p.channelId}> · ${p.groups.length ? p.groups.join(', ') : T.panelListAllRoles()} · ${
+            p.messageId
+              ? T.panelListSynced({ time: p.syncedAt ? discordTimestamp(p.syncedAt, 'R') : '' })
+              : T.panelListNotPosted()
           }`,
       );
       await respond(i, {
         embeds: [
           brandEmbed({
-            title: 'Role panels',
-            description: lines.join('\n') || 'No panels yet. Create one with `/role-panel create`.',
+            title: T.panelListTitle(),
+            description: lines.join('\n') || T.panelListEmpty(),
           }),
         ],
       });
@@ -115,15 +115,15 @@ export const rolePanelCommand: SlashCommand = {
       const n = await community.refreshRolePanels(h.ctx, i.options.getString('panel') ?? undefined);
       await replySuccess(
         i,
-        'Refreshing',
-        `${n} panel${n === 1 ? '' : 's'} will update within a few seconds.`,
+        T.panelRefreshTitle(),
+        n === 1 ? T.panelRefreshOne({ count: n }) : T.panelRefreshMany({ count: n }),
       );
       return;
     }
 
     if (sub === 'delete') {
       await community.deleteRolePanel(h.ctx, i.options.getString('panel', true));
-      await replySuccess(i, 'Role panel deleted', 'Its message will be removed within a few seconds.');
+      await replySuccess(i, T.panelDeletedTitle(), T.panelDeletedBody());
     }
   },
 };

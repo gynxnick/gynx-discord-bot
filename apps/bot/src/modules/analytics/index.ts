@@ -20,6 +20,8 @@ import { respond } from '../../framework/reply';
 import { on, type BotModule, type BotRuntime, type HandlerCtx } from '../../framework/types';
 import { ActivityCollector } from './collector';
 
+const T = analytics.AnalyticsText;
+
 // ── Activity collection ────────────────────────────────────────────────────
 
 const FLUSH_MS = 60_000;
@@ -93,7 +95,7 @@ function dashboardRow(h: HandlerCtx, path: string) {
         {
           type: ComponentType.Button,
           style: ButtonStyle.Link,
-          label: 'Open dashboard',
+          label: T.openDashboard(),
           url: `${url}${path}`,
         },
       ],
@@ -264,40 +266,64 @@ const configCommand = new SlashCommandBuilder()
   );
 
 function settingsEmbed(s: analytics.GuildSettings) {
+  const notSet = T.settingsNotSet();
   const ch = (Object.keys(analytics.CHANNEL_KINDS) as analytics.ChannelKind[]).map(
-    (k) => `${analytics.CHANNEL_KIND_LABELS[k]}: ${s.channels[k] ? `<#${s.channels[k]}>` : '_not set_'}`,
+    (k) => `${analytics.CHANNEL_KIND_LABELS[k]}: ${s.channels[k] ? `<#${s.channels[k]}>` : notSet}`,
   );
   const roles = (Object.keys(analytics.ROLE_KINDS) as analytics.RoleKind[]).map(
-    (k) => `${analytics.ROLE_KIND_LABELS[k]}: ${s.roles[k] ? `<@&${s.roles[k]}>` : '_not set_'}`,
+    (k) => `${analytics.ROLE_KIND_LABELS[k]}: ${s.roles[k] ? `<@&${s.roles[k]}>` : notSet}`,
   );
   const mods = MODULES.map((m) => `${s.enabledModules.includes(m) ? '✅' : '⛔'} ${MODULE_LABELS[m]}`);
-  const sched = s.reportSchedule
-    ? `${s.reportSchedule.enabled ? 'Enabled' : 'Disabled'} · ${s.reportSchedule.day.toLowerCase()} ${s.reportSchedule.time} (${s.reportSchedule.timezone})${s.reportSchedule.nextRunAt ? `\nNext: ${discordTimestamp(new Date(s.reportSchedule.nextRunAt), 'F')}` : ''}`
-    : 'Not configured yet';
+  const rs = s.reportSchedule;
+  const sched = rs
+    ? T.settingsReportSchedule({
+        state: rs.enabled ? T.settingsReportEnabled() : T.settingsReportDisabled(),
+        day: rs.day.toLowerCase(),
+        time: rs.time,
+        timezone: rs.timezone,
+      }) +
+      (rs.nextRunAt
+        ? `\n${T.settingsReportNext({ time: discordTimestamp(new Date(rs.nextRunAt), 'F') })}`
+        : '')
+    : T.settingsReportNotConfigured();
   return brandEmbed({
-    title: 'Server settings',
+    title: T.settingsTitle(),
     fields: [
-      { name: 'Time zone', value: s.timezone, inline: true },
-      { name: 'Support URL', value: s.supportUrl ?? '_not set_', inline: true },
-      { name: 'Embed footer', value: truncate(s.embedFooter, 100), inline: true },
-      { name: 'Modules', value: mods.join('\n') },
-      { name: 'Channels', value: ch.join('\n') },
-      { name: 'Roles', value: roles.join('\n') },
-      { name: 'Weekly report', value: sched },
+      { name: T.settingsTimezoneField(), value: s.timezone, inline: true },
+      { name: T.settingsSupportUrlField(), value: s.supportUrl ?? notSet, inline: true },
+      { name: T.settingsEmbedFooterField(), value: truncate(s.embedFooter, 100), inline: true },
+      { name: T.settingsModulesField(), value: mods.join('\n') },
+      { name: T.settingsChannelsField(), value: ch.join('\n') },
+      { name: T.settingsRolesField(), value: roles.join('\n') },
+      { name: T.settingsReportField(), value: sched },
       {
-        name: 'Status thresholds',
-        value: `Check every ${s.status.checkIntervalSeconds}s · fail after ${s.status.failureThreshold} · recover after ${s.status.recoveryThreshold} · alert cooldown ${s.status.alertCooldownMinutes}m`,
+        name: T.settingsStatusField(),
+        value: T.settingsStatusValue({
+          interval: s.status.checkIntervalSeconds,
+          failures: s.status.failureThreshold,
+          recoveries: s.status.recoveryThreshold,
+          cooldown: s.status.alertCooldownMinutes,
+        }),
       },
       {
-        name: 'Retention',
-        value: `Diagnostics ${s.retention.diagnosticHours}h · reports ${s.retention.reportDays}d · audit ${s.retention.auditDays}d · health checks ${s.retention.healthCheckDays}d · activity ${s.retention.activityDays}d`,
+        name: T.settingsRetentionField(),
+        value: T.settingsRetentionValue({
+          diagnosticHours: s.retention.diagnosticHours,
+          reportDays: s.retention.reportDays,
+          auditDays: s.retention.auditDays,
+          healthCheckDays: s.retention.healthCheckDays,
+          activityDays: s.retention.activityDays,
+        }),
       },
       {
-        name: 'Analytics',
-        value: `Active member = ≥ ${s.activeMemberMinMessages} message(s) in period · reporter updates ${s.reportNotifyReporter ? 'on' : 'off'}`,
+        name: T.settingsAnalyticsField(),
+        value: T.settingsAnalyticsValue({
+          minMessages: s.activeMemberMinMessages,
+          reporterUpdates: s.reportNotifyReporter ? T.settingsOn() : T.settingsOff(),
+        }),
       },
     ],
-    footer: 'Change advanced settings in the dashboard.',
+    footer: T.settingsFooter(),
   });
 }
 
@@ -305,7 +331,7 @@ async function runConfig(i: ChatInputCommandInteraction, h: HandlerCtx): Promise
   const group = i.options.getSubcommandGroup(false);
   const sub = i.options.getSubcommand(true);
   const done = async (s: analytics.GuildSettings, message: string) =>
-    respond(i, { content: `✅ ${message}`, embeds: [settingsEmbed(s)] });
+    respond(i, { content: T.configSuccess({ message }), embeds: [settingsEmbed(s)] });
 
   if (!group && sub === 'view') {
     await respond(i, {
@@ -317,7 +343,7 @@ async function runConfig(i: ChatInputCommandInteraction, h: HandlerCtx): Promise
   if (!group && sub === 'timezone') {
     const zone = i.options.getString('zone', true).trim();
     const s = await analytics.updateSettings(h.ctx, { timezone: zone });
-    await done(s, `Time zone set to **${s.timezone}**.`);
+    await done(s, T.configTimezoneSet({ timezone: s.timezone }));
     return;
   }
   if (group === 'module') {
@@ -328,30 +354,34 @@ async function runConfig(i: ChatInputCommandInteraction, h: HandlerCtx): Promise
         ? [...new Set([...current.enabledModules, mod])]
         : current.enabledModules.filter((m) => m !== mod);
     const s = await analytics.updateSettings(h.ctx, { enabledModules: next as ModuleKey[] });
-    await done(s, `${MODULE_LABELS[mod]} ${sub === 'enable' ? 'enabled' : 'disabled'}.`);
+    const module = MODULE_LABELS[mod];
+    await done(s, sub === 'enable' ? T.configModuleEnabled({ module }) : T.configModuleDisabled({ module }));
     return;
   }
   if (group === 'channel' && sub === 'set') {
     const kind = i.options.getString('kind', true) as analytics.ChannelKind;
     const channel = i.options.getChannel('channel', true);
     const s = await analytics.updateSettings(h.ctx, { channels: { [kind]: channel.id } });
-    await done(s, `${analytics.CHANNEL_KIND_LABELS[kind]} channel set to <#${channel.id}>.`);
+    await done(
+      s,
+      T.configChannelSet({ kind: analytics.CHANNEL_KIND_LABELS[kind], channel: `<#${channel.id}>` }),
+    );
     return;
   }
   if (group === 'role' && sub === 'set') {
     const kind = i.options.getString('kind', true) as analytics.RoleKind;
     const role = i.options.getRole('role', true);
     if (role.managed) {
-      await respond(i, { content: 'That role is managed by an integration and cannot be used here.' });
+      await respond(i, { content: T.configRoleManaged() });
       return;
     }
     const s = await analytics.updateSettings(h.ctx, { roles: { [kind]: role.id } });
-    await done(s, `${analytics.ROLE_KIND_LABELS[kind]} role set to <@&${role.id}>.`);
+    await done(s, T.configRoleSet({ kind: analytics.ROLE_KIND_LABELS[kind], role: `<@&${role.id}>` }));
     return;
   }
   if (group === 'support-url' && sub === 'set') {
     const s = await analytics.updateSettings(h.ctx, { supportUrl: i.options.getString('url', true).trim() });
-    await done(s, 'Support URL updated.');
+    await done(s, T.configSupportUrlUpdated());
     return;
   }
   if (group === 'report' && sub === 'schedule') {
@@ -361,10 +391,10 @@ async function runConfig(i: ChatInputCommandInteraction, h: HandlerCtx): Promise
         time: i.options.getString('time', true).trim(),
       },
     });
-    await done(s, 'Weekly report schedule updated.');
+    await done(s, T.configReportScheduleUpdated());
     return;
   }
-  await respond(i, { content: 'Unknown settings command.' });
+  await respond(i, { content: T.configUnknownCommand() });
 }
 
 async function runAnalytics(i: ChatInputCommandInteraction, h: HandlerCtx): Promise<void> {
@@ -375,15 +405,13 @@ async function runAnalytics(i: ChatInputCommandInteraction, h: HandlerCtx): Prom
 
   if (sectionName === 'overview') {
     const data = await analytics.getOverview(h.ctx, period);
-    const [embed] = analytics.reportEmbeds(data, { title: `Analytics · last ${period}` });
+    const [embed] = analytics.reportEmbeds(data, { title: T.overviewTitle({ period }) });
     await respond(i, {
       embeds: [
         {
           ...embed!,
           url: undefined,
-          footer: {
-            text: 'Observed message activity only — Discord provides no view data. Comparisons vs previous equal period.',
-          },
+          footer: { text: T.overviewFooter() },
         },
       ],
       components,
@@ -412,10 +440,10 @@ async function runAnalytics(i: ChatInputCommandInteraction, h: HandlerCtx): Prom
   await respond(i, {
     embeds: [
       brandEmbed({
-        title: `Analytics · ${sectionName} · last ${period}`,
-        description: `${rangeLabel(range)}\nPercentages compare with the previous ${period}. "n/a" = no comparable data.`,
+        title: T.sectionTitle({ section: sectionName, period }),
+        description: T.sectionDescription({ range: rangeLabel(range), period }),
         fields,
-        footer: 'Observed message activity only — Discord provides no view or impression data.',
+        footer: T.sectionFooter(),
       }),
     ],
     components,
@@ -426,18 +454,22 @@ async function runStaffStats(i: ChatInputCommandInteraction, h: HandlerCtx): Pro
   await i.deferReply({ flags: 64 });
   const period = getPeriod(i);
   const r = await analytics.staffStats(h.ctx, period);
-  const lines = r.rows
-    .slice(0, 20)
-    .map(
-      (s) =>
-        `<@${s.userId}> — mod actions **${s.moderationActions}** · reports claimed **${s.reportsClaimed}** / resolved **${s.reportsResolved}** · incident updates **${s.incidentUpdates}** · partner reviews **${s.partnerReviews}**`,
-    );
+  const lines = r.rows.slice(0, 20).map((s) =>
+    T.staffStatsLine({
+      user: `<@${s.userId}>`,
+      modActions: s.moderationActions,
+      claimed: s.reportsClaimed,
+      resolved: s.reportsResolved,
+      incidentUpdates: s.incidentUpdates,
+      partnerReviews: s.partnerReviews,
+    }),
+  );
   await respond(i, {
     embeds: [
       brandEmbed({
-        title: `Staff activity · last ${period}`,
-        description: `${rangeLabel(r.period)}\n\n${lines.join('\n') || 'No staff activity recorded in this period.'}`,
-        footer: 'Counts only. Activity is not a measure of quality — use with context.',
+        title: T.staffStatsTitle({ period }),
+        description: `${rangeLabel(r.period)}\n\n${lines.join('\n') || T.staffStatsEmpty()}`,
+        footer: T.staffStatsFooter(),
       }),
     ],
     components: dashboardRow(h, '/analytics/staff') as never,

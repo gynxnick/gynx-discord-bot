@@ -4,6 +4,8 @@ import { AppError, discordTimestamp, truncate } from '@gynx/shared';
 import { replySuccess, respond } from '../../framework/reply';
 import type { SlashCommand } from '../../framework/types';
 
+const T = marketing.MarketingText;
+
 const data = new SlashCommandBuilder()
   .setName('referral')
   .setDescription('Invite friends to the community and see your referrals')
@@ -73,12 +75,12 @@ export const referralCommand: SlashCommand = {
         embeds: [
           brandEmbed({
             title: invite.campaign
-              ? `Campaign invite · ${truncate(invite.campaign, 80)}`
+              ? T.inviteCampaignTitle({ campaign: truncate(invite.campaign, 80) })
               : created
-                ? 'Your personal invite'
-                : 'Your personal invite (existing)',
-            description: `https://discord.gg/${invite.code}\n\nWhen someone joins with this link we credit you only if we can confirm it was your invite. Joins from new accounts, rejoins or bursts are reviewed by staff first.`,
-            footer: 'Referrals are for community growth only — there are no rewards or payouts.',
+                ? T.inviteTitleNew()
+                : T.inviteTitleExisting(),
+            description: `https://discord.gg/${invite.code}\n\n${T.inviteExplainer()}`,
+            footer: T.inviteFooter(),
           }),
         ],
       });
@@ -90,22 +92,22 @@ export const referralCommand: SlashCommand = {
       await respond(i, {
         embeds: [
           brandEmbed({
-            title: 'Your referrals',
+            title: T.statsTitle(),
             fields: [
-              { name: 'Confirmed', value: String(s.valid), inline: true },
-              { name: 'Last 30 days', value: String(s.validLast30Days), inline: true },
-              { name: 'Under review', value: String(s.underReview), inline: true },
-              { name: 'Not counted', value: String(s.invalid), inline: true },
+              { name: T.statsConfirmed(), value: String(s.valid), inline: true },
+              { name: T.statsLast30Days(), value: String(s.validLast30Days), inline: true },
+              { name: T.statsUnderReview(), value: String(s.underReview), inline: true },
+              { name: T.statsNotCounted(), value: String(s.invalid), inline: true },
               {
-                name: 'Your invites',
+                name: T.statsInvites(),
                 value: s.invites.length
                   ? s.invites
                       .map((inv) => `discord.gg/${inv.code}${inv.campaign ? ` (${inv.campaign})` : ''}`)
                       .join('\n')
-                  : 'None yet — use `/referral create`.',
+                  : T.statsNoInvites(),
               },
             ],
-            footer: 'Only joins we can attribute with certainty are counted.',
+            footer: T.statsFooter(),
           }),
         ],
       });
@@ -115,16 +117,20 @@ export const referralCommand: SlashCommand = {
     if (sub === 'leaderboard') {
       const period = (i.options.getString('period') ?? '30') as marketing.LeaderboardPeriod;
       const rows = await marketing.referralLeaderboard(h.ctx, period);
-      const label = period === 'all' ? 'All time' : `Last ${period} days`;
+      const label = period === 'all' ? T.leaderboardAllTime() : T.leaderboardLastDays({ days: period });
       await respond(i, {
         ephemeral: false,
         embeds: [
           brandEmbed({
-            title: `Referral leaderboard · ${label}`,
+            title: T.leaderboardTitle({ period: label }),
             description: rows.length
-              ? rows.map((r) => `**${r.rank}.** <@${r.referrerId}> — ${r.referrals}`).join('\n')
-              : 'No confirmed referrals in this period yet.',
-            footer: 'Confirmed and reviewed referrals only.',
+              ? rows
+                  .map((r) =>
+                    T.leaderboardLine({ rank: r.rank, user: `<@${r.referrerId}>`, count: r.referrals }),
+                  )
+                  .join('\n')
+              : T.leaderboardEmpty(),
+            footer: T.leaderboardFooter(),
           }),
         ],
       });
@@ -135,22 +141,27 @@ export const referralCommand: SlashCommand = {
       const id = i.options.getString('id');
       if (!id) {
         const page = await marketing.listAttributions(h.ctx, { status: 'FLAGGED', limit: 15 });
-        const lines = page.items.map(
-          (r) =>
-            `\`${r.id}\` · <@${r.joinedUserId}> via <@${r.referrerId ?? '0'}> · ${discordTimestamp(r.joinedAt, 'R')}\n> ${truncate(r.flagReason ?? 'flagged', 150)}`,
+        const lines = page.items.map((r) =>
+          T.flaggedLine({
+            id: r.id,
+            member: `<@${r.joinedUserId}>`,
+            referrer: `<@${r.referrerId ?? '0'}>`,
+            time: discordTimestamp(r.joinedAt, 'R'),
+            reason: truncate(r.flagReason ?? T.flaggedDefaultReason(), 150),
+          }),
         );
         await respond(i, {
           embeds: [
-            brandEmbed({ title: 'Flagged referrals', description: lines.join('\n') || 'Nothing to review.' }),
+            brandEmbed({ title: T.flaggedTitle(), description: lines.join('\n') || T.flaggedEmpty() }),
           ],
         });
         return;
       }
       const decision = i.options.getString('decision') as 'VALID' | 'INVALID' | 'DISPUTED' | null;
       const note = i.options.getString('note');
-      if (!decision || !note) throw new AppError('VALIDATION', 'Provide both a decision and a note.');
+      if (!decision || !note) throw new AppError('VALIDATION', T.reviewNeedsDecisionAndNote());
       const r = await marketing.reviewAttribution(h.ctx, id, { status: decision, note });
-      await replySuccess(i, 'Referral reviewed', `Marked **${r.status.toLowerCase()}**.`);
+      await replySuccess(i, T.reviewedTitle(), T.reviewedBody({ status: r.status.toLowerCase() }));
     }
   },
 };

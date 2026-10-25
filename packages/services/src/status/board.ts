@@ -7,6 +7,7 @@ import type { DiscordPort, MessageBody } from '../core/discord-port';
 import { infoEmbed } from '../core/render';
 import { getPublicStatus, type PublicStatus } from './public';
 import { statusButtons, statusPageEmbed } from './render';
+import { StatusText } from './texts';
 
 /**
  * Live status board: one public message the worker keeps up to date by editing
@@ -24,16 +25,23 @@ export const BOARD_REFRESH_MS = 5 * 60_000;
 export type BoardSyncResult =
   'disabled' | 'posted' | 'edited' | 'unchanged' | 'reposted' | 'no_access' | 'module_disabled';
 
-/** Fingerprint of what members actually see (excludes the generation time). */
+/** Fixed clock used when fingerprinting, so the "updated" time never counts as a change. */
+const FINGERPRINT_CLOCK = new Date(0);
+
+/**
+ * Fingerprint of what members actually see: the rendered message (with the
+ * server's text overrides applied) minus the generation/"updated" times. Editing
+ * the board's wording therefore triggers an edit on the next sync.
+ */
 export function boardFingerprint(s: PublicStatus): string {
-  const { generatedAt: _ignored, ...visible } = s;
-  return sha256(JSON.stringify(visible));
+  const body = statusBoardMessage({ ...s, generatedAt: FINGERPRINT_CLOCK }, FINGERPRINT_CLOCK);
+  return sha256(JSON.stringify(body));
 }
 
 export function statusBoardMessage(s: PublicStatus, now: Date): MessageBody {
   const embed = statusPageEmbed(s);
-  embed.description = `${embed.description ?? ''}\n\nLive board · updated ${discordTimestamp(now, 'R')}`;
-  embed.footer = { text: 'Updates automatically · Use the buttons for alerts and history' };
+  embed.description = `${embed.description ?? ''}\n\n${StatusText.boardUpdatedLine({ time: discordTimestamp(now, 'R') })}`;
+  embed.footer = { text: StatusText.boardFooter() };
   return { embeds: [embed], components: statusButtons() };
 }
 
@@ -73,7 +81,9 @@ export async function syncStatusBoard(
   if (existing && existing.channelId !== channelId) {
     await deps.discord
       .editMessage(existing.channelId, existing.messageId, {
-        embeds: [infoEmbed('Status board moved', `The live status board is now in <#${channelId}>.`)],
+        embeds: [
+          infoEmbed(StatusText.boardMovedTitle(), StatusText.boardMovedBody({ channel: `<#${channelId}>` })),
+        ],
         components: [],
       })
       .catch(() => undefined);

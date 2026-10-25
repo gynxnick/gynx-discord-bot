@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, type GuildMember, type Interaction } from 'discord.js';
-import { brandEmbed, community, type Ctx } from '@gynx/services';
+import { CoreText, brandEmbed, community, type Ctx } from '@gynx/services';
 import { AppError, isAppError, truncate } from '@gynx/shared';
 import { respond, replyInfo, replySuccess } from '../../framework/reply';
 import type { BotModule, BotRuntime, ComponentHandler, SlashCommand } from '../../framework/types';
@@ -8,6 +8,7 @@ import { helpEmbed } from './help';
 import { communityListeners } from './listeners';
 import { rolePanelCommand } from './role-panels';
 
+const T = community.CommunityText;
 const GUIDE_PAGE_SIZE = 5;
 const CUID = /^c[a-z0-9]{20,32}$/;
 
@@ -17,7 +18,7 @@ const memberFacts = (m: GuildMember): community.MemberFacts => ({
 });
 
 function requireMember(i: Interaction): GuildMember {
-  if (!i.inCachedGuild()) throw new AppError('FORBIDDEN', 'This only works inside the server.');
+  if (!i.inCachedGuild()) throw new AppError('FORBIDDEN', T.serverOnly());
   return i.member;
 }
 
@@ -67,7 +68,13 @@ async function applyChanges(
   const lines: string[] = [];
   for (const c of changes) {
     const r = await applyRoleChange(member, c, reason, rt.log);
-    lines.push(r.ok ? `${c.action === 'add' ? '➕ Added' : '➖ Removed'} **${c.label}**` : `⚠️ ${r.message}`);
+    lines.push(
+      r.ok
+        ? c.action === 'add'
+          ? T.roleAdded({ role: c.label })
+          : T.roleRemoved({ role: c.label })
+        : T.warningLine({ message: r.message }),
+    );
   }
   return lines;
 }
@@ -138,8 +145,8 @@ const commands: SlashCommand[] = [
         const supportUrl = await community.resolveSupportUrl(h.ctx.db, h.ctx.guildId);
         await replyInfo(
           i,
-          'No matching FAQ',
-          `I couldn't find an answer for that.\nTry different words, browse \`/guides\`, or use \`/troubleshoot\`.\n\n${community.supportLine(supportUrl)}`,
+          T.faqNoMatchTitle(),
+          T.faqNoMatchBody({ support: community.supportLine(supportUrl) }),
         );
         return;
       }
@@ -227,19 +234,19 @@ const components: ComponentHandler[] = [
           await community.recordFaqFeedback(h.ctx, id, vote === 'y');
         } catch (err) {
           if (isAppError(err) && err.code === 'RATE_LIMITED') {
-            await replyInfo(i, 'Already recorded', 'You already gave feedback on this answer. Thanks!');
+            await replyInfo(i, T.faqFeedbackDuplicateTitle(), T.faqFeedbackDuplicate());
             return;
           }
           throw err;
         }
         if (vote === 'y') {
-          await replySuccess(i, 'Thanks for the feedback!');
+          await replySuccess(i, T.faqFeedbackThanks());
         } else {
           const supportUrl = await community.resolveSupportUrl(h.ctx.db, h.ctx.guildId);
           await replyInfo(
             i,
-            'Sorry that didn’t help',
-            `Try \`/troubleshoot\` or \`/guides\`.\n${community.supportLine(supportUrl)}`,
+            T.faqNotHelpfulTitle(),
+            T.faqNotHelpfulBody({ support: community.supportLine(supportUrl) }),
           );
         }
         return;
@@ -250,7 +257,7 @@ const components: ComponentHandler[] = [
         await respond(i, await faqAnswerReply(h.ctx, picked));
         return;
       }
-      await respond(i, { content: 'This control is no longer active.' });
+      await respond(i, { content: CoreText.controlExpired() });
     },
   },
   {
@@ -267,7 +274,7 @@ const components: ComponentHandler[] = [
         await i.update({ ...reply, allowedMentions: { parse: [] } });
         return;
       }
-      await respond(i, { content: 'This control is no longer active.' });
+      await respond(i, { content: CoreText.controlExpired() });
     },
   },
   {
@@ -284,10 +291,8 @@ const components: ComponentHandler[] = [
         await respond(i, {
           embeds: [
             brandEmbed({
-              title: alreadyAccepted ? 'Rules already accepted' : 'Thanks for accepting the rules',
-              description: needsVerify
-                ? 'One more step: press **Verify** to finish onboarding.'
-                : 'Pick the games you play below, or use `/roles` any time.',
+              title: alreadyAccepted ? T.rulesAlreadyAcceptedTitle() : T.rulesAcceptedTitle(),
+              description: needsVerify ? T.rulesNextVerify() : T.pickGamesHint(),
             }),
           ],
           components: needsVerify
@@ -310,7 +315,7 @@ const components: ComponentHandler[] = [
               { roleId: result.verifiedRoleId, reason: safety.reason },
               'verified role is unsafe; not applied',
             );
-            lines.push('⚠️ The verified role is misconfigured. Please let the staff team know.');
+            lines.push(T.verifiedRoleMisconfigured());
           } else {
             const r = await applyRoleChange(
               member,
@@ -318,15 +323,15 @@ const components: ComponentHandler[] = [
               'Onboarding verification',
               h.rt.log,
             );
-            if (!r.ok) lines.push(`⚠️ ${r.message}`);
+            if (!r.ok) lines.push(T.warningLine({ message: r.message }));
           }
         }
         const status = await community.getOnboardingStatus(h.ctx, facts);
         await respond(i, {
           embeds: [
             brandEmbed({
-              title: result.alreadyVerified ? 'You are already verified' : 'You are verified',
-              description: [...lines, 'Pick the games you play below, or use `/roles` any time.'].join('\n'),
+              title: result.alreadyVerified ? T.alreadyVerifiedTitle() : T.verifiedTitle(),
+              description: [...lines, T.pickGamesHint()].join('\n'),
             }),
           ],
           components: await interestsPrompt(h.ctx, status.interests),
@@ -345,13 +350,16 @@ const components: ComponentHandler[] = [
         const lines = await applyChanges(h.rt, member, [...sel.add, ...sel.remove], 'Onboarding interests');
         await respond(i, {
           embeds: [
-            brandEmbed({ title: 'Interests saved', description: lines.join('\n') || 'No changes needed.' }),
+            brandEmbed({
+              title: T.interestsSavedTitle(),
+              description: lines.join('\n') || T.noChangesNeeded(),
+            }),
           ],
         });
         return;
       }
 
-      await respond(i, { content: 'This control is no longer active.' });
+      await respond(i, { content: CoreText.controlExpired() });
     },
   },
   {
@@ -369,17 +377,17 @@ const components: ComponentHandler[] = [
           const roleId = args[1] ?? '';
           const live = await liveRoleContext(member.guild, roleId);
           const change = await community.toggleSelfRole(h.ctx, roleId, live);
-          [line = 'No changes.'] = await applyChanges(h.rt, member, [change], 'Self-assigned role (panel)');
+          [line = T.noChanges()] = await applyChanges(h.rt, member, [change], 'Self-assigned role (panel)');
         } catch (err) {
           if (!isAppError(err)) throw err;
-          line = `⚠️ ${err.message}`;
+          line = T.warningLine({ message: err.message });
         }
-        await respond(i, { embeds: [brandEmbed({ title: 'Your roles', description: line })] });
+        await respond(i, { embeds: [brandEmbed({ title: T.yourRolesTitle(), description: line })] });
         return;
       }
 
       if (args[0] !== 'toggle' || !i.isStringSelectMenu()) {
-        await respond(i, { content: 'This control is no longer active.' });
+        await respond(i, { content: CoreText.controlExpired() });
         return;
       }
       await i.deferReply({ flags: 64 });
@@ -392,11 +400,11 @@ const components: ComponentHandler[] = [
           lines.push(...(await applyChanges(h.rt, member, [change], 'Self-assigned role')));
         } catch (err) {
           if (!isAppError(err)) throw err;
-          lines.push(`⚠️ ${err.message}`);
+          lines.push(T.warningLine({ message: err.message }));
         }
       }
       await respond(i, {
-        embeds: [brandEmbed({ title: 'Your roles', description: lines.join('\n') || 'No changes.' })],
+        embeds: [brandEmbed({ title: T.yourRolesTitle(), description: lines.join('\n') || T.noChanges() })],
       });
     },
   },

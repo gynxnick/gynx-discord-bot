@@ -14,13 +14,14 @@ import {
   type GuildMember,
   type User,
 } from 'discord.js';
-import { brandEmbed, errorEmbed, getGuildConfig, moderation, successEmbed } from '@gynx/services';
+import { CoreText, brandEmbed, errorEmbed, getGuildConfig, moderation, successEmbed } from '@gynx/services';
 import { AppError, EMBED_COLORS, discordTimestamp, forbidden, truncate } from '@gynx/shared';
 import { respond, replySuccess } from '../../framework/reply';
 import type { BotModule, HandlerCtx, SlashCommand } from '../../framework/types';
 import { automodListener } from './automod';
 
-const NOT_MEMBER = new AppError('NOT_FOUND', 'That user is not a member of this server.');
+const T = moderation.ModerationText;
+const notMember = () => new AppError('NOT_FOUND', T.notMember());
 
 /** Gateway facts for the service-side hierarchy check. */
 export function hierarchySubject(
@@ -42,7 +43,7 @@ export function hierarchySubject(
 
 export function describeDiscordError(e: unknown): string {
   if (e instanceof DiscordAPIError) return truncate(`${e.message} (code ${e.code})`, 300);
-  return 'Discord request failed.';
+  return T.discordRequestFailed();
 }
 
 async function sendDm(user: User, embed: ReturnType<typeof moderation.actionDmEmbed>): Promise<boolean> {
@@ -54,7 +55,8 @@ async function sendDm(user: User, embed: ReturnType<typeof moderation.actionDmEm
   }
 }
 
-const auditReason = (moderatorTag: string, reason: string) => truncate(`${reason} — by ${moderatorTag}`, 512);
+const auditReason = (moderatorTag: string, reason: string) =>
+  truncate(T.auditLogReason({ reason, moderator: moderatorTag }), 512);
 
 interface RunOptions {
   type: 'WARN' | 'TIMEOUT' | 'KICK' | 'BAN';
@@ -72,7 +74,7 @@ async function runAction(
   const user = i.options.getUser('user', true);
   const reason = i.options.getString('reason', true);
   const target = await i.guild.members.fetch(user.id).catch(() => null);
-  if (!target && o.type !== 'BAN') throw NOT_MEMBER;
+  if (!target && o.type !== 'BAN') throw notMember();
 
   const plan = await moderation.prepareAction(
     h.ctx,
@@ -115,30 +117,34 @@ async function runAction(
     await respond(i, {
       embeds: [
         errorEmbed(
-          `Discord rejected the ${moderation.ACTION_LABELS[plan.type].toLowerCase()}: ${error}\nRecorded as failed (${rec.action.ref}).`,
+          T.actionFailed({
+            action: moderation.actionLabel(plan.type).toLowerCase(),
+            error: error ?? '',
+            ref: rec.action.ref,
+          }),
         ),
       ],
     });
     return;
   }
   const fields = [
-    { name: 'Member', value: `<@${user.id}>`, inline: true },
-    { name: 'DM delivered', value: dmSent ? 'Yes' : 'No (DMs closed)', inline: true },
+    { name: T.replyFieldMember(), value: `<@${user.id}>`, inline: true },
+    { name: T.replyFieldDmDelivered(), value: dmSent ? T.replyDmYes() : T.replyDmNo(), inline: true },
   ];
   if (plan.durationMs)
     fields.push({
-      name: 'Expires',
+      name: T.replyFieldExpires(),
       value: discordTimestamp(rec.action.expiresAt ?? new Date(), 'R'),
       inline: true,
     });
   if (rec.suggestion) {
-    fields.push({ name: 'Active warnings', value: String(rec.activeWarnings ?? 0), inline: true });
-    fields.push({ name: 'Suggested next step', value: rec.suggestion.summary, inline: false });
+    fields.push({ name: T.replyFieldActiveWarnings(), value: String(rec.activeWarnings ?? 0), inline: true });
+    fields.push({ name: T.replyFieldSuggestion(), value: rec.suggestion.summary, inline: false });
   }
   await respond(i, {
     embeds: [
       brandEmbed({
-        title: `${rec.action.ref} · ${moderation.ACTION_LABELS[plan.type]} applied`,
+        title: T.actionAppliedTitle({ ref: rec.action.ref, action: moderation.actionLabel(plan.type) }),
         color: EMBED_COLORS.success,
         fields,
       }),
@@ -246,22 +252,26 @@ const commands: SlashCommand[] = [
     async execute(i, h) {
       const user = i.options.getUser('user', true);
       const s = await moderation.getWarningSummary(h.ctx, user.id);
-      const lines = s.warnings
-        .slice(0, 15)
-        .map(
-          (w) =>
-            `**${w.ref}** · ${discordTimestamp(w.createdAt, 'R')} · ${truncate(w.reason, 120)}${w.expiresAt ? ` · expires ${discordTimestamp(w.expiresAt, 'R')}` : ''}`,
-        );
+      const lines = s.warnings.slice(0, 15).map((w) => {
+        const vars = {
+          ref: w.ref,
+          created: discordTimestamp(w.createdAt, 'R'),
+          reason: truncate(w.reason, 120),
+        };
+        return w.expiresAt
+          ? T.warningsLineExpires({ ...vars, expires: discordTimestamp(w.expiresAt, 'R') })
+          : T.warningsLine(vars);
+      });
       await respond(i, {
         embeds: [
           brandEmbed({
-            title: `Active warnings · ${truncate(user.username, 80)}`,
-            description: lines.join('\n') || 'No active warnings.',
+            title: T.warningsTitle({ user: truncate(user.username, 80) }),
+            description: lines.join('\n') || T.warningsEmpty(),
             fields: [
-              { name: 'Active', value: String(s.activeCount), inline: true },
-              { name: 'Suggested next step', value: s.suggestion.summary, inline: false },
+              { name: T.warningsFieldActive(), value: String(s.activeCount), inline: true },
+              { name: T.warningsFieldSuggestion(), value: s.suggestion.summary, inline: false },
             ],
-            footer: 'Suggestions are advisory and never applied automatically.',
+            footer: T.warningsFooter(),
           }),
         ],
       });
@@ -286,16 +296,16 @@ const commands: SlashCommand[] = [
       const refArg = ref && /^M-\d{1,9}$/.test(ref) ? ref : '-';
       const modal = new ModalBuilder()
         .setCustomId(`modappeal:submit:${refArg}`)
-        .setTitle(refArg === '-' ? 'Moderation appeal' : `Appeal ${refArg}`)
+        .setTitle(refArg === '-' ? T.appealModalTitle() : T.appealModalTitleFor({ ref: refArg }))
         .addComponents(
           new ActionRowBuilder<TextInputBuilder>().addComponents(
             new TextInputBuilder()
               .setCustomId('statement')
-              .setLabel('Why should this be reconsidered?')
+              .setLabel(T.appealStatementLabel())
               .setStyle(TextInputStyle.Paragraph)
               .setMinLength(20)
               .setMaxLength(2000)
-              .setPlaceholder('Explain calmly and honestly. Staff will review your appeal.')
+              .setPlaceholder(T.appealStatementPlaceholder())
               .setRequired(true),
           ),
         );
@@ -305,7 +315,14 @@ const commands: SlashCommand[] = [
       const own = await moderation.listOwnActions(h.ctx, i.options.getFocused());
       await i.respond(
         own.map((a) => ({
-          name: truncate(`${a.ref} · ${moderation.ACTION_LABELS[a.type]} · ${a.reason}`, 100),
+          name: truncate(
+            T.appealAutocompleteOption({
+              ref: a.ref,
+              action: moderation.actionLabel(a.type),
+              reason: a.reason,
+            }),
+            100,
+          ),
           value: a.ref,
         })),
       );
@@ -328,10 +345,11 @@ export const moderationModule: BotModule = {
             actionRef: ref,
             statement: i.fields.getTextInputValue('statement'),
           });
+          const reference = appeal.id.slice(-8);
           await replySuccess(
             i,
-            'Appeal submitted',
-            `Your appeal${ref ? ` for ${ref}` : ''} has been sent to the moderation team. You'll receive a DM when it has been reviewed.\nReference: \`${appeal.id.slice(-8)}\``,
+            T.appealSubmittedTitle(),
+            ref ? T.appealSubmittedFor({ ref, reference }) : T.appealSubmitted({ reference }),
           );
           return;
         }
@@ -344,12 +362,12 @@ export const moderationModule: BotModule = {
           const id = rest[0] ?? '';
           const modal = new ModalBuilder()
             .setCustomId(`modappeal:review:${action}:${id}`)
-            .setTitle(action === 'accept' ? 'Accept appeal' : 'Deny appeal')
+            .setTitle(action === 'accept' ? T.reviewModalAcceptTitle() : T.reviewModalDenyTitle())
             .addComponents(
               new ActionRowBuilder<TextInputBuilder>().addComponents(
                 new TextInputBuilder()
                   .setCustomId('note')
-                  .setLabel('Note to the member (optional)')
+                  .setLabel(T.reviewNoteLabel())
                   .setStyle(TextInputStyle.Paragraph)
                   .setMaxLength(1000)
                   .setRequired(false),
@@ -365,23 +383,22 @@ export const moderationModule: BotModule = {
             decision: decision === 'accept' ? 'ACCEPTED' : 'DENIED',
             note: note || undefined,
           });
-          const summary = `${r.appeal.status === 'ACCEPTED' ? 'Accepted' : 'Denied'} by <@${h.ctx.actor.userId}>`;
+          const moderator = `<@${h.ctx.actor.userId}>`;
+          const summary =
+            r.appeal.status === 'ACCEPTED'
+              ? T.reviewSummaryAccepted({ moderator })
+              : T.reviewSummaryDenied({ moderator });
           if (i.isFromMessage())
             await i.update({ content: summary, components: [], allowedMentions: { parse: [] } });
           else await respond(i, { content: summary });
           if (r.requiresManualReversal) {
             await respond(i, {
-              embeds: [
-                successEmbed(
-                  'Appeal accepted',
-                  'Remember to reverse the action on Discord (remove the timeout or unban the user). The member has been notified.',
-                ),
-              ],
+              embeds: [successEmbed(T.manualReversalTitle(), T.manualReversalBody())],
             });
           }
           return;
         }
-        await respond(i, { content: 'This control is no longer active.' });
+        await respond(i, { content: CoreText.controlExpired() });
       },
     },
   ],

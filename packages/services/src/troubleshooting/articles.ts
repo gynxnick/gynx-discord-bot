@@ -15,6 +15,7 @@ import { requireModule } from '../core/config';
 import type { Ctx } from '../core/context';
 import { gameKeySchema } from './common';
 import { slugSchema } from './flow-definition';
+import { TroubleshootingText } from './texts';
 
 const httpsUrl = z
   .string()
@@ -184,7 +185,7 @@ export async function voteArticle(
   if (!a.published) throw notFound('Article');
   await requireRate(ctx, 'troubleshooting.vote', 20, 3600);
   const once = await ctx.rateLimiter.consume(`${ctx.guildId}:${ctx.actor.userId}:kbvote:${a.id}`, 1, 86_400);
-  if (!once.allowed) throw conflict('You already rated this article. Thanks for the feedback!');
+  if (!once.allowed) throw conflict(TroubleshootingText.articleAlreadyRated());
   const updated = await ctx.db.knowledgeArticle.update({
     where: { id: a.id },
     data: helpful ? { helpfulYes: { increment: 1 } } : { helpfulNo: { increment: 1 } },

@@ -17,6 +17,7 @@ import { can, requirePermission, requireRate } from '../core/authz';
 import { getGuildConfig, requireModule } from '../core/config';
 import type { Ctx } from '../core/context';
 import { enqueueJob } from '../core/jobs';
+import { SecurityText } from './texts';
 
 export const REPORT_CATEGORIES = [
   'SPAM_PHISHING',
@@ -37,6 +38,23 @@ export const CATEGORY_LABELS: Record<(typeof REPORT_CATEGORIES)[number], string>
   HOSTING_ABUSE: 'Hosting abuse',
   OTHER: 'Other',
 };
+
+type ReportCategory = (typeof REPORT_CATEGORIES)[number];
+const CATEGORY_TEXT: Record<ReportCategory, () => string> = {
+  SPAM_PHISHING: () => SecurityText.categorySpamPhishing(),
+  IMPERSONATION: () => SecurityText.categoryImpersonation(),
+  HARASSMENT: () => SecurityText.categoryHarassment(),
+  MALICIOUS_LINK: () => SecurityText.categoryMaliciousLink(),
+  SUSPICIOUS_ACTIVITY: () => SecurityText.categorySuspiciousActivity(),
+  HOSTING_ABUSE: () => SecurityText.categoryHostingAbuse(),
+  OTHER: () => SecurityText.categoryOther(),
+};
+
+/**
+ * Category label for Discord messages, resolved at call time so server overrides apply.
+ * (`CATEGORY_LABELS` stays for slash-command choices and the dashboard.)
+ */
+export const reportCategoryLabel = (c: ReportCategory): string => CATEGORY_TEXT[c]();
 
 const snowflake = z.string().regex(/^\d{17,20}$/);
 const evidenceUrl = z
@@ -86,7 +104,7 @@ export async function submitReport(ctx: Ctx, raw: SubmitReportInput): Promise<Ab
   await requireRate(ctx, 'security.report', 3, 3600);
 
   if (input.reportedUserId === ctx.actor.userId)
-    throw new AppError('VALIDATION', 'You cannot report yourself.');
+    throw new AppError('VALIDATION', SecurityText.reportSelfError());
 
   const openStatuses: AbuseReportStatus[] = ['NEW', 'TRIAGED', 'INVESTIGATING'];
   const [duplicate, openCount] = await Promise.all([
@@ -105,10 +123,8 @@ export async function submitReport(ctx: Ctx, raw: SubmitReportInput): Promise<Ab
       where: { guildId: ctx.guildId, reporterId: ctx.actor.userId, status: { in: openStatuses } },
     }),
   ]);
-  if (duplicate)
-    throw conflict(`You already have an open report about this (${duplicate.ref}). Staff will review it.`);
-  if (openCount >= MAX_OPEN_PER_REPORTER)
-    throw conflict('You have several open reports already. Please wait for staff to review them.');
+  if (duplicate) throw conflict(SecurityText.reportDuplicateError({ ref: duplicate.ref }));
+  if (openCount >= MAX_OPEN_PER_REPORTER) throw conflict(SecurityText.reportTooManyOpenError());
 
   return ctx.db.$transaction(async (tx) => {
     const number = await nextSequence(tx, ctx.guildId, 'abuse_report');
@@ -205,14 +221,14 @@ export async function claimReport(ctx: Ctx, id: string): Promise<AbuseReport> {
   const r = await loadForUpdate(ctx, id);
   if (r.assigneeId === ctx.actor.userId) return r;
   if (r.status === 'RESOLVED' || r.status === 'DISMISSED')
-    throw invalidState('This report is already closed.');
+    throw invalidState(SecurityText.reportAlreadyClosedError());
   return ctx.db.$transaction(async (tx) => {
     // Conditional update prevents two staff claiming simultaneously.
     const res = await tx.abuseReport.updateMany({
       where: { id, assigneeId: r.assigneeId },
       data: { assigneeId: ctx.actor.userId, status: r.status === 'NEW' ? 'TRIAGED' : r.status },
     });
-    if (res.count === 0) throw conflict('Someone else just claimed this report.');
+    if (res.count === 0) throw conflict(SecurityText.reportClaimRaceError());
     await audit(
       ctx,
       {
@@ -240,11 +256,13 @@ export async function updateReportStatus(
   const input = updateStatusSchema.parse(raw);
   const r = await loadForUpdate(ctx, id);
   if (!canTransitionReport(r.status, input.status)) {
-    throw invalidState(`A ${r.status.toLowerCase()} report cannot move to ${input.status.toLowerCase()}.`);
+    throw invalidState(
+      SecurityText.reportTransitionError({ from: r.status.toLowerCase(), to: input.status.toLowerCase() }),
+    );
   }
   const closing = input.status === 'RESOLVED' || input.status === 'DISMISSED';
   if (closing && !input.resolution)
-    throw new AppError('VALIDATION', 'A resolution summary is required to close a report.');
+    throw new AppError('VALIDATION', SecurityText.reportResolutionRequiredError());
 
   const cfg = await getGuildConfig(ctx.db, ctx.guildId);
   return ctx.db.$transaction(async (tx) => {

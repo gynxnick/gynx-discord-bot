@@ -51,6 +51,8 @@ export interface DiscordPort {
   deleteChannel(channelId: string, reason: string): Promise<void>;
   /** Deletes a message; succeeds silently if it is already gone. */
   deleteMessage(channelId: string, messageId: string): Promise<void>;
+  /** Opens a public thread attached to a message. */
+  startThread(channelId: string, messageId: string, name: string): Promise<{ id: string }>;
 }
 
 /** Safe default: never ping anyone unless a caller explicitly opts in. */
@@ -166,6 +168,13 @@ export function createRestDiscordPort(token: string): DiscordPort {
       } catch (e) {
         if (!isStatus(e, 404)) throw e; // already gone
       }
+    },
+    async startThread(channelId, messageId, name) {
+      // 1440 = archive after a day without messages; reopens automatically when someone posts.
+      const thread = (await rest.post(Routes.threads(channelId, messageId), {
+        body: { name, auto_archive_duration: 1440 },
+      })) as APIChannel;
+      return { id: thread.id };
     },
   };
 }

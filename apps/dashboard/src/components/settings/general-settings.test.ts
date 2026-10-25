@@ -11,6 +11,7 @@ const base: SettingsView = {
   retention: { diagnosticHours: 24, reportDays: 365, auditDays: 365, healthCheckDays: 30, activityDays: 90 },
   activeMemberMinMessages: 1,
   reportNotifyReporter: false,
+  suggestionThreads: true,
   embedFooter: 'GYNX.GG',
 };
 

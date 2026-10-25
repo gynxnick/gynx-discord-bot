@@ -36,6 +36,7 @@ export default async function SettingsPage() {
     retention: settings.retention,
     activeMemberMinMessages: settings.activeMemberMinMessages,
     reportNotifyReporter: settings.reportNotifyReporter,
+    suggestionThreads: settings.suggestionThreads,
     embedFooter: settings.embedFooter,
   };
   const modules: KindOption[] = MODULES.map((m) => ({ key: m, label: MODULE_LABELS[m] }));

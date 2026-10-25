@@ -8,6 +8,7 @@ import { getGuildConfig, requireModule } from '../core/config';
 import type { Ctx } from '../core/context';
 import { assessRoleSafety, type RoleMeta } from './role-safety';
 import { SELF_ROLE_GROUPS, snowflakeSchema } from './schemas';
+import { CommunityText as T } from './texts';
 
 /** Live role context supplied by the caller (gateway cache or DiscordPort.listRoles). */
 export interface LiveRoleContext {
@@ -59,7 +60,7 @@ export async function assertRoleAssignable(
   live: LiveRoleContext,
   kind: 'validation' | 'forbidden' = 'validation',
 ): Promise<void> {
-  if (live.role.id !== roleId) throw validation('Role details do not match the selected role.');
+  if (live.role.id !== roleId) throw validation(T.roleMismatch());
   const result = assessRoleSafety({
     guildId: ctx.guildId,
     role: live.role,
@@ -206,7 +207,7 @@ export async function toggleSelfRole(ctx: Ctx, roleId: string, live: LiveRoleCon
   const entry = await ctx.db.selfAssignableRole.findUnique({
     where: { guildId_roleId: { guildId: ctx.guildId, roleId: id } },
   });
-  if (!entry || !entry.enabled) throw forbidden('That role is not self-assignable.');
+  if (!entry || !entry.enabled) throw forbidden(T.roleNotSelfAssignable());
   await assertRoleAssignable(ctx, id, live, 'forbidden');
   return { roleId: id, label: entry.label, action: ctx.actor.roleIds.includes(id) ? 'remove' : 'add' };
 }

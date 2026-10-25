@@ -1,4 +1,5 @@
 import type { PermissionKey } from '@gynx/permissions';
+import { ModerationText as T } from './texts';
 
 /**
  * Pure role-hierarchy rules for moderation actions. Role positions are Discord
@@ -45,23 +46,20 @@ export const isStaffPermissionSet = (perms: ReadonlySet<PermissionKey>): boolean
   STAFF_PERMISSIONS.some((k) => perms.has(k));
 
 export function checkHierarchy(i: HierarchyInput): HierarchyResult {
-  if (i.actorId === i.targetId) return { ok: false, reason: 'You cannot moderate yourself.' };
-  if (i.targetId === i.guildOwnerId) return { ok: false, reason: 'The server owner cannot be moderated.' };
+  if (i.actorId === i.targetId) return { ok: false, reason: T.hierarchySelf() };
+  if (i.targetId === i.guildOwnerId) return { ok: false, reason: T.hierarchyOwner() };
 
   const actorIsOwner = i.actorId === i.guildOwnerId;
   if (i.targetHighest !== null) {
     if (!actorIsOwner && i.targetHighest >= i.actorHighest) {
-      return { ok: false, reason: 'That member has an equal or higher role than you.' };
+      return { ok: false, reason: T.hierarchyHigherRole() };
     }
     if ((i.requiresBot ?? true) && i.targetHighest >= i.botHighest) {
-      return { ok: false, reason: "That member's top role is at or above mine, so I can't act on them." };
+      return { ok: false, reason: T.hierarchyBotRole() };
     }
   }
   if (i.targetIsStaff && !actorIsOwner && !i.actorCanBan) {
-    return {
-      ok: false,
-      reason: 'That member is staff. Only senior moderators (with ban permission) can moderate staff.',
-    };
+    return { ok: false, reason: T.hierarchyStaff() };
   }
   return { ok: true };
 }

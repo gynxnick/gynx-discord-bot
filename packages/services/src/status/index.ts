@@ -9,3 +9,4 @@ export * from './subscriptions';
 export * from './monitor';
 export * from './render';
 export * from './board';
+export * from './texts';

@@ -5,7 +5,7 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
-import { brandEmbed, security } from '@gynx/services';
+import { CoreText, brandEmbed, security } from '@gynx/services';
 import { discordTimestamp, truncate } from '@gynx/shared';
 import { respond, replySuccess } from '../../framework/reply';
 import type { BotModule } from '../../framework/types';
@@ -47,22 +47,22 @@ export const securityModule: BotModule = {
         // customId carries only the user's own choices; everything is re-validated on submit.
         const modal = new ModalBuilder()
           .setCustomId(`secreport:submit:${category}:${user?.id ?? '-'}`)
-          .setTitle('Private report')
+          .setTitle(security.SecurityText.reportModalTitle())
           .addComponents(
             new ActionRowBuilder<TextInputBuilder>().addComponents(
               new TextInputBuilder()
                 .setCustomId('description')
-                .setLabel('What happened?')
+                .setLabel(security.SecurityText.reportDescriptionLabel())
                 .setStyle(TextInputStyle.Paragraph)
                 .setMinLength(20)
                 .setMaxLength(2000)
-                .setPlaceholder('Never include passwords or account credentials.')
+                .setPlaceholder(security.SecurityText.reportDescriptionPlaceholder())
                 .setRequired(true),
             ),
             new ActionRowBuilder<TextInputBuilder>().addComponents(
               new TextInputBuilder()
                 .setCustomId('evidence')
-                .setLabel('Evidence links (https, one per line, max 5)')
+                .setLabel(security.SecurityText.reportEvidenceLabel())
                 .setStyle(TextInputStyle.Paragraph)
                 .setMaxLength(1500)
                 .setRequired(false),
@@ -70,7 +70,7 @@ export const securityModule: BotModule = {
             new ActionRowBuilder<TextInputBuilder>().addComponents(
               new TextInputBuilder()
                 .setCustomId('message')
-                .setLabel('Discord message link (optional)')
+                .setLabel(security.SecurityText.reportMessageLabel())
                 .setStyle(TextInputStyle.Short)
                 .setMaxLength(200)
                 .setRequired(false),
@@ -89,15 +89,23 @@ export const securityModule: BotModule = {
           actorId: i.options.getUser('actor')?.id,
           limit: 15,
         });
-        const lines = page.items.map(
-          (e) =>
-            `${discordTimestamp(e.createdAt, 'R')} **${e.action}** · ${e.actorId === 'system' ? 'system' : `<@${e.actorId}>`} · ${e.result}${e.targetId ? ` · \`${truncate(e.targetId, 24)}\`` : ''}`,
-        );
+        const T = security.SecurityText;
+        const lines = page.items.map((e) => {
+          const vars = {
+            time: discordTimestamp(e.createdAt, 'R'),
+            action: e.action,
+            actor: e.actorId === 'system' ? T.auditLogSystemActor() : `<@${e.actorId}>`,
+            result: e.result,
+          };
+          return e.targetId
+            ? T.auditLogLineWithTarget({ ...vars, target: truncate(e.targetId, 24) })
+            : T.auditLogLine(vars);
+        });
         await respond(i, {
           embeds: [
             brandEmbed({
-              title: 'Security audit log',
-              description: lines.join('\n') || 'No matching events.',
+              title: T.auditLogTitle(),
+              description: lines.join('\n') || T.auditLogEmpty(),
             }),
           ],
         });
@@ -127,21 +135,24 @@ export const securityModule: BotModule = {
           });
           await replySuccess(
             i,
-            `Report ${report.ref} received`,
-            'Thank you. Your report is private and only visible to authorised GYNX staff. We may contact you if we need more information.',
+            security.SecurityText.reportReceivedTitle({ ref: report.ref }),
+            security.SecurityText.reportReceivedBody(),
           );
           return;
         }
         if (action === 'claim' && i.isButton()) {
           const report = await security.claimReport(h.ctx, rest[0] ?? '');
           await i.update({
-            content: `🛡️ Claimed by <@${h.ctx.actor.userId}> · status **${report.status.toLowerCase()}**`,
+            content: security.SecurityText.claimedNotice({
+              user: `<@${h.ctx.actor.userId}>`,
+              status: report.status.toLowerCase(),
+            }),
             allowedMentions: { parse: [] },
             components: [],
           });
           return;
         }
-        await respond(i, { content: 'This control is no longer active.' });
+        await respond(i, { content: CoreText.controlExpired() });
       },
     },
   ],

@@ -25,6 +25,7 @@ export interface SettingsView {
   };
   activeMemberMinMessages: number;
   reportNotifyReporter: boolean;
+  suggestionThreads: boolean;
   embedFooter: string;
 }
 
@@ -51,6 +52,7 @@ export interface SettingsForm {
   supportUrl: string;
   numbers: Record<NumberPath, string>;
   reportNotifyReporter: boolean;
+  suggestionThreads: boolean;
   embedFooter: string;
 }
 
@@ -72,6 +74,7 @@ export function toForm(v: SettingsView): SettingsForm {
     supportUrl: v.supportUrl ?? '',
     numbers,
     reportNotifyReporter: v.reportNotifyReporter,
+    suggestionThreads: v.suggestionThreads,
     embedFooter: v.embedFooter,
   };
 }
@@ -86,6 +89,7 @@ export type SettingsPatchOut = Partial<{
   retention: Partial<SettingsView['retention']>;
   activeMemberMinMessages: number;
   reportNotifyReporter: boolean;
+  suggestionThreads: boolean;
   embedFooter: string;
 }>;
 
@@ -153,6 +157,7 @@ export function buildPatch(
 
   if (form.reportNotifyReporter !== initial.reportNotifyReporter)
     patch.reportNotifyReporter = form.reportNotifyReporter;
+  if (form.suggestionThreads !== initial.suggestionThreads) patch.suggestionThreads = form.suggestionThreads;
   const footer = form.embedFooter.trim();
   if (footer !== initial.embedFooter) {
     if (footer.length < 1 || footer.length > 100) errors.embedFooter = 'The footer must be 1–100 characters.';

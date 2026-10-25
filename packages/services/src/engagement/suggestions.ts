@@ -28,16 +28,31 @@ import {
   refreshBucket,
   type DmPayload,
 } from './common';
+import { EngagementText as T } from './texts';
 
 export const SUGGESTION_SIMILARITY_THRESHOLD = 0.6;
 export const OPEN_SUGGESTION_STATUSES: SuggestionStatus[] = ['UNDER_REVIEW', 'PLANNED'];
-export const SUGGESTION_STATUS_LABELS: Record<SuggestionStatus, string> = {
-  UNDER_REVIEW: 'Under review',
-  PLANNED: 'Planned',
-  IMPLEMENTED: 'Implemented',
-  DECLINED: 'Declined',
-  DUPLICATE: 'Duplicate',
+export const SUGGESTION_STATUSES: readonly SuggestionStatus[] = [
+  'UNDER_REVIEW',
+  'PLANNED',
+  'IMPLEMENTED',
+  'DECLINED',
+  'DUPLICATE',
+];
+
+const STATUS_TEXT: Record<SuggestionStatus, () => string> = {
+  UNDER_REVIEW: () => T.suggestionStatusUnderReview(),
+  PLANNED: () => T.suggestionStatusPlanned(),
+  IMPLEMENTED: () => T.suggestionStatusImplemented(),
+  DECLINED: () => T.suggestionStatusDeclined(),
+  DUPLICATE: () => T.suggestionStatusDuplicate(),
 };
+
+export const isSuggestionStatus = (s: string): s is SuggestionStatus =>
+  (SUGGESTION_STATUSES as readonly string[]).includes(s);
+
+/** Display name of a status, resolved at call time (staff can rename them). */
+export const suggestionStatusLabel = (s: SuggestionStatus): string => STATUS_TEXT[s]();
 
 // ─── Pure rules ─────────────────────────────────────────────────────────────
 
@@ -78,10 +93,42 @@ export const submitSuggestionSchema = z.object({
 });
 export type SubmitSuggestionInput = z.input<typeof submitSuggestionSchema>;
 
+const stripMarkdown = (line: string) =>
+  line
+    .replace(/^\s*(#{1,6}\s+|>\s*|[-*]\s+)/, '')
+    .replace(/[*_~`]/g, '')
+    .trim();
+
+/**
+ * Turn a free-form message from the suggestions channel into a title and body:
+ * the first line (markdown stripped) is the title, cut at a word boundary to fit;
+ * the whole message is the body. Validation (lengths, duplicates, rate limits)
+ * happens in `submitSuggestion`, exactly as for /suggest.
+ */
+export function suggestionFromMessage(content: string): { title: string; body: string } {
+  const body = content.replace(/\r\n/g, '\n').trim();
+  const firstLine = stripMarkdown(body.split('\n').find((l) => l.trim()) ?? '');
+  let title = firstLine;
+  if (title.length > 100) {
+    const cut = title.slice(0, 99);
+    const space = cut.lastIndexOf(' ');
+    title = `${(space > 40 ? cut.slice(0, space) : cut).trimEnd()}…`;
+  }
+  return { title, body };
+}
+
+/** Members type in the configured suggestions channel; this creates the suggestion from their message. */
+export async function submitSuggestionFromMessage(ctx: Ctx, content: string): Promise<Suggestion> {
+  const text = content.trim();
+  if (!text) throw validation(T.suggestionChannelEmpty());
+  if (text.length > 2000) throw validation(T.suggestionChannelTooLong());
+  return submitSuggestion(ctx, suggestionFromMessage(text));
+}
+
 export async function submitSuggestion(ctx: Ctx, raw: SubmitSuggestionInput): Promise<Suggestion> {
   const cfg = await requireModule(ctx, 'engagement');
   const input = submitSuggestionSchema.parse(raw);
-  if (!cfg.suggestionChannelId) throw invalidState('Suggestions are not set up on this server yet.');
+  if (!cfg.suggestionChannelId) throw invalidState(T.suggestionsNotSetUp());
   await requireRate(ctx, 'engagement.suggest', 3, 3600);
 
   const title = cleanText(input.title);
@@ -98,7 +145,7 @@ export async function submitSuggestion(ctx: Ctx, raw: SubmitSuggestionInput): Pr
     const link = messageLink(ctx.guildId, similar.match.channelId, similar.match.messageId);
     throw new AppError(
       'CONFLICT',
-      `A very similar suggestion already exists: **${similar.match.ref}** — ${displayText(similar.match.title)}${link ? `\n${link}` : ''}\nPlease vote on that one instead.`,
+      `${T.suggestionSimilarExists({ ref: similar.match.ref, title: displayText(similar.match.title) })}${link ? `\n${link}` : ''}\n${T.suggestionVoteInstead()}`,
       { duplicateOf: similar.match.id },
     );
   }
@@ -156,8 +203,7 @@ export async function voteSuggestion(
     if (!(await lockRow(tx, 'Suggestion', suggestionId))) throw notFound('Suggestion');
     const s = await tx.suggestion.findFirst({ where: { id: suggestionId, guildId: ctx.guildId } });
     if (!s || s.hidden) throw notFound('Suggestion');
-    if (!OPEN_SUGGESTION_STATUSES.includes(s.status))
-      throw invalidState('Voting is closed for this suggestion.');
+    if (!OPEN_SUGGESTION_STATUSES.includes(s.status)) throw invalidState(T.suggestionVotingClosed());
 
     const existing = await tx.suggestionVote.findUnique({
       where: { suggestionId_userId: { suggestionId, userId } },
@@ -240,12 +286,12 @@ export async function setSuggestionStatus(
   let duplicateOfId: string | null = null;
   if (input.status === 'DUPLICATE') {
     const original = await findSuggestion(ctx, input.duplicateOf!);
-    if (!original) throw validation(`Suggestion ${input.duplicateOf} was not found.`);
-    if (original.id === s.id) throw validation('A suggestion cannot duplicate itself.');
+    if (!original) throw validation(T.suggestionNotFoundRef({ ref: input.duplicateOf! }));
+    if (original.id === s.id) throw validation(T.suggestionCannotDuplicateItself());
     duplicateOfId = original.id;
   }
   if (s.status === input.status && duplicateOfId === s.duplicateOfId && !input.response)
-    throw conflict(`It is already ${SUGGESTION_STATUS_LABELS[s.status].toLowerCase()}.`);
+    throw conflict(T.suggestionAlreadyStatus({ status: suggestionStatusLabel(s.status).toLowerCase() }));
 
   return ctx.db.$transaction(async (tx) => {
     const updated = await tx.suggestion.update({

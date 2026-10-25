@@ -11,6 +11,8 @@
  *    no view/impression data, so lurkers are invisible to these metrics.
  */
 
+import { AnalyticsText } from './texts';
+
 export type Metric<T> =
   { available: true; value: T; previous?: T; note?: string } | { available: false; reason: string };
 
@@ -50,9 +52,9 @@ export function compare(current: number | null | undefined, previous: number | n
 }
 
 export function formatComparison(c: Comparison): string {
-  if (c.delta === null) return 'n/a';
+  if (c.delta === null) return AnalyticsText.na();
   const sign = c.delta > 0 ? '+' : '';
-  const pct = c.pct === null ? 'n/a' : `${c.pct > 0 ? '+' : ''}${c.pct}%`;
+  const pct = c.pct === null ? AnalyticsText.na() : `${c.pct > 0 ? '+' : ''}${c.pct}%`;
   return `${sign}${fmtNum(c.delta)} (${pct})`;
 }
 
@@ -64,7 +66,7 @@ export function fmtNum(n: number): string {
 
 /** Render a scalar metric for humans; unavailable → "Not available — <reason>". */
 export function formatMetric(m: Metric<number>, suffix = ''): string {
-  if (!m.available) return `Not available — ${m.reason}`;
+  if (!m.available) return AnalyticsText.notAvailable({ reason: m.reason });
   return `${fmtNum(m.value)}${suffix}${m.note ? ` (${m.note})` : ''}`;
 }
 

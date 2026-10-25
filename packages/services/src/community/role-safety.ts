@@ -1,4 +1,5 @@
 import { PermissionFlagsBits } from 'discord-api-types/v10';
+import { CommunityText as T } from './texts';
 
 /**
  * Role-safety rules for anything the bot hands out on request (self-roles,
@@ -68,23 +69,23 @@ export function assessRoleSafety(input: RoleSafetyInput): RoleSafetyResult {
     !Number.isFinite(role.position) ||
     !Number.isFinite(input.botHighestPosition)
   ) {
-    return { ok: false, reason: 'INVALID', message: 'Role information is invalid.' };
+    return { ok: false, reason: 'INVALID', message: T.safetyInvalid() };
   }
   if (role.id === guildId) {
-    return { ok: false, reason: 'EVERYONE', message: 'The @everyone role cannot be self-assigned.' };
+    return { ok: false, reason: 'EVERYONE', message: T.safetyEveryone() };
   }
   if (role.managed) {
     return {
       ok: false,
       reason: 'MANAGED',
-      message: 'Integration/bot-managed roles cannot be self-assigned.',
+      message: T.safetyManaged(),
     };
   }
   if (role.position >= input.botHighestPosition) {
     return {
       ok: false,
       reason: 'HIERARCHY',
-      message: "That role is at or above the bot's highest role, so the bot cannot assign it.",
+      message: T.safetyHierarchy(),
     };
   }
   const dangerous = dangerousPermissionsIn(role.permissions);
@@ -92,7 +93,7 @@ export function assessRoleSafety(input: RoleSafetyInput): RoleSafetyResult {
     return {
       ok: false,
       reason: 'DANGEROUS_PERMISSIONS',
-      message: `Roles with privileged permissions (${dangerous.join(', ')}) can never be self-assigned.`,
+      message: T.safetyDangerous({ permissions: dangerous.join(', ') }),
       permissions: dangerous,
     };
   }
@@ -106,7 +107,7 @@ export function assessRoleSafety(input: RoleSafetyInput): RoleSafetyResult {
     return {
       ok: false,
       reason: 'PROTECTED',
-      message: 'Staff, partner and escalation roles cannot be self-assigned.',
+      message: T.safetyProtected(),
     };
   }
   return { ok: true };

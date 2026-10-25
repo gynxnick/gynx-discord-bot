@@ -8,3 +8,4 @@ export * from './metadata';
 export * from './render';
 export { parseRustKeywords } from './adapters/rust';
 export { PALWORLD_UNAVAILABLE } from './adapters/palworld';
+export { GamesText } from './texts';

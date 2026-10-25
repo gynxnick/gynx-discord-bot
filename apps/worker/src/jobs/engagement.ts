@@ -1,4 +1,4 @@
-import { engagement, makeCtx, systemActor, type MessageBody } from '@gynx/services';
+import { engagement, getGuildConfig, makeCtx, systemActor, type MessageBody } from '@gynx/services';
 import type { ScheduledJob } from '@gynx/database';
 import type { WorkerCtx, WorkerModule } from '../framework/types';
 
@@ -198,6 +198,24 @@ export const engagementJobs: WorkerModule = {
         where: { id: r.s.id, messageId: null },
         data: { messageId: msg.id },
       });
+
+      // Discussion thread under the card (optional). A missing permission never fails the post.
+      const cfg = await getGuildConfig(w.deps.db, r.s.guildId);
+      if (cfg.suggestionThreads && !r.s.threadId) {
+        try {
+          const name = engagement.EngagementText.suggestionThreadName({
+            ref: r.s.ref,
+            title: r.s.title,
+          }).slice(0, 100);
+          const thread = await w.deps.discord.startThread(r.s.channelId, msg.id, name);
+          await w.deps.db.suggestion.update({ where: { id: r.s.id }, data: { threadId: thread.id } });
+        } catch (err) {
+          w.log.warn(
+            { err: err instanceof Error ? err.message : err, suggestionId: r.s.id },
+            'could not open suggestion discussion thread (check Create Public Threads permission)',
+          );
+        }
+      }
     },
 
     async [JOBS.suggestionRefresh](job, w) {

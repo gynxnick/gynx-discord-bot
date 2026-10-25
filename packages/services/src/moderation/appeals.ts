@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import type { AppealStatus, ModerationAction, ModerationAppeal, Prisma } from '@gynx/database';
 import {
+  AppError,
   conflict,
   cursorArgs,
   forbidden,
   invalidState,
-  notFound,
   paginationSchema,
   redactSecrets,
   toPage,
@@ -17,6 +17,7 @@ import { requireModule } from '../core/config';
 import type { Ctx } from '../core/context';
 import { enqueueJob } from '../core/jobs';
 import { parseInput } from './common';
+import { ModerationText as T } from './texts';
 
 /**
  * Appeals. Members appeal their own warnings, timeouts and kicks with /appeal.
@@ -50,10 +51,9 @@ export async function submitAppeal(ctx: Ctx, raw: SubmitAppealInput): Promise<Mo
     });
     // Same error whether it doesn't exist or belongs to someone else: no enumeration of others' records.
     if (!action || action.targetId !== ctx.actor.userId)
-      throw notFound('A moderation action with that reference on your account');
-    if (!APPEALABLE.has(action.type)) throw invalidState('That action cannot be appealed.');
-    if (action.status !== 'APPLIED')
-      throw invalidState('That action is no longer in effect, so there is nothing to appeal.');
+      throw new AppError('NOT_FOUND', T.appealActionNotFound());
+    if (!APPEALABLE.has(action.type)) throw invalidState(T.appealNotAppealable());
+    if (action.status !== 'APPLIED') throw invalidState(T.appealNotInEffect());
   }
 
   const appeal = await ctx.db.$transaction(async (tx) => {
@@ -69,12 +69,7 @@ export async function submitAppeal(ctx: Ctx, raw: SubmitAppealInput): Promise<Mo
       },
       select: { id: true },
     });
-    if (pending)
-      throw conflict(
-        action
-          ? `You already have a pending appeal for ${action.ref}.`
-          : 'You already have a pending appeal.',
-      );
+    if (pending) throw conflict(action ? T.appealPendingFor({ ref: action.ref }) : T.appealPending());
     const created = await tx.moderationAppeal.create({
       data: {
         guildId: ctx.guildId,
@@ -133,15 +128,15 @@ export async function reviewAppeal(
   });
   if (!appeal) {
     await requireAny(ctx, ['moderation.execute', 'moderation.ban'], 'moderation.appeal.review');
-    throw notFound('Appeal');
+    throw new AppError('NOT_FOUND', T.appealNotFound());
   }
   await requirePermission(
     ctx,
     appeal.action?.type === 'BAN' ? 'moderation.ban' : 'moderation.execute',
     'moderation.appeal.review',
   );
-  if (appeal.userId === ctx.actor.userId) throw forbidden('You cannot review your own appeal.');
-  if (appeal.status !== 'PENDING') throw invalidState('This appeal has already been reviewed.');
+  if (appeal.userId === ctx.actor.userId) throw forbidden(T.appealOwnReview());
+  if (appeal.status !== 'PENDING') throw invalidState(T.appealAlreadyReviewed());
 
   const note = input.note ? redactSecrets(input.note, { maskIps: false }) : null;
   return ctx.db.$transaction(async (tx) => {
@@ -149,7 +144,7 @@ export async function reviewAppeal(
       where: { id: appeal.id, status: 'PENDING' },
       data: { status: input.decision, reviewerId: ctx.actor.userId, reviewNote: note, reviewedAt: ctx.now() },
     });
-    if (res.count === 0) throw conflict('Someone else just reviewed this appeal.');
+    if (res.count === 0) throw conflict(T.appealReviewConflict());
 
     let requiresManualReversal = false;
     if (input.decision === 'ACCEPTED' && appeal.action && appeal.action.status === 'APPLIED') {

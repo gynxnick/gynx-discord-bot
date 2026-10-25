@@ -6,3 +6,4 @@ export * from './attribution';
 export * from './referrals';
 export * from './partners';
 export * from './render';
+export * from './texts';

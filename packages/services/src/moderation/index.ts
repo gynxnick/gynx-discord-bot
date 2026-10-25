@@ -5,3 +5,4 @@ export * from './actions';
 export * from './automod';
 export * from './appeals';
 export * from './render';
+export * from './texts';

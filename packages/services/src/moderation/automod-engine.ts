@@ -1,6 +1,7 @@
 import { domainToASCII, domainToUnicode } from 'node:url';
 import type { AutomodConfig, AutomodRule } from '@gynx/database';
 import { normaliseForCompare } from '@gynx/shared';
+import { ModerationText as T } from './texts';
 
 /**
  * Pure automod engine: no I/O, no Discord, deterministic for a given input.
@@ -335,7 +336,7 @@ export function evaluateMessage(
       return {
         rule: 'PHISHING',
         severity: 'high',
-        reason: 'Message contains a suspected scam / phishing link.',
+        reason: T.automodReasonPhishing(),
       };
     }
   }
@@ -350,7 +351,7 @@ export function evaluateMessage(
       return {
         rule: 'BLOCKED_DOMAIN',
         severity: 'medium',
-        reason: `Links to ${blocked} are not allowed here.`,
+        reason: T.automodReasonBlockedDomain({ domain: blocked }),
       };
   }
 
@@ -360,17 +361,14 @@ export function evaluateMessage(
       return {
         rule: 'INVITE',
         severity: 'medium',
-        reason:
-          newcomer && !cfg.blockInvites
-            ? 'New accounts cannot post server invites yet.'
-            : 'Server invites are not allowed here.',
+        reason: newcomer && !cfg.blockInvites ? T.automodReasonInviteNewAccount() : T.automodReasonInvite(),
       };
     }
   }
 
   const mentions = msg.mentionCount + countMassMentions(msg.content);
   if (mentions > cfg.maxMentions) {
-    return { rule: 'MENTIONS', severity: 'high', reason: `Too many mentions in one message (${mentions}).` };
+    return { rule: 'MENTIONS', severity: 'high', reason: T.automodReasonMentions({ count: mentions }) };
   }
 
   if (cfg.blockedPhrases.length > 0) {
@@ -383,7 +381,7 @@ export function evaluateMessage(
       return {
         rule: 'BLOCKED_PHRASE',
         severity: 'medium',
-        reason: 'Message contains a blocked word or phrase.',
+        reason: T.automodReasonBlockedPhrase(),
       };
   }
 
@@ -398,7 +396,7 @@ export function evaluateMessage(
       return {
         rule: 'DUPLICATE',
         severity: 'low',
-        reason: `Same message sent ${dupes} times in a short period.`,
+        reason: T.automodReasonDuplicate({ count: dupes }),
       };
     }
   }
@@ -409,7 +407,7 @@ export function evaluateMessage(
     return {
       rule: 'BURST',
       severity: 'low',
-      reason: `Sending messages too quickly (${burst} in ${cfg.burstWindowSeconds}s).`,
+      reason: T.automodReasonBurst({ count: burst, seconds: cfg.burstWindowSeconds }),
     };
   }
   return null;
@@ -529,26 +527,26 @@ export function suggestEscalation(
     return {
       action: 'BAN_REVIEW',
       durationMs: null,
-      summary: `${activeWarnings} active warnings — consider a ban (senior moderator review).`,
+      summary: T.escalationBan({ count: activeWarnings }),
     };
   }
   if (activeWarnings >= cfg.timeoutAtStrikes) {
     return {
       action: 'KICK',
       durationMs: 24 * 3_600_000,
-      summary: `${activeWarnings} active warnings — consider a 24h timeout or a kick.`,
+      summary: T.escalationKick({ count: activeWarnings }),
     };
   }
   if (activeWarnings >= cfg.warnAtStrikes) {
     return {
       action: 'TIMEOUT',
       durationMs: cfg.timeoutMinutes * 60_000,
-      summary: `${activeWarnings} active warnings — consider a ${cfg.timeoutMinutes}-minute timeout.`,
+      summary: T.escalationTimeout({ count: activeWarnings, minutes: cfg.timeoutMinutes }),
     };
   }
   return {
     action: 'WARN',
     durationMs: null,
-    summary: `${activeWarnings} active warning(s) — a warning is proportionate.`,
+    summary: T.escalationWarn({ count: activeWarnings }),
   };
 }

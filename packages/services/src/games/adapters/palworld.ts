@@ -1,9 +1,8 @@
 import { emptyInfo, type GameAdapter } from '../types';
+import { GamesText } from '../texts';
 import { queryViaA2S } from './a2s-query';
 
-export const PALWORLD_UNAVAILABLE =
-  'Palworld does not offer a reliable public query protocol, so live server data is unavailable. ' +
-  'Check the in-game server browser or your server console instead.';
+export { PALWORLD_UNAVAILABLE } from '../texts';
 
 export const palworldAdapter: GameAdapter = {
   id: 'palworld',
@@ -32,7 +31,7 @@ export const palworldAdapter: GameAdapter = {
     try {
       return await queryViaA2S(address, port, opts);
     } catch {
-      return emptyInfo(port, PALWORLD_UNAVAILABLE);
+      return emptyInfo(port, GamesText.palworldUnavailable());
     }
   },
 };

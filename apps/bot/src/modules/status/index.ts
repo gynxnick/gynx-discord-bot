@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, type AutocompleteInteraction, type ButtonInteraction } from 'discord.js';
 import type { APIActionRowComponent, APIComponentInMessageActionRow } from 'discord.js';
-import { brandEmbed, status } from '@gynx/services';
+import { CoreText, brandEmbed, status } from '@gynx/services';
 import { respond, replySuccess } from '../../framework/reply';
 import type { BotModule, HandlerCtx } from '../../framework/types';
 
@@ -80,8 +80,10 @@ async function serviceAutocomplete(i: AutocompleteInteraction, h: HandlerCtx, in
   const focused = String(i.options.getFocused() ?? '');
   const services = await status.searchPublicServices(h.ctx.db, h.ctx.guildId, focused, includeAll ? 24 : 25);
   const choices = services.map((s) => ({ name: s.name.slice(0, 100), value: s.slug }));
-  if (includeAll && (!focused || 'all services'.includes(focused.toLowerCase())))
-    choices.unshift({ name: 'All services', value: 'all' });
+  const allLabel = status.StatusText.allServices();
+  const query = focused.toLowerCase();
+  if (includeAll && (!focused || 'all services'.includes(query) || allLabel.toLowerCase().includes(query)))
+    choices.unshift({ name: allLabel.slice(0, 100), value: 'all' });
   await i.respond(choices.slice(0, 25));
 }
 
@@ -95,12 +97,18 @@ async function incidentsView(h: HandlerCtx, cursor: string | undefined, page: nu
     }),
   ]);
   const buttons: APIComponentInMessageActionRow[] = [];
-  if (page > 0) buttons.push({ type: 2, style: 2, label: 'Newest', custom_id: 'statusui:inc:-:0' });
+  if (page > 0)
+    buttons.push({
+      type: 2,
+      style: 2,
+      label: status.StatusText.buttonNewest(),
+      custom_id: 'statusui:inc:-:0',
+    });
   if (resolved.nextCursor)
     buttons.push({
       type: 2,
       style: 1,
-      label: 'Older',
+      label: status.StatusText.buttonOlder(),
       custom_id: `statusui:inc:${resolved.nextCursor}:${page + 1}`,
     });
   const components: APIActionRowComponent<APIComponentInMessageActionRow>[] = buttons.length
@@ -110,7 +118,7 @@ async function incidentsView(h: HandlerCtx, cursor: string | undefined, page: nu
 }
 
 const subLabel = (slug: string, names: Map<string, string>) =>
-  slug === status.ALL_SERVICES ? 'All services' : (names.get(slug) ?? slug);
+  slug === status.ALL_SERVICES ? status.StatusText.allServices() : (names.get(slug) ?? slug);
 
 export const statusModule: BotModule = {
   name: 'status',
@@ -164,10 +172,16 @@ export const statusModule: BotModule = {
           });
           const services = await status.listPublicServices(h.ctx.db, h.ctx.guildId);
           const names = new Map(services.map((x) => [x.slug, x.name]));
+          const vars = {
+            severity: status.severityLabel(s.minSeverity),
+            service: subLabel(s.serviceSlug, names),
+          };
           await replySuccess(
             i,
-            'Subscribed',
-            `You'll get a DM for **${status.SEVERITY_LABEL[s.minSeverity]}+** incidents affecting **${subLabel(s.serviceSlug, names)}**${s.maintenance ? ' and for scheduled maintenance' : ''}. Make sure DMs from server members are allowed.`,
+            status.StatusText.subscribedTitle(),
+            s.maintenance
+              ? status.StatusText.subscribedBodyMaintenance(vars)
+              : status.StatusText.subscribedBody(vars),
           );
           return;
         }
@@ -176,25 +190,32 @@ export const statusModule: BotModule = {
           const n = await status.unsubscribe(h.ctx, service);
           await replySuccess(
             i,
-            n ? 'Unsubscribed' : 'Nothing to remove',
-            n ? `Removed ${n} subscription${n === 1 ? '' : 's'}.` : "You weren't subscribed to that.",
+            n ? status.StatusText.unsubscribedTitle() : status.StatusText.nothingToRemoveTitle(),
+            n === 1
+              ? status.StatusText.unsubscribedOne({ count: n })
+              : n
+                ? status.StatusText.unsubscribedMany({ count: n })
+                : status.StatusText.nothingToRemoveBody(),
           );
           return;
         }
         const subs = await status.listMySubscriptions(h.ctx);
         const services = await status.listPublicServices(h.ctx.db, h.ctx.guildId);
         const names = new Map(services.map((x) => [x.slug, x.name]));
-        const lines = subs.map(
-          (s) =>
-            `• **${subLabel(s.serviceSlug, names)}** · ${status.SEVERITY_LABEL[s.minSeverity]}+${s.maintenance ? ' · maintenance' : ''}`,
-        );
+        const lines = subs.map((s) => {
+          const vars = {
+            service: subLabel(s.serviceSlug, names),
+            severity: status.severityLabel(s.minSeverity),
+          };
+          return s.maintenance
+            ? status.StatusText.subscriptionLineMaintenance(vars)
+            : status.StatusText.subscriptionLine(vars);
+        });
         await respond(i, {
           embeds: [
             brandEmbed({
-              title: 'Your status subscriptions',
-              description:
-                lines.join('\n') ||
-                'You have no status subscriptions. Use `/subscribe-status add` to get notified.',
+              title: status.StatusText.subscriptionsTitle(),
+              description: lines.join('\n') || status.StatusText.subscriptionsEmpty(),
             }),
           ],
         });
@@ -208,24 +229,20 @@ export const statusModule: BotModule = {
       async handle(i, args, h) {
         const [action, ...rest] = args;
         if (!i.isButton()) {
-          await respond(i, { content: 'This control is no longer active.' });
+          await respond(i, { content: CoreText.controlExpired() });
           return;
         }
         if (action === 'sub') {
           await status.subscribe(h.ctx, { service: 'all' });
-          await replySuccess(
-            i,
-            'Subscribed',
-            "You'll get a DM about incidents and maintenance affecting GYNX.GG services. Use `/subscribe-status` to fine-tune.",
-          );
+          await replySuccess(i, status.StatusText.subscribedTitle(), status.StatusText.quickSubscribedBody());
           return;
         }
         if (action === 'unsub') {
           const n = await status.unsubscribe(h.ctx, 'everything');
           await replySuccess(
             i,
-            n ? 'Unsubscribed' : 'Not subscribed',
-            n ? 'You will no longer receive status DMs.' : "You didn't have any status subscriptions.",
+            n ? status.StatusText.unsubscribedTitle() : status.StatusText.notSubscribedTitle(),
+            n ? status.StatusText.quickUnsubscribedBody() : status.StatusText.notSubscribedBody(),
           );
           return;
         }
@@ -240,7 +257,7 @@ export const statusModule: BotModule = {
           await (i as ButtonInteraction).update({ ...view, allowedMentions: { parse: [] } });
           return;
         }
-        await respond(i, { content: 'This control is no longer active.' });
+        await respond(i, { content: CoreText.controlExpired() });
       },
     },
   ],

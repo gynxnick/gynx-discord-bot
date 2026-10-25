@@ -7,3 +7,4 @@ export * from './reports';
 export * from './render';
 export * from './service';
 export * from './settings';
+export { AnalyticsText } from './texts';

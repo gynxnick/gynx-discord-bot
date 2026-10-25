@@ -1,6 +1,6 @@
 import { DiscordAPIError, RESTJSONErrorCodes, type Guild, type GuildMember, type Role } from 'discord.js';
 import type { Logger } from '@gynx/config';
-import { type community } from '@gynx/services';
+import { community } from '@gynx/services';
 import { AppError } from '@gynx/shared';
 
 export const roleMeta = (r: Role): community.RoleMeta => ({
@@ -18,7 +18,7 @@ async function botHighestPosition(guild: Guild): Promise<number> {
 /** Live role metadata + the bot's current highest role, read from the gateway right now. */
 export async function liveRoleContext(guild: Guild, roleId: string): Promise<community.LiveRoleContext> {
   const role = guild.roles.cache.get(roleId) ?? (await guild.roles.fetch(roleId).catch(() => null));
-  if (!role) throw new AppError('NOT_FOUND', 'That role no longer exists. Please let the staff team know.');
+  if (!role) throw new AppError('NOT_FOUND', community.CommunityText.roleGoneTellStaff());
   return { role: roleMeta(role), botHighestPosition: await botHighestPosition(guild) };
 }
 
@@ -48,7 +48,7 @@ export async function applyRoleChange(
 ): Promise<ApplyResult> {
   const guild = member.guild;
   const role = guild.roles.cache.get(change.roleId);
-  if (!role) return { ok: false, message: 'That role no longer exists.' };
+  if (!role) return { ok: false, message: community.CommunityText.roleGone() };
   const highest = await botHighestPosition(guild);
   if (role.position >= highest || role.managed || role.id === guild.id) {
     log.warn(
@@ -57,7 +57,7 @@ export async function applyRoleChange(
     );
     return {
       ok: false,
-      message: `I can't manage **${role.name}** because it is above my highest role. Please let the staff team know.`,
+      message: community.CommunityText.roleAboveBot({ role: role.name }),
     };
   }
   try {
@@ -72,13 +72,13 @@ export async function applyRoleChange(
       log.warn({ roleId: role.id, code: err.code }, 'missing permissions to change role');
       return {
         ok: false,
-        message: `I don't have permission to change **${role.name}** right now. Please let the staff team know.`,
+        message: community.CommunityText.roleNoPermission({ role: role.name }),
       };
     }
     if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownRole) {
-      return { ok: false, message: 'That role no longer exists.' };
+      return { ok: false, message: community.CommunityText.roleGone() };
     }
     log.error({ err, roleId: role.id }, 'role change failed');
-    return { ok: false, message: `Something went wrong changing **${role.name}**. Please try again later.` };
+    return { ok: false, message: community.CommunityText.roleChangeFailed({ role: role.name }) };
   }
 }

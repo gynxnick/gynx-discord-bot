@@ -9,10 +9,11 @@ import {
   type ChatInputCommandInteraction,
   type SlashCommandStringOption,
 } from 'discord.js';
-import { brandEmbed, can, engagement } from '@gynx/services';
+import { CoreText, brandEmbed, can, engagement } from '@gynx/services';
 import { AppError, discordTimestamp, forbidden, parseDuration, truncate, validation } from '@gynx/shared';
 import { replyInfo, replySuccess, respond } from '../../framework/reply';
 import type { BotModule, HandlerCtx } from '../../framework/types';
+import { suggestionChannelListener } from './suggestion-channel';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -24,24 +25,27 @@ const textInput = (
 ) => {
   const t = new TextInputBuilder()
     .setCustomId(id)
-    .setLabel(label)
+    .setLabel(truncate(label, 45))
     .setStyle(style)
     .setMaxLength(opts.max)
     .setRequired(opts.required ?? true);
   if (opts.min) t.setMinLength(opts.min);
-  if (opts.placeholder) t.setPlaceholder(opts.placeholder);
+  if (opts.placeholder) t.setPlaceholder(truncate(opts.placeholder, 100));
   if (opts.value) t.setValue(opts.value);
   return new ActionRowBuilder<TextInputBuilder>().addComponents(t);
 };
 
 function durationMs(input: string): number {
   const ms = parseDuration(input);
-  if (!ms) throw validation('Use a duration like 30m, 2h, 1d or 1d12h.');
+  if (!ms) throw validation(T.durationFormat());
   return ms;
 }
 
 const choiceName = (s: string) => truncate(s, 100);
 const u = engagement.displayText;
+const T = engagement.EngagementText;
+/** Modal titles are limited to 45 characters by Discord. */
+const modalTitle = (s: string) => truncate(s, 45);
 
 async function safeAutocomplete(
   i: AutocompleteInteraction,
@@ -54,7 +58,32 @@ async function safeAutocomplete(
   }
 }
 
-const statusWord = (s: string) => s.toLowerCase().replace('_', ' ');
+/** Lowercase status word for lists/autocomplete, resolved at call time (editable). */
+function statusWord(s: string): string {
+  switch (s) {
+    case 'SCHEDULED':
+      return T.statusWordScheduled();
+    case 'COMPLETED':
+      return T.statusWordCompleted();
+    case 'CANCELLED':
+      return T.statusWordCancelled();
+    case 'ACTIVE':
+      return T.statusWordActive();
+    case 'ENDED':
+      return T.statusWordEnded();
+    case 'GOING':
+      return T.statusWordGoing();
+    case 'WAITLIST':
+      return T.statusWordWaitlist();
+    case 'NOT_GOING':
+      return T.statusWordNotGoing();
+    default:
+      return s.toLowerCase().replace('_', ' ');
+  }
+}
+
+const entriesText = (n: number) =>
+  n === 1 ? T.giveawayListEntriesOne({ count: n }) : T.giveawayListEntriesMany({ count: n });
 
 // ─── /event ─────────────────────────────────────────────────────────────────
 
@@ -135,12 +164,11 @@ async function eventCommandExecute(i: ChatInputCommandInteraction, h: HandlerCtx
     const cap = i.options.getInteger('capacity');
     const wl = i.options.getBoolean('waitlist');
     const rem = (i.options.getString('reminders') ?? '').replace(/\s/g, '');
-    if (rem && !/^\d{1,5}(,\d{1,5}){0,2}$/.test(rem))
-      throw validation('Reminders must be up to 3 numbers of minutes, e.g. 60,15.');
+    if (rem && !/^\d{1,5}(,\d{1,5}){0,2}$/.test(rem)) throw validation(T.eventRemindersFormat());
     const dur = i.options.getString('duration');
     const durMin = dur ? Math.round(durationMs(dur) / 60_000) : null;
     const tz = i.options.getString('timezone')?.trim() ?? '';
-    if (tz && !/^[A-Za-z0-9_+\-/]{1,40}$/.test(tz)) throw validation('Unknown time zone.');
+    if (tz && !/^[A-Za-z0-9_+\-/]{1,40}$/.test(tz)) throw validation(T.eventUnknownTimeZoneShort());
     const customId = [
       'evt',
       'create',
@@ -150,19 +178,19 @@ async function eventCommandExecute(i: ChatInputCommandInteraction, h: HandlerCtx
       durMin ?? '-',
       tz || '-',
     ].join(':');
-    if (customId.length > 100) throw validation('Those options are too long.');
+    if (customId.length > 100) throw validation(T.eventOptionsTooLong());
     const modal = new ModalBuilder()
       .setCustomId(customId)
-      .setTitle('New event')
+      .setTitle(modalTitle(T.eventModalTitle()))
       .addComponents(
-        textInput('title', 'Title', TextInputStyle.Short, { min: 3, max: 100 }),
-        textInput('description', 'Description', TextInputStyle.Paragraph, { max: 2000 }),
-        textInput('starts', 'Starts (YYYY-MM-DD HH:MM, 24h)', TextInputStyle.Short, {
+        textInput('title', T.eventModalTitleLabel(), TextInputStyle.Short, { min: 3, max: 100 }),
+        textInput('description', T.eventModalDescriptionLabel(), TextInputStyle.Paragraph, { max: 2000 }),
+        textInput('starts', T.eventModalStartsLabel(), TextInputStyle.Short, {
           min: 16,
           max: 16,
-          placeholder: '2026-11-05 19:30',
+          placeholder: T.eventModalStartsPlaceholder(),
         }),
-        textInput('location', 'Location (channel, server, link…)', TextInputStyle.Short, {
+        textInput('location', T.eventModalLocationLabel(), TextInputStyle.Short, {
           max: 100,
           required: false,
         }),
@@ -176,7 +204,7 @@ async function eventCommandExecute(i: ChatInputCommandInteraction, h: HandlerCtx
       const link = engagement.messageLink(e.guildId, e.channelId, e.messageId);
       return `• ${link ? `[${u(truncate(e.title, 80))}](${link})` : `**${u(truncate(e.title, 80))}**`} — ${discordTimestamp(e.startsAt, 'f')} (${discordTimestamp(e.startsAt, 'R')})`;
     });
-    await replyInfo(i, 'Upcoming events', lines.join('\n') || 'No upcoming events right now.');
+    await replyInfo(i, T.eventListTitle(), lines.join('\n') || T.eventListEmpty());
     return;
   }
   const eventId = i.options.getString('event', true);
@@ -185,7 +213,11 @@ async function eventCommandExecute(i: ChatInputCommandInteraction, h: HandlerCtx
     const embed = engagement.eventEmbed(event, counts);
     embed.fields = [
       ...(embed.fields ?? []),
-      { name: 'Your RSVP', value: myStatus ? statusWord(myStatus) : 'none', inline: true },
+      {
+        name: T.eventFieldYourRsvp(),
+        value: myStatus ? statusWord(myStatus) : T.eventRsvpNone(),
+        inline: true,
+      },
     ];
     await respond(i, { embeds: [embed] });
     return;
@@ -197,18 +229,14 @@ async function eventCommandExecute(i: ChatInputCommandInteraction, h: HandlerCtx
     });
     await replySuccess(
       i,
-      'Event rescheduled',
-      `**${u(ev.title)}** now starts ${discordTimestamp(ev.startsAt, 'F')}. Reminders were rescheduled.`,
+      T.eventRescheduledTitle(),
+      T.eventRescheduledBody({ title: u(ev.title), time: discordTimestamp(ev.startsAt, 'F') }),
     );
     return;
   }
   if (sub === 'cancel') {
     const ev = await engagement.cancelEvent(h.ctx, eventId, i.options.getString('reason') ?? undefined);
-    await replySuccess(
-      i,
-      'Event cancelled',
-      `**${u(ev.title)}** was cancelled. Attendees will be notified by DM.`,
-    );
+    await replySuccess(i, T.eventCancelReplyTitle(), T.eventCancelReplyBody({ title: u(ev.title) }));
     return;
   }
   if (sub === 'summary') {
@@ -216,9 +244,9 @@ async function eventCommandExecute(i: ChatInputCommandInteraction, h: HandlerCtx
     await i.showModal(
       new ModalBuilder()
         .setCustomId(`evt:summary:${eventId}`)
-        .setTitle('Event summary')
+        .setTitle(modalTitle(T.eventSummaryModalTitle()))
         .addComponents(
-          textInput('summary', 'Summary (shown on the event post)', TextInputStyle.Paragraph, {
+          textInput('summary', T.eventSummaryModalLabel(), TextInputStyle.Paragraph, {
             min: 10,
             max: 2000,
           }),
@@ -226,7 +254,7 @@ async function eventCommandExecute(i: ChatInputCommandInteraction, h: HandlerCtx
     );
     return;
   }
-  throw new AppError('NOT_FOUND', 'Unknown subcommand.');
+  throw new AppError('NOT_FOUND', T.unknownSubcommand());
 }
 
 // ─── /poll ──────────────────────────────────────────────────────────────────
@@ -415,8 +443,8 @@ export const engagementModule: BotModule = {
           });
           await replySuccess(
             i,
-            'Poll created',
-            `It will appear in this channel in a moment and closes ${discordTimestamp(poll.endsAt, 'R')}.`,
+            T.pollCreatedTitle(),
+            T.pollCreatedBody({ time: discordTimestamp(poll.endsAt, 'R') }),
           );
           return;
         }
@@ -424,8 +452,8 @@ export const engagementModule: BotModule = {
           const poll = await engagement.closePoll(h.ctx, i.options.getString('poll', true));
           await replySuccess(
             i,
-            'Poll closed',
-            `“${u(truncate(poll.question, 200))}” is closed; final results will be posted on the poll message.`,
+            T.pollClosedTitle(),
+            T.pollClosedBody({ question: u(truncate(poll.question, 200)) }),
           );
         }
       },
@@ -444,13 +472,13 @@ export const engagementModule: BotModule = {
         await i.showModal(
           new ModalBuilder()
             .setCustomId('sugg:submit')
-            .setTitle('Make a suggestion')
+            .setTitle(modalTitle(T.suggestModalTitle()))
             .addComponents(
-              textInput('title', 'Short title', TextInputStyle.Short, { min: 5, max: 100 }),
-              textInput('body', 'Describe your idea', TextInputStyle.Paragraph, {
+              textInput('title', T.suggestModalTitleLabel(), TextInputStyle.Short, { min: 5, max: 100 }),
+              textInput('body', T.suggestModalBodyLabel(), TextInputStyle.Paragraph, {
                 min: 20,
                 max: 2000,
-                placeholder: 'What should change, and why would it help?',
+                placeholder: T.suggestModalBodyPlaceholder(),
               }),
             ),
         );
@@ -475,8 +503,11 @@ export const engagementModule: BotModule = {
           });
           await replySuccess(
             i,
-            'Giveaway started',
-            `**${u(truncate(g.prize, 200))}** ends ${discordTimestamp(g.endsAt, 'R')}.`,
+            T.giveawayStartedTitle(),
+            T.giveawayStartedBody({
+              prize: u(truncate(g.prize, 200)),
+              time: discordTimestamp(g.endsAt, 'R'),
+            }),
           );
           return;
         }
@@ -484,9 +515,9 @@ export const engagementModule: BotModule = {
           const page = await engagement.listGiveaways(h.ctx, { limit: 10 });
           const lines = page.items.map(
             (g) =>
-              `• **${u(truncate(g.prize, 80))}** — ${statusWord(g.status)} · ${g.entrantCount} entr${g.entrantCount === 1 ? 'y' : 'ies'} · ${g.status === 'ACTIVE' ? `ends ${discordTimestamp(g.endsAt, 'R')}` : `ended ${discordTimestamp(g.endedAt ?? g.endsAt, 'R')}`}`,
+              `• **${u(truncate(g.prize, 80))}** — ${statusWord(g.status)} · ${entriesText(g.entrantCount)} · ${g.status === 'ACTIVE' ? T.giveawayListEnds({ time: discordTimestamp(g.endsAt, 'R') }) : T.giveawayListEnded({ time: discordTimestamp(g.endedAt ?? g.endsAt, 'R') })}`,
           );
-          await replyInfo(i, 'Giveaways', lines.join('\n') || 'No giveaways yet.');
+          await replyInfo(i, T.giveawayListTitle(), lines.join('\n') || T.giveawayListEmpty());
           return;
         }
         const id = i.options.getString('giveaway', true);
@@ -495,10 +526,13 @@ export const engagementModule: BotModule = {
           const n = r.draw?.winnerIds.length ?? 0;
           await replySuccess(
             i,
-            'Giveaway ended',
+            T.giveawayEndedTitle(),
             n
-              ? `${n} winner(s) drawn from ${r.draw?.entrantCount} entr${r.draw?.entrantCount === 1 ? 'y' : 'ies'}. The announcement is being posted.`
-              : 'There were no valid entries, so no winner was drawn.',
+              ? (r.draw?.entrantCount === 1 ? T.giveawayEndedBodyOne : T.giveawayEndedBodyMany)({
+                  winners: n,
+                  count: String(r.draw?.entrantCount),
+                })
+              : T.giveawayEndedNoWinner(),
           );
           return;
         }
@@ -509,14 +543,18 @@ export const engagementModule: BotModule = {
           });
           await replySuccess(
             i,
-            'Rerolled',
-            `Draw #${d.seq}: ${d.winnerIds.map((w) => `<@${w}>`).join(', ')} (from ${d.entrantCount} remaining entrants). Announcement is being posted.`,
+            T.giveawayRerolledTitle(),
+            T.giveawayRerolledBody({
+              seq: d.seq,
+              winners: d.winnerIds.map((w) => `<@${w}>`).join(', '),
+              count: d.entrantCount,
+            }),
           );
           return;
         }
         if (sub === 'cancel') {
           await engagement.cancelGiveaway(h.ctx, id, i.options.getString('reason') ?? undefined);
-          await replySuccess(i, 'Giveaway cancelled', 'No winners will be drawn.');
+          await replySuccess(i, T.giveawayCancelledTitle(), T.giveawayCancelledBody());
         }
       },
       async autocomplete(i, h) {
@@ -546,13 +584,13 @@ export const engagementModule: BotModule = {
           const msg =
             r.status === 'GOING'
               ? r.unchanged
-                ? "You're already on the list. See you there!"
-                : "You're going! You'll get a DM reminder before it starts (if your DMs are open)."
+                ? T.rsvpAlreadyGoing()
+                : T.rsvpGoing()
               : r.status === 'WAITLIST'
-                ? `The event is full, so you're on the waitlist (position ${r.waitlistPosition}). We'll DM you if a spot opens.`
+                ? T.rsvpWaitlist({ position: String(r.waitlistPosition) })
                 : r.unchanged
-                  ? 'Noted — you are not attending.'
-                  : "Got it, you're no longer attending.";
+                  ? T.rsvpAlreadyNotGoing()
+                  : T.rsvpNotGoing();
           await respond(i, { content: msg });
           return;
         }
@@ -572,8 +610,12 @@ export const engagementModule: BotModule = {
           });
           await replySuccess(
             i,
-            'Event created',
-            `**${u(ev.title)}** — ${discordTimestamp(ev.startsAt, 'F')}. The event post will appear in <#${ev.channelId}> shortly.`,
+            T.eventCreatedTitle(),
+            T.eventCreatedBody({
+              title: u(ev.title),
+              time: discordTimestamp(ev.startsAt, 'F'),
+              channel: `<#${ev.channelId}>`,
+            }),
           );
           return;
         }
@@ -583,10 +625,14 @@ export const engagementModule: BotModule = {
             rest[0] ?? '',
             i.fields.getTextInputValue('summary'),
           );
-          await replySuccess(i, 'Summary posted', `The post for **${u(ev.title)}** has been updated.`);
+          await replySuccess(
+            i,
+            T.eventSummaryPostedTitle(),
+            T.eventSummaryPostedBody({ title: u(ev.title) }),
+          );
           return;
         }
-        await respond(i, { content: 'This control is no longer active.' });
+        await respond(i, { content: CoreText.controlExpired() });
       },
     },
     {
@@ -601,11 +647,11 @@ export const engagementModule: BotModule = {
             .filter((o) => r.optionIds.includes(o.optionId))
             .map((o) => `**${u(o.label)}**`);
           await respond(i, {
-            content: `${r.changed ? 'Vote recorded' : 'Your vote is unchanged'}: ${labels.join(', ')}. You can change it until the poll closes.`,
+            content: (r.changed ? T.pollVoteRecorded : T.pollVoteUnchanged)({ options: labels.join(', ') }),
           });
           return;
         }
-        await respond(i, { content: 'This control is no longer active.' });
+        await respond(i, { content: CoreText.controlExpired() });
       },
     },
     {
@@ -618,11 +664,7 @@ export const engagementModule: BotModule = {
             title: i.fields.getTextInputValue('title'),
             body: i.fields.getTextInputValue('body'),
           });
-          await replySuccess(
-            i,
-            `Suggestion ${s.ref} submitted`,
-            'Thanks! It will appear on the suggestion board shortly, where members can vote on it.',
-          );
+          await replySuccess(i, T.suggestionSubmittedTitle({ ref: s.ref }), T.suggestionSubmittedBody());
           return;
         }
         if (action === 'vote' && i.isButton()) {
@@ -630,30 +672,29 @@ export const engagementModule: BotModule = {
           await respond(i, {
             content:
               r.vote === 0
-                ? 'Your vote was removed.'
-                : `You voted ${r.vote === 1 ? '👍' : '👎'}. (👍 ${r.upvotes} · 👎 ${r.downvotes})`,
+                ? T.suggestionVoteRemoved()
+                : T.suggestionVoted({ vote: r.vote === 1 ? '👍' : '👎', up: r.upvotes, down: r.downvotes }),
           });
           return;
         }
         if (action === 'status' && i.isStringSelectMenu()) {
-          if (!can(h.ctx, 'suggestions.manage'))
-            throw forbidden('Only staff can change a suggestion status.');
+          if (!can(h.ctx, 'suggestions.manage')) throw forbidden(T.suggestionStaffOnly());
           const status = i.values[0] ?? '';
-          if (!(status in engagement.SUGGESTION_STATUS_LABELS)) throw validation('Unknown status.');
+          if (!engagement.isSuggestionStatus(status)) throw validation(T.suggestionUnknownStatus());
           const modal = new ModalBuilder()
             .setCustomId(`sugg:respond:${id}:${status}`)
             .setTitle(
-              `Mark as ${engagement.SUGGESTION_STATUS_LABELS[status as keyof typeof engagement.SUGGESTION_STATUS_LABELS]}`,
+              modalTitle(T.suggestionStatusModalTitle({ status: engagement.suggestionStatusLabel(status) })),
             )
             .addComponents(
-              textInput('response', 'Response to the author (optional)', TextInputStyle.Paragraph, {
+              textInput('response', T.suggestionResponseLabel(), TextInputStyle.Paragraph, {
                 max: 1000,
                 required: false,
               }),
             );
           if (status === 'DUPLICATE')
             modal.addComponents(
-              textInput('duplicate', 'Duplicate of (e.g. S-0012)', TextInputStyle.Short, { min: 1, max: 30 }),
+              textInput('duplicate', T.suggestionDuplicateLabel(), TextInputStyle.Short, { min: 1, max: 30 }),
             );
           await i.showModal(modal);
           return;
@@ -667,12 +708,12 @@ export const engagementModule: BotModule = {
           });
           await replySuccess(
             i,
-            `${s.ref} updated`,
-            `Status: **${engagement.SUGGESTION_STATUS_LABELS[s.status]}**. The author will be notified by DM.`,
+            T.suggestionUpdatedTitle({ ref: s.ref }),
+            T.suggestionUpdatedBody({ status: engagement.suggestionStatusLabel(s.status) }),
           );
           return;
         }
-        await respond(i, { content: 'This control is no longer active.' });
+        await respond(i, { content: CoreText.controlExpired() });
       },
     },
     {
@@ -690,9 +731,8 @@ export const engagementModule: BotModule = {
           await respond(i, {
             embeds: [
               brandEmbed({
-                title: "🎉 You're entered!",
-                description:
-                  'Good luck! Winners are drawn automatically when the giveaway ends. You can leave any time before then.',
+                title: T.giveawayEnteredTitle(),
+                description: T.giveawayEnteredBody(),
               }),
             ],
           });
@@ -701,13 +741,13 @@ export const engagementModule: BotModule = {
         if (action === 'leave' && i.isButton()) {
           const r = await engagement.leaveGiveaway(h.ctx, id);
           await respond(i, {
-            content: r.left ? 'You have left the giveaway.' : "You weren't entered in this giveaway.",
+            content: r.left ? T.giveawayLeft() : T.giveawayNotEntered(),
           });
           return;
         }
-        await respond(i, { content: 'This control is no longer active.' });
+        await respond(i, { content: CoreText.controlExpired() });
       },
     },
   ],
-  events: [],
+  events: [suggestionChannelListener],
 };

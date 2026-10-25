@@ -22,8 +22,15 @@ import { audit } from '../core/audit';
 import { can, requireAny, requirePermission, requireRate } from '../core/authz';
 import { requireModule } from '../core/config';
 import type { Ctx } from '../core/context';
-import { ABUSE_FLAG_LABELS, BURST_WINDOW_MS, detectReferralAbuse, snowflakeTimestamp } from './attribution';
+import {
+  abuseFlagLabel,
+  type AbuseFlag,
+  BURST_WINDOW_MS,
+  detectReferralAbuse,
+  snowflakeTimestamp,
+} from './attribution';
 import { snowflakeSchema } from './common';
+import { MarketingText as T } from './texts';
 
 // ─── Invites ────────────────────────────────────────────────────────────────
 
@@ -64,7 +71,7 @@ export async function createReferralInvite(
       where: { id: input.partnerCampaignId, guildId: ctx.guildId },
     });
     if (!pc) throw notFound('Partner campaign');
-    if (!pc.active) throw invalidState('That partner campaign is not active.');
+    if (!pc.active) throw invalidState(T.partnerCampaignInactive());
     ownerId = pc.partnerId;
     campaign = campaign ?? pc.name.slice(0, 64);
   } else if (campaign) {
@@ -78,7 +85,7 @@ export async function createReferralInvite(
   }
 
   await requireRate(ctx, 'referrals.invite', 5, 3600);
-  if (!ctx.discord) throw new AppError('CONFIG', 'Discord is not available in this process.');
+  if (!ctx.discord) throw new AppError('CONFIG', T.discordUnavailable());
   const { code } = await ctx.discord.createInvite(input.channelId, {
     maxAgeSeconds: input.maxAgeSeconds,
     maxUses: 0,
@@ -110,7 +117,7 @@ export async function createReferralInvite(
       return { invite, created: true };
     });
   } catch (e) {
-    if (isUniqueViolation(e)) throw conflict('That invite is already registered.');
+    if (isUniqueViolation(e)) throw conflict(T.inviteAlreadyRegistered());
     throw e;
   }
 }
@@ -242,9 +249,7 @@ export async function recordAttribution(ctx: Ctx, raw: RecordAttributionInput): 
         campaign: invite?.campaign ?? null,
         confidence,
         status: flags.length ? 'FLAGGED' : 'VALID',
-        flagReason: flags.length
-          ? flags.map((f) => ABUSE_FLAG_LABELS[f as keyof typeof ABUSE_FLAG_LABELS]).join('; ')
-          : null,
+        flagReason: flags.length ? flags.map((f) => abuseFlagLabel(f as AbuseFlag)).join('; ') : null,
         joinedAt,
       },
     });
@@ -284,10 +289,9 @@ export async function reviewAttribution(
   const row = await ctx.db.referralAttribution.findFirst({ where: { id, guildId: ctx.guildId } });
   if (!row) throw notFound('Referral');
   if (input.status === 'VALID' && (row.confidence !== 'CONFIRMED' || !row.referrerId)) {
-    throw invalidState('Only confirmed attributions with a referrer can be marked valid.');
+    throw invalidState(T.onlyConfirmedValid());
   }
-  if (row.referrerId && row.referrerId === ctx.actor.userId)
-    throw forbidden('You cannot review your own referrals.');
+  if (row.referrerId && row.referrerId === ctx.actor.userId) throw forbidden(T.cannotReviewOwnReferral());
   return ctx.db.$transaction(async (tx) => {
     const updated = await tx.referralAttribution.update({
       where: { id },

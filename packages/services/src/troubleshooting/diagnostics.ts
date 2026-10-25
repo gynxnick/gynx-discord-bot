@@ -17,6 +17,7 @@ import type { Ctx } from '../core/context';
 import { readBodyCapped } from '../games/http';
 import { diagnoseText, type Finding } from './analyzers';
 import { gameKeySchema, supportUrlOf } from './common';
+import { TroubleshootingText } from './texts';
 
 /**
  * /diagnose pipeline:
@@ -31,9 +32,6 @@ export const DIAGNOSTIC_MAX_BYTES = 1024 * 1024;
 export const DIAGNOSTIC_DOWNLOAD_TIMEOUT_MS = 10_000;
 /** Findings summaries (without evidence) are kept this long after the excerpt expires. */
 export const DIAGNOSTIC_SUMMARY_GRACE_MS = 30 * 86_400_000;
-
-export const UPLOAD_WARNING =
-  'Logs may contain sensitive data; we automatically redact credentials and IPs; never upload files containing passwords.';
 
 const ALLOWED_CDN_HOSTS = new Set(['cdn.discordapp.com', 'media.discordapp.net']);
 
@@ -78,19 +76,11 @@ export function isAllowedContentType(ct: string | null | undefined): boolean {
 
 /** Throws VALIDATION with a user-facing reason. */
 export function validateAttachment(meta: AttachmentMeta): void {
-  if (!isAllowedLogName(meta.name))
-    throw validation(
-      'Only .log or .txt files can be analysed (for example latest.log or crash-reports/crash-….txt).',
-    );
-  if (!Number.isFinite(meta.size) || meta.size <= 0) throw validation('That file is empty.');
-  if (meta.size > DIAGNOSTIC_MAX_BYTES)
-    throw validation(
-      'That file is larger than 1 MB. Upload just the relevant log (e.g. latest.log) or a crash report.',
-    );
-  if (!isAllowedContentType(meta.contentType))
-    throw validation('That file does not look like a plain-text log.');
-  if (!isAllowedAttachmentUrl(meta.url))
-    throw validation('Attachments must be uploaded directly to Discord.');
+  if (!isAllowedLogName(meta.name)) throw validation(TroubleshootingText.fileTypeInvalid());
+  if (!Number.isFinite(meta.size) || meta.size <= 0) throw validation(TroubleshootingText.fileEmpty());
+  if (meta.size > DIAGNOSTIC_MAX_BYTES) throw validation(TroubleshootingText.fileTooLarge());
+  if (!isAllowedContentType(meta.contentType)) throw validation(TroubleshootingText.fileNotText());
+  if (!isAllowedAttachmentUrl(meta.url)) throw validation(TroubleshootingText.fileNotDiscord());
 }
 
 /** NUL bytes or > 10% non-printable characters → binary. */
@@ -115,7 +105,7 @@ export interface DownloadOptions {
 
 /** Download from the Discord CDN only, with a timeout and a streaming size cap. Never touches disk. */
 export async function downloadAttachment(url: string, opts: DownloadOptions = {}): Promise<Buffer> {
-  if (!isAllowedAttachmentUrl(url)) throw validation('Attachments must be uploaded directly to Discord.');
+  if (!isAllowedAttachmentUrl(url)) throw validation(TroubleshootingText.fileNotDiscord());
   const maxBytes = opts.maxBytes ?? DIAGNOSTIC_MAX_BYTES;
   let res: Response;
   try {
@@ -124,17 +114,16 @@ export async function downloadAttachment(url: string, opts: DownloadOptions = {}
       signal: AbortSignal.timeout(opts.timeoutMs ?? DIAGNOSTIC_DOWNLOAD_TIMEOUT_MS),
     });
   } catch {
-    throw new AppError('INTEGRATION', 'Could not download the file from Discord. Please try again.');
+    throw new AppError('INTEGRATION', TroubleshootingText.downloadFailed());
   }
-  if (!res.ok)
-    throw new AppError('INTEGRATION', 'Could not download the file from Discord. Please try again.');
+  if (!res.ok) throw new AppError('INTEGRATION', TroubleshootingText.downloadFailed());
   let body: Buffer | null;
   try {
     body = await readBodyCapped(res, maxBytes);
   } catch {
-    throw new AppError('INTEGRATION', 'Downloading the file took too long. Please try again.');
+    throw new AppError('INTEGRATION', TroubleshootingText.downloadTimeout());
   }
-  if (!body) throw validation('That file is larger than 1 MB.');
+  if (!body) throw validation(TroubleshootingText.fileTooLargeShort());
   return body;
 }
 
@@ -170,11 +159,8 @@ export async function runDiagnosis(
   await requireRate(ctx, 'troubleshooting.diagnose', 3, 300);
 
   const buf = await downloadAttachment(input.attachment.url, opts);
-  if (buf.length === 0) throw validation('That file is empty.');
-  if (looksBinary(buf))
-    throw validation(
-      'That file looks binary, not a text log. Please upload a .log or .txt file saved as UTF-8.',
-    );
+  if (buf.length === 0) throw validation(TroubleshootingText.fileEmpty());
+  if (looksBinary(buf)) throw validation(TroubleshootingText.fileBinary());
 
   // Redaction happens inside diagnoseText before any analysis; `buf` is dropped after this call.
   const result = diagnoseText(buf.toString('utf8'), input.game ?? null);
@@ -247,7 +233,7 @@ export async function diagnosticFeedback(
   helped: boolean,
 ): Promise<{ supportUrl: string | null }> {
   const r = await getDiagnostic(ctx, id);
-  if (r.userId !== ctx.actor.userId) throw forbidden('Only the member who uploaded this file can respond.');
+  if (r.userId !== ctx.actor.userId) throw forbidden(TroubleshootingText.diagnosisNotOwner());
   if (!helped && !r.escalated)
     await ctx.db.diagnosticRecord.update({ where: { id: r.id }, data: { escalated: true } });
   return { supportUrl: supportUrlOf(await getGuildConfig(ctx.db, ctx.guildId)) };

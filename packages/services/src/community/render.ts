@@ -4,6 +4,7 @@ import { EMBED_COLORS, discordTimestamp, neutraliseMentions, truncate } from '@g
 import { brandEmbed } from '../core/render';
 import { parseLinks } from './schemas';
 import type { OffsetPage } from './schemas';
+import { CommunityText as T, groupLabel } from './texts';
 import { renderWelcomeMessage } from './welcome';
 
 type Row = APIActionRowComponent<APIComponentInMessageActionRow>;
@@ -40,6 +41,7 @@ export function decodeArg(v?: string): string | undefined {
   }
 }
 
+/** Default (English) group names, for statically registered slash command choices. Messages use `groupLabel`. */
 export const GROUP_LABELS: Record<string, string> = {
   games: 'Games',
   community: 'Community',
@@ -47,9 +49,7 @@ export const GROUP_LABELS: Record<string, string> = {
 };
 
 export function supportLine(supportUrl: string | null | undefined): string {
-  return supportUrl
-    ? `Still stuck? Reach the support team: ${supportUrl}`
-    : 'Still stuck? Contact the support team.';
+  return supportUrl ? T.supportLineWithUrl({ url: supportUrl }) : T.supportLine();
 }
 
 // ── Welcome / rules ──────────────────────────────────────────────────────────
@@ -59,17 +59,17 @@ export function welcomeEmbed(
   vars: { userId: string; serverName: string; requiresVerification: boolean },
 ): APIEmbed {
   const steps = [
-    w.requireRulesAck || vars.requiresVerification ? '• Read the rules with `/rules`' : null,
-    vars.requiresVerification ? '• Press **Verify** below to unlock the server' : null,
-    '• Pick your games and notifications with `/roles`',
-    '• Find quick answers with `/faq`',
+    w.requireRulesAck || vars.requiresVerification ? T.welcomeStepRules() : null,
+    vars.requiresVerification ? T.welcomeStepVerify() : null,
+    T.welcomeStepRoles(),
+    T.welcomeStepFaq(),
   ].filter(Boolean);
   return brandEmbed({
     title: w.title,
     description: `${renderWelcomeMessage(w.message, vars)}\n\n${steps.join('\n')}`,
     fields: [
-      ...(w.docsUrl ? [{ name: 'Docs', value: w.docsUrl, inline: true }] : []),
-      ...(w.supportUrl ? [{ name: 'Support', value: w.supportUrl, inline: true }] : []),
+      ...(w.docsUrl ? [{ name: T.fieldDocs(), value: w.docsUrl, inline: true }] : []),
+      ...(w.supportUrl ? [{ name: T.fieldSupport(), value: w.supportUrl, inline: true }] : []),
     ],
   });
 }
@@ -79,20 +79,18 @@ export function welcomeDmEmbed(
   opts: { serverName: string; supportUrl: string | null; requiresVerification: boolean },
 ): APIEmbed {
   return brandEmbed({
-    title: `Welcome to ${truncate(neutraliseMentions(opts.serverName), 200)}`,
+    title: truncate(T.welcomeDmTitle({ server: truncate(neutraliseMentions(opts.serverName), 200) }), 256),
     description: [
-      'Here is how to get started:',
-      opts.requiresVerification
-        ? '1. Open the server and press **Verify** in the welcome channel (or run `/rules`).'
-        : '1. Read the rules with `/rules`.',
-      '2. Choose your games and notification roles with `/roles`.',
-      '3. Browse quick answers with `/faq` and guides with `/guides`.',
+      T.welcomeDmIntro(),
+      opts.requiresVerification ? T.welcomeDmStepVerify() : T.welcomeDmStepRules(),
+      T.welcomeDmStepRoles(),
+      T.welcomeDmStepFaq(),
       '',
-      'GYNX staff will never ask for your password or payment details in DMs.',
+      T.welcomeDmSafety(),
     ].join('\n'),
     fields: [
-      ...(w.docsUrl ? [{ name: 'Docs', value: w.docsUrl, inline: true }] : []),
-      { name: 'Support', value: opts.supportUrl ?? 'Contact the support team in the server.', inline: true },
+      ...(w.docsUrl ? [{ name: T.fieldDocs(), value: w.docsUrl, inline: true }] : []),
+      { name: T.fieldSupport(), value: opts.supportUrl ?? T.welcomeDmSupportFallback(), inline: true },
     ],
   });
 }
@@ -102,11 +100,11 @@ export function rulesEmbed(
   status?: { rulesAccepted: boolean; verified: boolean; requiresVerification: boolean },
 ): APIEmbed {
   const notes: string[] = [];
-  if (status?.rulesAccepted) notes.push('✅ You have accepted the rules.');
-  else if (w.requireRulesAck) notes.push('Please press **I accept** to confirm you have read the rules.');
-  if (status?.requiresVerification && !status.verified) notes.push('Press **Verify** to finish onboarding.');
+  if (status?.rulesAccepted) notes.push(T.rulesAcceptedNote());
+  else if (w.requireRulesAck) notes.push(T.rulesAckNote());
+  if (status?.requiresVerification && !status.verified) notes.push(T.rulesVerifyNote());
   return brandEmbed({
-    title: 'Server rules',
+    title: T.rulesTitle(),
     description: `${truncate(w.rulesText, 3800)}${notes.length ? `\n\n${notes.join('\n')}` : ''}`,
   });
 }
@@ -114,8 +112,9 @@ export function rulesEmbed(
 export function onboardingButtons(opts: { showAccept: boolean; showVerify: boolean }): Row[] {
   const buttons: APIComponentInMessageActionRow[] = [];
   if (opts.showAccept)
-    buttons.push({ type: BUTTON, style: SUCCESS, label: 'I accept', custom_id: CID.rulesAccept });
-  if (opts.showVerify) buttons.push({ type: BUTTON, style: PRIMARY, label: 'Verify', custom_id: CID.verify });
+    buttons.push({ type: BUTTON, style: SUCCESS, label: T.acceptButton(), custom_id: CID.rulesAccept });
+  if (opts.showVerify)
+    buttons.push({ type: BUTTON, style: PRIMARY, label: T.verifyButton(), custom_id: CID.verify });
   return buttons.length ? [{ type: 1, components: buttons }] : [];
 }
 
@@ -130,7 +129,7 @@ export function interestsSelect(games: readonly SelfAssignableRole[], current: r
         {
           type: STRING_SELECT,
           custom_id: CID.interests,
-          placeholder: 'Which games do you play?',
+          placeholder: T.interestsPlaceholder(),
           min_values: 0,
           max_values: opts.length,
           options: opts.map((g) => ({
@@ -157,7 +156,7 @@ export function selfRoleSelects(roles: readonly SelfAssignableRole[]): Row[] {
         {
           type: STRING_SELECT,
           custom_id: CID.selfRoleToggle(group),
-          placeholder: `${GROUP_LABELS[group] ?? group}: pick roles to add or remove`,
+          placeholder: truncate(T.selfRolePlaceholder({ group: groupLabel(group) }), 100),
           min_values: 1,
           max_values: opts.length,
           options: opts.map((r) => ({
@@ -181,12 +180,10 @@ export function selfRolesEmbed(
     byGroup.set(r.group, [...(byGroup.get(r.group) ?? []), line]);
   }
   return brandEmbed({
-    title: 'Self-assignable roles',
-    description: roles.length
-      ? 'Select a role to toggle it: roles you have are removed, others are added.'
-      : 'No self-assignable roles are configured yet.',
+    title: T.selfRolesTitle(),
+    description: roles.length ? T.selfRolesDescription() : T.selfRolesEmpty(),
     fields: [...byGroup.entries()].map(([g, lines]) => ({
-      name: GROUP_LABELS[g] ?? g,
+      name: groupLabel(g),
       value: lines.join('\n'),
     })),
   });
@@ -206,14 +203,14 @@ export function faqAnswerEmbed(
       ...(links.length
         ? [
             {
-              name: 'Links',
+              name: T.faqLinksField(),
               value: links.map((l) => `[${l.label.replace(/[[\]]/g, '')}](${l.url})`).join('\n'),
             },
           ]
         : []),
-      { name: 'Need more help?', value: supportLine(supportUrl) },
+      { name: T.faqMoreHelpField(), value: supportLine(supportUrl) },
     ],
-    footer: entry.category ? `FAQ · ${entry.category.name}` : 'FAQ',
+    footer: entry.category ? T.faqFooterCategory({ category: entry.category.name }) : T.faqFooter(),
   });
 }
 
@@ -222,19 +219,20 @@ export function faqAnswerButtons(entryId: string, supportUrl: string | null): Ro
     {
       type: BUTTON,
       style: SECONDARY,
-      label: 'Helpful',
+      label: T.faqHelpfulButton(),
       emoji: { name: '👍' },
       custom_id: CID.faqFeedback(entryId, true),
     },
     {
       type: BUTTON,
       style: SECONDARY,
-      label: 'Not helpful',
+      label: T.faqNotHelpfulButton(),
       emoji: { name: '👎' },
       custom_id: CID.faqFeedback(entryId, false),
     },
   ];
-  if (supportUrl) buttons.push({ type: BUTTON, style: LINK, label: 'Contact support', url: supportUrl });
+  if (supportUrl)
+    buttons.push({ type: BUTTON, style: LINK, label: T.faqContactSupportButton(), url: supportUrl });
   return [{ type: 1, components: buttons }];
 }
 
@@ -243,20 +241,20 @@ export function faqOverviewEmbed(
   mostViewed: readonly FaqEntry[],
 ): APIEmbed {
   return brandEmbed({
-    title: 'Frequently asked questions',
-    description: 'Use `/faq query:<words>` to search, or pick a popular question below.',
+    title: T.faqOverviewTitle(),
+    description: T.faqOverviewDescription(),
     fields: [
       {
-        name: 'Categories',
+        name: T.faqCategoriesField(),
         value: categories.length
           ? categories.map((c) => `• **${c.name}** (${c.publishedCount})`).join('\n')
-          : 'No categories yet.',
+          : T.faqNoCategories(),
       },
       {
-        name: 'Most viewed',
+        name: T.faqMostViewedField(),
         value: mostViewed.length
           ? mostViewed.map((e, n) => `${n + 1}. ${truncate(e.question, 120)}`).join('\n')
-          : 'No published FAQs yet.',
+          : T.faqNoEntries(),
       },
     ],
   });
@@ -271,7 +269,7 @@ export function faqPickSelect(entries: readonly FaqEntry[]): Row[] {
         {
           type: STRING_SELECT,
           custom_id: CID.faqOpen,
-          placeholder: 'Open a question',
+          placeholder: T.faqPickPlaceholder(),
           options: entries.slice(0, 25).map((e) => ({ label: truncate(e.question, 100), value: e.id })),
         },
       ],
@@ -286,21 +284,28 @@ export function guidesEmbed(
   filters: { category?: string; game?: string },
 ): APIEmbed {
   const filterText = [
-    filters.category && `category **${filters.category}**`,
-    filters.game && `game **${filters.game}**`,
+    filters.category && T.guidesFilterCategory({ category: filters.category }),
+    filters.game && T.guidesFilterGame({ game: filters.game }),
   ]
     .filter(Boolean)
     .join(', ');
   return brandEmbed({
-    title: 'Guides',
+    title: T.guidesTitle(),
     description: page.total
-      ? `${filterText ? `Filtered by ${filterText}. ` : ''}Showing ${page.items.length} of ${page.total}.`
-      : `No published guides${filterText ? ` match ${filterText}` : ' yet'}.`,
+      ? [
+          filterText ? T.guidesFilteredBy({ filters: filterText }) : '',
+          T.guidesShowing({ shown: page.items.length, total: page.total }),
+        ]
+          .filter(Boolean)
+          .join(' ')
+      : filterText
+        ? T.guidesNoneMatch({ filters: filterText })
+        : T.guidesNoneYet(),
     fields: page.items.map((g) => ({
       name: truncate(`${g.title}${g.game ? ` · ${g.game}` : ''}`, 256),
       value: `${truncate(g.summary, 300)}\n${g.url}`,
     })),
-    footer: `Page ${page.page} of ${page.pageCount}`,
+    footer: T.guidesFooter({ page: page.page, pageCount: page.pageCount }),
   });
 }
 
@@ -314,11 +319,17 @@ export function guidesPager(page: OffsetPage<unknown>, filters: { category?: str
     {
       type: 1,
       components: [
-        { type: BUTTON, style: SECONDARY, label: 'Previous', custom_id: prev, disabled: page.page <= 1 },
         {
           type: BUTTON,
           style: SECONDARY,
-          label: 'Next',
+          label: T.guidesPrevButton(),
+          custom_id: prev,
+          disabled: page.page <= 1,
+        },
+        {
+          type: BUTTON,
+          style: SECONDARY,
+          label: T.guidesNextButton(),
           custom_id: next,
           disabled: page.page >= page.pageCount,
         },
@@ -341,20 +352,21 @@ export interface RaidAlertPayload {
 /** Staff alert. Deliberately contains counts only — no member lists. */
 export function raidAlertEmbed(p: RaidAlertPayload, flaggedSoFar: number): APIEmbed {
   return brandEmbed({
-    title: 'Possible raid detected',
+    title: T.raidAlertTitle(),
     color: EMBED_COLORS.warning,
-    description: `**${p.joinsInWindow}** members joined within ${p.windowSeconds}s (threshold ${p.threshold}).`,
+    description: T.raidAlertDescription({
+      joins: p.joinsInWindow,
+      seconds: p.windowSeconds,
+      threshold: p.threshold,
+    }),
     fields: [
-      { name: 'Detected', value: discordTimestamp(new Date(p.detectedAt), 'R'), inline: true },
-      { name: 'Flagged joiners', value: String(flaggedSoFar), inline: true },
+      { name: T.raidDetectedField(), value: discordTimestamp(new Date(p.detectedAt), 'R'), inline: true },
+      { name: T.raidFlaggedField(), value: String(flaggedSoFar), inline: true },
       {
-        name: 'Automatic action',
-        value:
-          p.action === 'REQUIRE_VERIFICATION'
-            ? 'New joiners in this window must pass verification. Nobody was kicked or banned.'
-            : 'Alert only. Nobody was kicked or banned.',
+        name: T.raidActionField(),
+        value: p.action === 'REQUIRE_VERIFICATION' ? T.raidActionVerify() : T.raidActionAlert(),
       },
     ],
-    footer: 'Review recent joins in the dashboard before taking action.',
+    footer: T.raidAlertFooter(),
   });
 }

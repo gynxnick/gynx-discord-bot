@@ -28,6 +28,7 @@ import { makeCtx, systemActor, type Ctx, type ServiceDeps } from '../core/contex
 import type { DiscordPort } from '../core/discord-port';
 import { enqueueJob } from '../core/jobs';
 import { countedReferralWhere } from './referrals';
+import { MarketingText as T } from './texts';
 
 // ─── Category questions ─────────────────────────────────────────────────────
 
@@ -45,9 +46,24 @@ export const PARTNER_CATEGORY_LABELS: Record<PartnerCategory, string> = {
   OTHER: 'Other',
 };
 
+const CATEGORY_TEXT: Record<PartnerCategory, keyof typeof T> = {
+  CONTENT_CREATOR: 'categoryContentCreator',
+  GAMING_COMMUNITY: 'categoryGamingCommunity',
+  COMMUNITY_PARTNER: 'categoryCommunityPartner',
+  OTHER: 'categoryOther',
+};
+
+/**
+ * Editable category name for messages sent in Discord (resolved at call time).
+ * PARTNER_CATEGORY_LABELS stays for the dashboard.
+ */
+export const partnerCategoryLabel = (c: PartnerCategory): string => T[CATEGORY_TEXT[c]]();
+
 export interface PartnerQuestion {
   id: string;
-  label: string; // ≤45 chars (Discord modal label limit)
+  label: string; // ≤45 chars (Discord modal label limit); dashboard wording
+  /** Editable text key used for this question in Discord (see partnerQuestionLabel). */
+  text: keyof typeof T;
   style: 'short' | 'paragraph';
   required: boolean;
   maxLength: number;
@@ -60,6 +76,7 @@ export const PARTNER_QUESTIONS: Record<PartnerCategory, PartnerQuestion[]> = {
     {
       id: 'channels',
       label: 'Channel links (one per line)',
+      text: 'qCreatorChannels',
       style: 'paragraph',
       required: true,
       maxLength: 500,
@@ -68,6 +85,7 @@ export const PARTNER_QUESTIONS: Record<PartnerCategory, PartnerQuestion[]> = {
     {
       id: 'audience',
       label: 'Platforms and approximate audience size',
+      text: 'qCreatorAudience',
       style: 'short',
       required: true,
       maxLength: 200,
@@ -75,6 +93,7 @@ export const PARTNER_QUESTIONS: Record<PartnerCategory, PartnerQuestion[]> = {
     {
       id: 'content',
       label: 'What content do you make?',
+      text: 'qCreatorContent',
       style: 'paragraph',
       required: true,
       maxLength: 1000,
@@ -82,18 +101,41 @@ export const PARTNER_QUESTIONS: Record<PartnerCategory, PartnerQuestion[]> = {
     {
       id: 'proposal',
       label: 'How would you like to partner with us?',
+      text: 'qCreatorProposal',
       style: 'paragraph',
       required: true,
       maxLength: 1000,
     },
   ],
   GAMING_COMMUNITY: [
-    { id: 'community', label: 'Community name and link', style: 'short', required: true, maxLength: 200 },
-    { id: 'size', label: 'Approximate member count', style: 'short', required: true, maxLength: 50 },
-    { id: 'games', label: 'Games your community plays', style: 'short', required: true, maxLength: 200 },
+    {
+      id: 'community',
+      label: 'Community name and link',
+      text: 'qGamingCommunity',
+      style: 'short',
+      required: true,
+      maxLength: 200,
+    },
+    {
+      id: 'size',
+      label: 'Approximate member count',
+      text: 'qGamingSize',
+      style: 'short',
+      required: true,
+      maxLength: 50,
+    },
+    {
+      id: 'games',
+      label: 'Games your community plays',
+      text: 'qGamingGames',
+      style: 'short',
+      required: true,
+      maxLength: 200,
+    },
     {
       id: 'proposal',
       label: 'How would you like to partner with us?',
+      text: 'qGamingProposal',
       style: 'paragraph',
       required: true,
       maxLength: 1000,
@@ -103,6 +145,7 @@ export const PARTNER_QUESTIONS: Record<PartnerCategory, PartnerQuestion[]> = {
     {
       id: 'organisation',
       label: 'Organisation name and website',
+      text: 'qCommunityOrganisation',
       style: 'short',
       required: true,
       maxLength: 200,
@@ -110,6 +153,7 @@ export const PARTNER_QUESTIONS: Record<PartnerCategory, PartnerQuestion[]> = {
     {
       id: 'about',
       label: 'Tell us about your organisation',
+      text: 'qCommunityAbout',
       style: 'paragraph',
       required: true,
       maxLength: 1000,
@@ -117,6 +161,7 @@ export const PARTNER_QUESTIONS: Record<PartnerCategory, PartnerQuestion[]> = {
     {
       id: 'proposal',
       label: 'What partnership do you propose?',
+      text: 'qCommunityProposal',
       style: 'paragraph',
       required: true,
       maxLength: 1000,
@@ -126,6 +171,7 @@ export const PARTNER_QUESTIONS: Record<PartnerCategory, PartnerQuestion[]> = {
     {
       id: 'about',
       label: 'Who are you / what do you represent?',
+      text: 'qOtherAbout',
       style: 'paragraph',
       required: true,
       maxLength: 1000,
@@ -133,13 +179,24 @@ export const PARTNER_QUESTIONS: Record<PartnerCategory, PartnerQuestion[]> = {
     {
       id: 'proposal',
       label: 'What partnership do you propose?',
+      text: 'qOtherProposal',
       style: 'paragraph',
       required: true,
       maxLength: 1000,
     },
-    { id: 'links', label: 'Relevant links (optional)', style: 'paragraph', required: false, maxLength: 500 },
+    {
+      id: 'links',
+      label: 'Relevant links (optional)',
+      text: 'qOtherLinks',
+      style: 'paragraph',
+      required: false,
+      maxLength: 500,
+    },
   ],
 };
+
+/** Editable question wording for Discord (modal labels, review posts, errors), resolved at call time. */
+export const partnerQuestionLabel = (q: Pick<PartnerQuestion, 'text'>): string => T[q.text]();
 
 const OPEN_STATUSES: PartnerStatus[] = ['PENDING', 'UNDER_REVIEW'];
 
@@ -152,12 +209,13 @@ function cleanAnswers(category: PartnerCategory, answers: Record<string, string>
   const questions = PARTNER_QUESTIONS[category];
   const known = new Set(questions.map((q) => q.id));
   const unknown = Object.keys(answers).filter((k) => !known.has(k));
-  if (unknown.length) throw validation('Unexpected answers were submitted.');
+  if (unknown.length) throw validation(T.unexpectedAnswers());
   const out: Record<string, string> = {};
   for (const q of questions) {
     const v = (answers[q.id] ?? '').trim();
-    if (q.required && !v) throw validation(`Please answer: ${q.label}`);
-    if (v.length > q.maxLength) throw validation(`"${q.label}" is too long (max ${q.maxLength} characters).`);
+    if (q.required && !v) throw validation(T.answerRequired({ question: partnerQuestionLabel(q) }));
+    if (v.length > q.maxLength)
+      throw validation(T.answerTooLong({ question: partnerQuestionLabel(q), max: q.maxLength }));
     // Stored faithfully (secrets redacted); every echo path neutralises mentions at render time.
     if (v) out[q.id] = redactSecrets(v, { maskIps: false });
   }
@@ -181,10 +239,7 @@ export async function submitPartnerApplication(
       where: { guildId: ctx.guildId, applicantId: ctx.actor.userId, status: { in: OPEN_STATUSES } },
       select: { ref: true },
     });
-    if (open)
-      throw conflict(
-        `You already have an open application (${open.ref}). Please wait for the team to review it.`,
-      );
+    if (open) throw conflict(T.alreadyOpenApplication({ ref: open.ref }));
     const number = await nextSequence(tx, ctx.guildId, 'partner_application');
     const app = await tx.partnerApplication.create({
       data: {
@@ -274,7 +329,7 @@ async function loadForReview(ctx: Ctx, id: string): Promise<PartnerApplication> 
   await requirePermission(ctx, 'partners.review');
   const app = await ctx.db.partnerApplication.findFirst({ where: { id, guildId: ctx.guildId } });
   if (!app) throw notFound('Application');
-  if (app.applicantId === ctx.actor.userId) throw forbidden('You cannot review your own application.');
+  if (app.applicantId === ctx.actor.userId) throw forbidden(T.cannotReviewOwnApplication());
   return app;
 }
 
@@ -282,17 +337,13 @@ export async function startPartnerReview(ctx: Ctx, id: string): Promise<PartnerA
   const app = await loadForReview(ctx, id);
   if (app.status === 'UNDER_REVIEW' && app.reviewerId === ctx.actor.userId) return app;
   if (app.status !== 'PENDING')
-    throw invalidState(
-      app.status === 'UNDER_REVIEW'
-        ? 'Someone is already reviewing this application.'
-        : 'This application was already decided.',
-    );
+    throw invalidState(app.status === 'UNDER_REVIEW' ? T.alreadyReviewing() : T.alreadyDecided());
   return ctx.db.$transaction(async (tx) => {
     const r = await tx.partnerApplication.updateMany({
       where: { id, status: 'PENDING' },
       data: { status: 'UNDER_REVIEW', reviewerId: ctx.actor.userId, reviewStartedAt: ctx.now() },
     });
-    if (r.count === 0) throw conflict('Someone else just started reviewing this application.');
+    if (r.count === 0) throw conflict(T.reviewStartRace());
     await audit(
       ctx,
       {
@@ -324,14 +375,14 @@ export async function decidePartnerApplication(
 ) {
   const input = decideApplicationSchema.parse(raw);
   const app = await loadForReview(ctx, id);
-  if (!OPEN_STATUSES.includes(app.status)) throw invalidState('This application was already decided.');
+  if (!OPEN_STATUSES.includes(app.status)) throw invalidState(T.alreadyDecided());
   if (
     app.status === 'UNDER_REVIEW' &&
     app.reviewerId &&
     app.reviewerId !== ctx.actor.userId &&
     !can(ctx, 'settings.manage')
   ) {
-    throw conflict('Another reviewer is handling this application.');
+    throw conflict(T.anotherReviewer());
   }
   return ctx.db.$transaction(async (tx) => {
     const r = await tx.partnerApplication.updateMany({
@@ -347,7 +398,7 @@ export async function decidePartnerApplication(
           : app.internalNotes,
       },
     });
-    if (r.count === 0) throw conflict('This application changed in the meantime.');
+    if (r.count === 0) throw conflict(T.applicationChanged());
     let campaign: PartnerCampaign | null = null;
     if (input.decision === 'APPROVED') {
       campaign = await tx.partnerCampaign.create({
@@ -355,7 +406,7 @@ export async function decidePartnerApplication(
           guildId: ctx.guildId,
           applicationId: id,
           partnerId: app.applicantId,
-          name: input.campaignName ?? `${app.ref} partnership`,
+          name: input.campaignName ?? T.defaultCampaignName({ ref: app.ref }),
           canAnnounce: false,
         },
       });

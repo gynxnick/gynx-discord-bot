@@ -19,21 +19,20 @@ import { requireModule } from '../core/config';
 import type { Ctx } from '../core/context';
 import { cancelJobsByPrefix, enqueueJob } from '../core/jobs';
 import { DM_JOB, JOBS, cleanText, lockRow, refreshBucket, snowflakeSchema, type DmPayload } from './common';
+import { EngagementText as T } from './texts';
 
 // ─── Pure rules ─────────────────────────────────────────────────────────────
 
 /** Parse "YYYY-MM-DD HH:MM" wall-clock time in `tz` into a UTC instant (rejects impossible dates). */
 export function parseEventTime(input: string, tz: string): Date {
   const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})$/.exec(input.trim());
-  if (!m) throw validation('Use the format YYYY-MM-DD HH:MM (24-hour), e.g. 2026-11-05 19:30.');
-  if (!isValidTimeZone(tz))
-    throw validation(`Unknown time zone "${tz}". Use an IANA name like Europe/London.`);
+  if (!m) throw validation(T.eventTimeFormat());
+  if (!isValidTimeZone(tz)) throw validation(T.eventUnknownTimeZone({ timezone: tz }));
   const [y, mo, d, h, mi] = m.slice(1).map(Number) as [number, number, number, number, number];
-  if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59)
-    throw validation('That date/time is not valid.');
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59) throw validation(T.eventInvalidDateTime());
   const utc = zonedToUtc(y, mo, d, h, mi, tz);
   const back = zonedParts(utc, tz);
-  if (back.year !== y || back.month !== mo || back.day !== d) throw validation('That date does not exist.');
+  if (back.year !== y || back.month !== mo || back.day !== d) throw validation(T.eventDateDoesNotExist());
   return utc;
 }
 
@@ -91,9 +90,8 @@ const REMINDER_PREFIX = (id: string) => `${JOBS.eventReminder}:${id}:`;
 
 function assertFuture(ctx: Ctx, startsAt: Date): void {
   const now = ctx.now().getTime();
-  if (startsAt.getTime() <= now) throw validation('The event must start in the future.');
-  if (startsAt.getTime() > now + MAX_AHEAD_MS)
-    throw validation('Events can be scheduled at most a year ahead.');
+  if (startsAt.getTime() <= now) throw validation(T.eventMustBeFuture());
+  if (startsAt.getTime() > now + MAX_AHEAD_MS) throw validation(T.eventMaxYearAhead());
 }
 
 async function enqueueReminders(
@@ -154,10 +152,7 @@ export async function createEvent(ctx: Ctx, raw: CreateEventInput): Promise<Comm
   const startsAt = parseEventTime(input.startsAt, tz);
   assertFuture(ctx, startsAt);
   const channelId = input.channelId ?? cfg.eventChannelId ?? input.fallbackChannelId;
-  if (!channelId)
-    throw validation(
-      'No event channel is configured. Set one in the dashboard or run this in the channel to post in.',
-    );
+  if (!channelId) throw validation(T.eventNoChannel());
 
   return ctx.db.$transaction(async (tx) => {
     const ev = await tx.communityEvent.create({
@@ -207,7 +202,7 @@ export async function updateEvent(ctx: Ctx, id: string, raw: UpdateEventInput): 
   return ctx.db.$transaction(async (tx) => {
     await lockRow(tx, 'CommunityEvent', id);
     const ev = await loadEvent(ctx, id, tx);
-    if (ev.status !== 'SCHEDULED') throw invalidState('Only scheduled events can be edited.');
+    if (ev.status !== 'SCHEDULED') throw invalidState(T.eventOnlyScheduledEditable());
 
     const tz = input.timezone ?? ev.timezone;
     const startsAt = input.startsAt !== undefined ? parseEventTime(input.startsAt, tz) : ev.startsAt;
@@ -216,8 +211,7 @@ export async function updateEvent(ctx: Ctx, id: string, raw: UpdateEventInput): 
 
     if (input.capacity !== undefined && input.capacity !== null) {
       const going = await tx.eventRsvp.count({ where: { eventId: id, status: 'GOING' } });
-      if (input.capacity < going)
-        throw validation(`${going} members are already going; capacity cannot be lower than that.`);
+      if (input.capacity < going) throw validation(T.eventCapacityBelowGoing({ count: going }));
     }
     const duration =
       input.durationMinutes !== undefined
@@ -277,7 +271,7 @@ export async function cancelEvent(ctx: Ctx, id: string, reason?: string): Promis
       where: { id, guildId: ctx.guildId, status: 'SCHEDULED' },
       data: { status: 'CANCELLED' },
     });
-    if (res.count === 0) throw invalidState('This event is not scheduled (already cancelled or completed).');
+    if (res.count === 0) throw invalidState(T.eventNotScheduled());
     await cancelJobsByPrefix(tx, REMINDER_PREFIX(id));
     await audit(
       ctx,
@@ -307,9 +301,8 @@ export async function postEventSummary(ctx: Ctx, id: string, summary: string): P
   await requirePermission(ctx, 'events.manage', 'engagement.event.summary');
   const text = z.string().trim().min(10).max(2000).parse(summary);
   const ev = await loadEvent(ctx, id);
-  if (ev.status === 'CANCELLED') throw invalidState('This event was cancelled.');
-  if (ctx.now().getTime() < ev.startsAt.getTime())
-    throw invalidState('You can post a summary once the event has started.');
+  if (ev.status === 'CANCELLED') throw invalidState(T.eventWasCancelled());
+  if (ctx.now().getTime() < ev.startsAt.getTime()) throw invalidState(T.eventSummaryTooEarly());
   return ctx.db.$transaction(async (tx) => {
     const updated = await tx.communityEvent.update({
       where: { id },
@@ -361,9 +354,8 @@ export async function rsvpEvent(
   return ctx.db.$transaction(async (tx) => {
     if (!(await lockRow(tx, 'CommunityEvent', eventId))) throw notFound('Event');
     const ev = await loadEvent(ctx, eventId, tx);
-    if (ev.status !== 'SCHEDULED') throw invalidState(`This event is ${ev.status.toLowerCase()}.`);
-    if (ev.startsAt.getTime() <= ctx.now().getTime())
-      throw invalidState('RSVPs are closed: the event has already started.');
+    if (ev.status !== 'SCHEDULED') throw invalidState(T.eventIsStatus({ status: ev.status.toLowerCase() }));
+    if (ev.startsAt.getTime() <= ctx.now().getTime()) throw invalidState(T.eventRsvpClosed());
 
     const existing = await tx.eventRsvp.findUnique({ where: { eventId_userId: { eventId, userId } } });
 
@@ -378,7 +370,7 @@ export async function rsvpEvent(
       }
       const going = await tx.eventRsvp.count({ where: { eventId, status: 'GOING' } });
       const decision = decideRsvp(ev.capacity, going, ev.waitlistEnabled);
-      if (decision === 'FULL') throw conflict('Sorry, this event is full.');
+      if (decision === 'FULL') throw conflict(T.eventFull());
       const rsvp = await tx.eventRsvp.upsert({
         where: { eventId_userId: { eventId, userId } },
         create: { eventId, userId, status: decision },

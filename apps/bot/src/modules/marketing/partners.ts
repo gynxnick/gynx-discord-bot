@@ -6,12 +6,13 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
-import { brandEmbed, marketing } from '@gynx/services';
+import { brandEmbed, CoreText, marketing } from '@gynx/services';
 import { AppError, discordTimestamp, neutraliseMentions, truncate } from '@gynx/shared';
 import { replySuccess, respond } from '../../framework/reply';
 import type { ComponentHandler, SlashCommand } from '../../framework/types';
 
 type Category = (typeof marketing.PARTNER_CATEGORIES)[number];
+const T = marketing.MarketingText;
 
 const data = new SlashCommandBuilder()
   .setName('partners')
@@ -28,16 +29,15 @@ export const partnersCommand: SlashCommand = {
     if (sub === 'apply') {
       const select = new StringSelectMenuBuilder()
         .setCustomId('partner:cat')
-        .setPlaceholder('What kind of partner are you?')
+        .setPlaceholder(T.applySelectPlaceholder())
         .addOptions(
           marketing.PARTNER_CATEGORIES.map((c) => ({
-            label: marketing.PARTNER_CATEGORY_LABELS[c],
+            label: marketing.partnerCategoryLabel(c),
             value: c,
           })),
         );
       await respond(i, {
-        content:
-          'Choose the category that fits you best. Never include passwords or private account details in your answers.',
+        content: T.applyIntro(),
         components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)],
       });
       return;
@@ -46,13 +46,13 @@ export const partnersCommand: SlashCommand = {
       const apps = await marketing.myPartnerApplications(h.ctx);
       const lines = apps.map(
         (a) =>
-          `**${a.ref}** · ${marketing.PARTNER_CATEGORY_LABELS[a.category]} · ${a.status.replace('_', ' ').toLowerCase()} · ${discordTimestamp(a.createdAt, 'R')}${a.decisionNote ? `\n> ${neutraliseMentions(truncate(a.decisionNote, 300))}` : ''}`,
+          `**${a.ref}** · ${marketing.partnerCategoryLabel(a.category)} · ${a.status.replace('_', ' ').toLowerCase()} · ${discordTimestamp(a.createdAt, 'R')}${a.decisionNote ? `\n> ${neutraliseMentions(truncate(a.decisionNote, 300))}` : ''}`,
       );
       await respond(i, {
         embeds: [
           brandEmbed({
-            title: 'Your partner applications',
-            description: lines.join('\n') || 'You have not applied yet. Use `/partners apply`.',
+            title: T.statusTitle(),
+            description: lines.join('\n') || T.statusEmpty(),
           }),
         ],
       });
@@ -66,13 +66,13 @@ export const partnersCommand: SlashCommand = {
       const items = [...review.items, ...pending.items].slice(0, 5);
       const lines = items.map(
         (a) =>
-          `**${a.ref}** · ${marketing.PARTNER_CATEGORY_LABELS[a.category]} · <@${a.applicantId}> · ${a.status === 'UNDER_REVIEW' ? `in review by <@${a.reviewerId}>` : 'pending'} · ${discordTimestamp(a.createdAt, 'R')}`,
+          `**${a.ref}** · ${marketing.partnerCategoryLabel(a.category)} · <@${a.applicantId}> · ${a.status === 'UNDER_REVIEW' ? T.queueInReviewBy({ reviewer: `<@${a.reviewerId}>` }) : T.queuePending()} · ${discordTimestamp(a.createdAt, 'R')}`,
       );
       await respond(i, {
         embeds: [
           brandEmbed({
-            title: 'Partner review queue',
-            description: lines.join('\n') || 'No open applications.',
+            title: T.queueTitle(),
+            description: lines.join('\n') || T.queueEmpty(),
           }),
         ],
         components: items.map((a) => marketing.partnerStaffButtons(a)[0]!),
@@ -92,16 +92,16 @@ export const partnerComponents: ComponentHandler = {
 
     if (action === 'cat' && i.isStringSelectMenu()) {
       const category = i.values[0];
-      if (!isCategory(category)) throw new AppError('VALIDATION', 'Unknown category.');
+      if (!isCategory(category)) throw new AppError('VALIDATION', T.unknownCategory());
       const modal = new ModalBuilder()
         .setCustomId(`partner:apply:${category}`)
-        .setTitle(`Partner application · ${marketing.PARTNER_CATEGORY_LABELS[category]}`.slice(0, 45));
+        .setTitle(T.applyModalTitle({ category: marketing.partnerCategoryLabel(category) }).slice(0, 45));
       for (const q of marketing.PARTNER_QUESTIONS[category]) {
         modal.addComponents(
           new ActionRowBuilder<TextInputBuilder>().addComponents(
             new TextInputBuilder()
               .setCustomId(q.id)
-              .setLabel(q.label)
+              .setLabel(marketing.partnerQuestionLabel(q).slice(0, 45))
               .setStyle(q.style === 'short' ? TextInputStyle.Short : TextInputStyle.Paragraph)
               .setMaxLength(q.maxLength)
               .setRequired(q.required)
@@ -115,39 +115,35 @@ export const partnerComponents: ComponentHandler = {
 
     if (action === 'apply' && i.isModalSubmit()) {
       const category = rest[0];
-      if (!isCategory(category)) throw new AppError('VALIDATION', 'Unknown category.');
+      if (!isCategory(category)) throw new AppError('VALIDATION', T.unknownCategory());
       const answers = Object.fromEntries(
         marketing.PARTNER_QUESTIONS[category].map((q) => [q.id, i.fields.getTextInputValue(q.id)]),
       );
       const app = await marketing.submitPartnerApplication(h.ctx, { category, answers });
-      await replySuccess(
-        i,
-        `Application ${app.ref} received`,
-        'Thanks for applying! Our team will review it and you will get a DM with the outcome. Check progress with `/partners status`.',
-      );
+      await replySuccess(i, T.applicationReceivedTitle({ ref: app.ref }), T.applicationReceivedBody());
       return;
     }
 
     const id = rest[0] ?? '';
     if (action === 'start' && i.isButton()) {
       const app = await marketing.startPartnerReview(h.ctx, id);
-      await respond(i, { content: `You are now reviewing **${app.ref}**.` });
+      await respond(i, { content: T.reviewStarted({ ref: app.ref }) });
       return;
     }
 
     if ((action === 'approve' || action === 'reject') && i.isButton()) {
       // Permission re-checked on submit by the service; fail early for clarity.
       if (!h.ctx.actor.permissions.has('partners.review'))
-        throw new AppError('FORBIDDEN', 'You do not have permission to do that.');
+        throw new AppError('FORBIDDEN', CoreText.forbidden());
       const approve = action === 'approve';
       const modal = new ModalBuilder()
         .setCustomId(`partner:decide:${id}:${approve ? 'A' : 'R'}`)
-        .setTitle(approve ? 'Approve application' : 'Reject application')
+        .setTitle((approve ? T.approveModalTitle() : T.rejectModalTitle()).slice(0, 45))
         .addComponents(
           new ActionRowBuilder<TextInputBuilder>().addComponents(
             new TextInputBuilder()
               .setCustomId('note')
-              .setLabel('Message to the applicant')
+              .setLabel(T.decisionNoteLabel().slice(0, 45))
               .setStyle(TextInputStyle.Paragraph)
               .setMinLength(3)
               .setMaxLength(1000)
@@ -156,7 +152,7 @@ export const partnerComponents: ComponentHandler = {
           new ActionRowBuilder<TextInputBuilder>().addComponents(
             new TextInputBuilder()
               .setCustomId('internal')
-              .setLabel('Internal notes (staff only)')
+              .setLabel(T.internalNotesLabel().slice(0, 45))
               .setStyle(TextInputStyle.Paragraph)
               .setMaxLength(2000)
               .setRequired(false),
@@ -167,7 +163,7 @@ export const partnerComponents: ComponentHandler = {
           new ActionRowBuilder<TextInputBuilder>().addComponents(
             new TextInputBuilder()
               .setCustomId('campaign')
-              .setLabel('Campaign name (optional)')
+              .setLabel(T.campaignNameLabel().slice(0, 45))
               .setStyle(TextInputStyle.Short)
               .setMaxLength(80)
               .setRequired(false),
@@ -189,14 +185,14 @@ export const partnerComponents: ComponentHandler = {
       });
       await replySuccess(
         i,
-        `${application.ref} ${approve ? 'approved' : 'rejected'}`,
         approve
-          ? `Campaign “${campaign?.name}” created (announcing disabled). The applicant will be DMed and given the partner role if it is configured and safe.`
-          : 'The applicant will be notified by DM.',
+          ? T.decidedApprovedTitle({ ref: application.ref })
+          : T.decidedRejectedTitle({ ref: application.ref }),
+        approve ? T.decidedApprovedBody({ campaign: String(campaign?.name) }) : T.decidedRejectedBody(),
       );
       return;
     }
 
-    if (i.isRepliable()) await respond(i, { content: 'This control is no longer active.' });
+    if (i.isRepliable()) await respond(i, { content: CoreText.controlExpired() });
   },
 };

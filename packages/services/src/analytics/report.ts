@@ -27,10 +27,9 @@ import {
   type Period,
 } from './metrics';
 
-export const SUPPORT_NOTE =
-  'Support metrics: handled in the external support system (not tracked by the bot)';
-export const ACTIVITY_NOTE =
-  'Community activity figures are observed message activity only — Discord provides no view or impression data.';
+import { AnalyticsText as T } from './texts';
+
+export { ACTIVITY_NOTE, SUPPORT_NOTE } from './texts';
 
 export interface ReportData {
   version: 1;
@@ -191,61 +190,77 @@ export function executiveSummary(
   const out: string[] = [];
   const c = d.community;
   if (c.netGrowth.available && c.joins.available && c.leaves.available) {
-    const total = c.totalMembers.available ? `; ${fmtNum(c.totalMembers.value)} members total` : '';
+    const total = c.totalMembers.available
+      ? T.summaryGrowthTotal({ members: fmtNum(c.totalMembers.value) })
+      : '';
     out.push(
-      `Community: net growth of ${c.netGrowth.value > 0 ? '+' : ''}${fmtNum(c.netGrowth.value)} members (${fmtNum(c.joins.value)} joins, ${fmtNum(c.leaves.value)} leaves)${total}.`,
+      T.summaryGrowth({
+        net: `${c.netGrowth.value > 0 ? '+' : ''}${fmtNum(c.netGrowth.value)}`,
+        joins: fmtNum(c.joins.value),
+        leaves: fmtNum(c.leaves.value),
+        total,
+      }),
     );
   } else if (c.totalMembers.available) {
     out.push(
-      `Community: ${fmtNum(c.totalMembers.value)} members (${c.totalMembers.note ?? 'latest snapshot'}); join/leave data not available.`,
+      T.summaryMembersOnly({
+        members: fmtNum(c.totalMembers.value),
+        note: c.totalMembers.note ?? T.summaryLatestSnapshot(),
+      }),
     );
   }
   if (c.activeMembers.available && c.messages.available) {
     out.push(
-      `Activity: ${fmtNum(c.activeMembers.value)} active members sent ${fmtNum(c.messages.value)} messages (observed message activity).`,
+      T.summaryActivity({ active: fmtNum(c.activeMembers.value), messages: fmtNum(c.messages.value) }),
     );
   }
 
   const rest: string[] = [];
   const inf = d.infrastructure;
   if (inf.incidentsOpened.available) {
-    if (inf.incidentsOpened.value === 0) rest.push('Infrastructure: no incidents were opened this period.');
+    if (inf.incidentsOpened.value === 0) rest.push(T.summaryNoIncidents());
     else {
       const sev = inf.incidentsBySeverity.available ? inf.incidentsBySeverity.value : {};
       const serious = (sev.CRITICAL ?? 0) + (sev.MAJOR ?? 0);
       const mins = inf.incidentMinutes.available
-        ? `, ${formatDuration(inf.incidentMinutes.value * 60_000)} total incident time`
+        ? T.summaryIncidentTime({ time: formatDuration(inf.incidentMinutes.value * 60_000) })
         : '';
+      const n = inf.incidentsOpened.value;
       rest.push(
-        `Infrastructure: ${inf.incidentsOpened.value} incident${inf.incidentsOpened.value === 1 ? '' : 's'} opened (${serious} major/critical)${mins}.`,
+        T.summaryIncidents({
+          incidents: n === 1 ? T.countIncidentOne({ count: n }) : T.countIncidentMany({ count: n }),
+          serious,
+          time: mins,
+        }),
       );
     }
   }
 
   const mod = d.moderation;
   if (mod.openReportBacklog.available) {
+    const n = mod.openReportBacklog.value;
+    const count = fmtNum(n);
     rest.push(
-      `Security: ${fmtNum(mod.openReportBacklog.value)} open abuse report${mod.openReportBacklog.value === 1 ? '' : 's'} (${d.outstanding.staleAbuseReports} older than 72h)` +
-        (mod.reportsReceived.available
-          ? `; ${fmtNum(mod.reportsReceived.value)} received this period.`
-          : '.'),
+      T.summarySecurity({
+        reports: n === 1 ? T.countOpenReportOne({ count }) : T.countOpenReportMany({ count }),
+        stale: d.outstanding.staleAbuseReports,
+        received: mod.reportsReceived.available
+          ? T.summarySecurityReceived({ count: fmtNum(mod.reportsReceived.value) })
+          : '.',
+      }),
     );
   }
 
   const o = d.outstanding;
+  const counted = (count: number, one: typeof T.none, many: typeof T.none) =>
+    count ? (count === 1 ? one({ count }) : many({ count })) : null;
   const attention = [
-    o.activeIncidents.length
-      ? `${o.activeIncidents.length} active incident${o.activeIncidents.length === 1 ? '' : 's'}`
-      : null,
-    o.deadJobs ? `${o.deadJobs} failed background job${o.deadJobs === 1 ? '' : 's'}` : null,
-    o.flaggedReferrals
-      ? `${o.flaggedReferrals} flagged referral${o.flaggedReferrals === 1 ? '' : 's'}`
-      : null,
-    o.stalePartnerApplications
-      ? `${o.stalePartnerApplications} partner application${o.stalePartnerApplications === 1 ? '' : 's'} pending > 7 days`
-      : null,
+    counted(o.activeIncidents.length, T.countActiveIncidentOne, T.countActiveIncidentMany),
+    counted(o.deadJobs, T.countFailedJobOne, T.countFailedJobMany),
+    counted(o.flaggedReferrals, T.countFlaggedReferralOne, T.countFlaggedReferralMany),
+    counted(o.stalePartnerApplications, T.countPendingPartnerAppOne, T.countPendingPartnerAppMany),
   ].filter(Boolean);
-  if (attention.length) rest.push(`Needs attention: ${attention.join(', ')}.`);
+  if (attention.length) rest.push(T.summaryAttention({ items: attention.join(', ') }));
 
   // Biggest relative changes fill the remaining room (max 2), placed after the community bullets.
   const room = Math.max(0, Math.min(2, 6 - out.length - rest.length));
@@ -261,21 +276,22 @@ export function executiveSummary(
     )
     .sort((a, b) => Math.abs(b.pct!) - Math.abs(a.pct!))
     .slice(0, room)
-    .map(
-      (r) =>
-        `Notable change: ${r.label} ${r.delta! > 0 ? 'up' : 'down'} ${Math.abs(r.pct!)}% to ${fmtNum(r.value!)} (from ${fmtNum(r.previous!)}).`,
+    .map((r) =>
+      T.summaryNotableChange({
+        metric: r.label,
+        direction: r.delta! > 0 ? T.changeUp() : T.changeDown(),
+        pct: Math.abs(r.pct!),
+        value: fmtNum(r.value!),
+        previous: fmtNum(r.previous!),
+      }),
     );
   out.push(...changes, ...rest);
 
   const scalar = flat.filter((r) => !r.breakdown);
   const missing = scalar.filter((r) => !r.available).length;
-  if (out.length < 3 && missing > 0)
-    out.push(
-      `Data coverage: ${missing} of ${scalar.length} metrics are not available for this period (see sections below).`,
-    );
-  if (out.length < 3 && attention.length === 0)
-    out.push('No outstanding issues requiring attention were detected.');
-  if (out.length < 3) out.push(SUPPORT_NOTE + '.');
+  if (out.length < 3 && missing > 0) out.push(T.summaryCoverage({ missing, total: scalar.length }));
+  if (out.length < 3 && attention.length === 0) out.push(T.summaryNoIssues());
+  if (out.length < 3) out.push(T.supportNote() + '.');
   return out.slice(0, 6);
 }
 
@@ -327,159 +343,195 @@ export async function buildReportData(
 
 // ── Rendering ──────────────────────────────────────────────────────────────
 
+const bullet = (label: string, value: string) => `- **${label}:** ${value}`;
+
 function line(label: string, m: Metric<number>, suffix = ''): string {
-  if (!m.available) return `- **${label}:** Not available — ${m.reason}`;
+  if (!m.available) return bullet(label, T.notAvailable({ reason: m.reason }));
   const cmp =
-    m.previous !== undefined ? ` · vs previous: ${formatComparison(compare(m.value, m.previous))}` : '';
-  return `- **${label}:** ${formatMetric(m, suffix)}${cmp}`;
+    m.previous !== undefined
+      ? ` · ${T.mdVsPrevious({ change: formatComparison(compare(m.value, m.previous)) })}`
+      : '';
+  return bullet(label, `${formatMetric(m, suffix)}${cmp}`);
 }
 
 function breakdown(label: string, m: Metric<Record<string, number>>): string {
-  if (!m.available) return `- **${label}:** Not available — ${m.reason}`;
+  if (!m.available) return bullet(label, T.notAvailable({ reason: m.reason }));
   const entries = Object.entries(m.value).sort((a, b) => b[1] - a[1]);
-  if (entries.length === 0) return `- **${label}:** none`;
-  return `- **${label}:** ${entries.map(([k, v]) => `${humanise(k)} ${fmtNum(v)}`).join(', ')}`;
+  if (entries.length === 0) return bullet(label, T.none());
+  return bullet(label, entries.map(([k, v]) => `${humanise(k)} ${fmtNum(v)}`).join(', '));
 }
 
 export const periodLabel = (d: Pick<ReportData, 'period' | 'timezone'>) =>
   `${formatInZone(new Date(d.period.start), d.timezone)} – ${formatInZone(new Date(d.period.end), d.timezone)} (${d.timezone})`;
 
 const cell = (s: string) => s.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+const row = (...cells: string[]) => `| ${cells.join(' | ')} |`;
 
 /** Full Markdown report: the 8 sections in the fixed order. */
-export function renderMarkdown(d: ReportData, title = 'Weekly CEO report'): string {
+export function renderMarkdown(d: ReportData, title = T.reportDefaultTitle()): string {
   const c = d.community;
   const r = d.referrals;
   const m = d.moderation;
   const i = d.infrastructure;
   const k = d.marketing;
   const o = d.outstanding;
+  const na = T.na();
+  const none = T.none();
   const L: string[] = [];
   L.push(
-    `# ${cell(title)} — GYNX.GG`,
+    `# ${T.mdTitle({ title: cell(title) })}`,
     '',
-    `Period: ${periodLabel(d)}`,
-    `Generated: ${formatInZone(new Date(d.generatedAt), d.timezone)}`,
+    T.mdPeriod({ period: periodLabel(d) }),
+    T.mdGenerated({ time: formatInZone(new Date(d.generatedAt), d.timezone) }),
     '',
   );
 
-  L.push('## 1. Executive summary', '', ...d.summary.map((b) => `- ${b}`), '');
+  L.push(`## ${T.mdHeadingSummary()}`, '', ...d.summary.map((b) => `- ${b}`), '');
 
-  L.push('## 2. Community growth', '', `_${ACTIVITY_NOTE}_`, '');
+  L.push(`## ${T.mdHeadingCommunity()}`, '', `_${T.activityNote()}_`, '');
   L.push(
-    line('Total members', c.totalMembers),
-    line('Joins', c.joins),
-    line('Leaves', c.leaves),
-    line('Net growth', c.netGrowth),
+    line(T.mdTotalMembers(), c.totalMembers),
+    line(T.mdJoins(), c.joins),
+    line(T.mdLeaves(), c.leaves),
+    line(T.mdNetGrowth(), c.netGrowth),
   );
-  L.push(line('Active members', c.activeMembers), line('Messages', c.messages));
-  L.push(line('Daily active (avg)', c.dau), line('Weekly active', c.wau), line('Monthly active', c.mau));
+  L.push(line(T.mdActiveMembers(), c.activeMembers), line(T.mdMessages(), c.messages));
+  L.push(line(T.mdDau(), c.dau), line(T.mdWau(), c.wau), line(T.mdMau(), c.mau));
   if (c.topChannels.available) {
     L.push(
-      `- **Top channels by messages:** ${c.topChannels.value.length ? c.topChannels.value.map((t) => `channel ${t.channelId} (${fmtNum(t.messages)})`).join(', ') : 'none'}`,
+      bullet(
+        T.mdTopChannels(),
+        c.topChannels.value.length
+          ? c.topChannels.value
+              .map((t) => T.mdChannelEntry({ channelId: t.channelId, count: fmtNum(t.messages) }))
+              .join(', ')
+          : none,
+      ),
     );
-  } else L.push(`- **Top channels by messages:** Not available — ${c.topChannels.reason}`);
+  } else L.push(bullet(T.mdTopChannels(), T.notAvailable({ reason: c.topChannels.reason })));
   L.push('');
 
-  L.push('## 3. Support', '', `- ${SUPPORT_NOTE}`, '');
+  L.push(`## ${T.mdHeadingSupport()}`, '', `- ${T.supportNote()}`, '');
 
-  L.push('## 4. Infrastructure incidents', '');
+  L.push(`## ${T.mdHeadingInfrastructure()}`, '');
   L.push(
-    line('Incidents opened', i.incidentsOpened),
-    line('Incidents resolved', i.incidentsResolved),
-    breakdown('By severity', i.incidentsBySeverity),
+    line(T.mdIncidentsOpened(), i.incidentsOpened),
+    line(T.mdIncidentsResolved(), i.incidentsResolved),
+    breakdown(T.mdBySeverity(), i.incidentsBySeverity),
   );
   if (i.incidentMinutes.available) {
-    L.push(
-      `- **Total incident time:** ${formatDuration(i.incidentMinutes.value * 60_000)}${i.incidentMinutes.previous !== undefined ? ` · vs previous: ${formatComparison(compare(i.incidentMinutes.value, i.incidentMinutes.previous))} min` : ''}`,
-    );
-  } else L.push(`- **Total incident time:** Not available — ${i.incidentMinutes.reason}`);
-  L.push(line('Auto-detected', i.autoIncidents), line('Manually declared', i.manualIncidents));
-  if (i.uptime.length === 0) L.push('- **Uptime:** Not available — no public monitored services');
+    const cmp =
+      i.incidentMinutes.previous !== undefined
+        ? ` · ${T.mdVsPreviousMinutes({ change: formatComparison(compare(i.incidentMinutes.value, i.incidentMinutes.previous)) })}`
+        : '';
+    L.push(bullet(T.mdTotalIncidentTime(), `${formatDuration(i.incidentMinutes.value * 60_000)}${cmp}`));
+  } else L.push(bullet(T.mdTotalIncidentTime(), T.notAvailable({ reason: i.incidentMinutes.reason })));
+  L.push(line(T.mdAutoDetected(), i.autoIncidents), line(T.mdManuallyDeclared(), i.manualIncidents));
+  if (i.uptime.length === 0) L.push(bullet(T.mdUptime(), T.notAvailable({ reason: T.mdNoPublicServices() })));
   else {
-    L.push('', '| Service | Uptime | Checks |', '| --- | --- | --- |');
+    L.push('', row(T.mdColService(), T.mdColUptime(), T.mdColChecks()), '| --- | --- | --- |');
     for (const s of i.uptime)
-      L.push(
-        `| ${cell(s.name)} | ${s.uptimePct === null ? 'no data' : `${s.uptimePct}%`} | ${fmtNum(s.checks)} |`,
-      );
+      L.push(row(cell(s.name), s.uptimePct === null ? T.noData() : `${s.uptimePct}%`, fmtNum(s.checks)));
   }
   L.push('');
 
-  L.push('## 5. Moderation & security trends', '');
-  L.push(line('Moderation actions', m.actions), breakdown('By type', m.actionsByType));
+  L.push(`## ${T.mdHeadingModeration()}`, '');
+  L.push(line(T.mdModerationActions(), m.actions), breakdown(T.mdByType(), m.actionsByType));
   L.push(
-    line('Automod detections', m.automodDetections),
-    breakdown('By rule', m.automodByRule),
-    line('Automod false positives', m.automodFalsePositives),
+    line(T.mdAutomodDetections(), m.automodDetections),
+    breakdown(T.mdByRule(), m.automodByRule),
+    line(T.mdAutomodFalsePositives(), m.automodFalsePositives),
   );
   L.push(
-    line('Abuse reports received', m.reportsReceived),
-    line('Resolved', m.reportsResolved),
-    line('Dismissed', m.reportsDismissed),
+    line(T.mdReportsReceived(), m.reportsReceived),
+    line(T.mdReportsResolved(), m.reportsResolved),
+    line(T.mdReportsDismissed(), m.reportsDismissed),
   );
   L.push(
-    breakdown('Reports by category', m.reportsByCategory),
-    line('Open report backlog', m.openReportBacklog),
+    breakdown(T.mdReportsByCategory(), m.reportsByCategory),
+    line(T.mdOpenBacklog(), m.openReportBacklog),
     '',
   );
 
-  L.push('## 6. Announcements & referral results', '');
+  L.push(`## ${T.mdHeadingMarketing()}`, '');
   L.push(
-    line('Announcements published', k.announcementsPublished),
-    line('Announcement reactions', k.announcementReactions),
+    line(T.mdAnnouncementsPublished(), k.announcementsPublished),
+    line(T.mdAnnouncementReactions(), k.announcementReactions),
   );
-  L.push(line('Tracked link clicks', k.trackedLinkClicks));
+  L.push(line(T.mdTrackedClicks(), k.trackedLinkClicks));
   L.push(
-    line('Partner applications', k.partnerApplications),
-    breakdown('Applications by status', k.partnerApplicationsByStatus),
-  );
-  L.push(
-    line('Event RSVPs (going)', k.eventRsvps),
-    line('Giveaway entries', k.giveawayEntries),
-    line('Poll ballots', k.pollBallots),
-    line('Suggestions created', k.suggestionsCreated),
+    line(T.mdPartnerApplications(), k.partnerApplications),
+    breakdown(T.mdApplicationsByStatus(), k.partnerApplicationsByStatus),
   );
   L.push(
-    line('Referral-tracked joins', r.attributedJoins),
-    line('Confirmed', r.confirmed),
-    line('Ambiguous', r.ambiguous),
-    line('Unknown source', r.unknown),
-    line('Flagged for review', r.flagged),
+    line(T.mdEventRsvps(), k.eventRsvps),
+    line(T.mdGiveawayEntries(), k.giveawayEntries),
+    line(T.mdPollBallots(), k.pollBallots),
+    line(T.mdSuggestionsCreated(), k.suggestionsCreated),
+  );
+  L.push(
+    line(T.mdReferralJoins(), r.attributedJoins),
+    line(T.mdReferralsConfirmed(), r.confirmed),
+    line(T.mdReferralsAmbiguous(), r.ambiguous),
+    line(T.mdReferralsUnknown(), r.unknown),
+    line(T.mdReferralsFlagged(), r.flagged),
   );
   if (r.topReferrers.available) {
     L.push(
-      `- **Top referrers (valid, confirmed):** ${r.topReferrers.value.length ? r.topReferrers.value.map((t) => `user ${t.userId} (${t.validConfirmed})`).join(', ') : 'none'}`,
+      bullet(
+        T.mdTopReferrers(),
+        r.topReferrers.value.length
+          ? r.topReferrers.value
+              .map((t) => T.mdReferrerEntry({ userId: t.userId, count: t.validConfirmed }))
+              .join(', ')
+          : none,
+      ),
     );
-  } else L.push(`- **Top referrers:** Not available — ${r.topReferrers.reason}`);
+  } else L.push(bullet(T.mdTopReferrersUnavailable(), T.notAvailable({ reason: r.topReferrers.reason })));
   L.push('');
 
   L.push(
-    '## 7. Outstanding issues requiring attention',
+    `## ${T.mdHeadingOutstanding()}`,
     '',
-    `As of ${formatInZone(new Date(o.asOf), d.timezone)}:`,
+    T.mdAsOf({ time: formatInZone(new Date(o.asOf), d.timezone) }),
     '',
   );
-  L.push(`- **Open abuse reports older than 72h:** ${o.staleAbuseReports}`);
+  L.push(bullet(T.mdStaleReports(), String(o.staleAbuseReports)));
   L.push(
-    `- **Active incidents:** ${o.activeIncidents.length ? o.activeIncidents.map((a) => `${a.ref} ${cell(a.title)} (${humanise(a.severity)})`).join('; ') : 'none'}`,
+    bullet(
+      T.mdActiveIncidents(),
+      o.activeIncidents.length
+        ? o.activeIncidents.map((a) => `${a.ref} ${cell(a.title)} (${humanise(a.severity)})`).join('; ')
+        : none,
+    ),
   );
-  L.push(`- **Dead-letter background jobs:** ${o.deadJobs}`);
-  L.push(`- **Flagged referrals awaiting review:** ${o.flaggedReferrals}`);
-  L.push(`- **Partner applications pending > 7 days:** ${o.stalePartnerApplications}`, '');
+  L.push(bullet(T.mdDeadJobs(), String(o.deadJobs)));
+  L.push(bullet(T.mdFlaggedReferrals(), String(o.flaggedReferrals)));
+  L.push(bullet(T.mdStalePartnerApps(), String(o.stalePartnerApplications)), '');
 
   L.push(
-    '## 8. Comparison vs previous period',
+    `## ${T.mdHeadingComparison()}`,
     '',
-    `Previous period: ${formatInZone(new Date(d.previousPeriod.start), d.timezone)} – ${formatInZone(new Date(d.previousPeriod.end), d.timezone)}`,
+    T.mdPreviousPeriod({
+      start: formatInZone(new Date(d.previousPeriod.start), d.timezone),
+      end: formatInZone(new Date(d.previousPeriod.end), d.timezone),
+    }),
     '',
   );
-  L.push('| Metric | This period | Previous | Change |', '| --- | --- | --- | --- |');
-  for (const row of d.flat.filter((x) => !x.breakdown)) {
-    if (!row.available)
-      L.push(`| ${cell(row.label)} | Not available — ${cell(row.note ?? '')} | n/a | n/a |`);
+  L.push(
+    row(T.mdColMetric(), T.mdColThisPeriod(), T.mdColPrevious(), T.mdColChange()),
+    '| --- | --- | --- | --- |',
+  );
+  for (const x of d.flat.filter((f) => !f.breakdown)) {
+    if (!x.available) L.push(row(cell(x.label), T.notAvailable({ reason: cell(x.note ?? '') }), na, na));
     else
       L.push(
-        `| ${cell(row.label)} | ${fmtNum(row.value!)} | ${row.previous === null ? 'n/a' : fmtNum(row.previous)} | ${formatComparison(row)} |`,
+        row(
+          cell(x.label),
+          fmtNum(x.value!),
+          x.previous === null ? na : fmtNum(x.previous),
+          formatComparison(x),
+        ),
       );
   }
   L.push('');

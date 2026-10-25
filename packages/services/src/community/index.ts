@@ -9,3 +9,4 @@ export * from './guides';
 export * from './onboarding';
 export * from './render';
 export * from './role-panels';
+export * from './texts';

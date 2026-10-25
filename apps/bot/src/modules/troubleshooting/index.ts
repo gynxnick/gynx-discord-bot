@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, type InteractionUpdateOptions } from 'discord.js';
-import { games, getGuildConfig, troubleshooting, type Ctx } from '@gynx/services';
+import { CoreText, games, getGuildConfig, troubleshooting, type Ctx } from '@gynx/services';
 import { respond } from '../../framework/reply';
 import type { BotModule, ComponentInteraction } from '../../framework/types';
 
@@ -157,7 +157,7 @@ export const troubleshootingModule: BotModule = {
           });
           return;
         }
-        await respond(i, { content: 'This control is no longer active.' });
+        await respond(i, { content: CoreText.controlExpired() });
       },
     },
     {
@@ -177,7 +177,7 @@ export const troubleshootingModule: BotModule = {
         if (action === 'vote' && i.isButton()) {
           await troubleshooting.voteArticle(h.ctx, key, vote === 'y');
           if (vote === 'y') {
-            await respond(i, { content: 'Thanks for the feedback — glad it helped!' });
+            await respond(i, { content: troubleshooting.TroubleshootingText.articleVoteThanks() });
           } else {
             const url = await supportUrl(h.ctx);
             await respond(i, {
@@ -187,7 +187,7 @@ export const troubleshootingModule: BotModule = {
           }
           return;
         }
-        await respond(i, { content: 'This control is no longer active.' });
+        await respond(i, { content: CoreText.controlExpired() });
       },
     },
     {
@@ -198,7 +198,8 @@ export const troubleshootingModule: BotModule = {
         if (action === 'fb' && i.isButton()) {
           const helped = answer === 'y';
           const { supportUrl: url } = await troubleshooting.diagnosticFeedback(h.ctx, recordId, helped);
-          if (helped) await respond(i, { content: 'Great — thanks for letting us know!' });
+          if (helped)
+            await respond(i, { content: troubleshooting.TroubleshootingText.diagnosisFeedbackThanks() });
           else
             await respond(i, {
               embeds: [troubleshooting.escalatedEmbed(url)],
@@ -206,7 +207,7 @@ export const troubleshootingModule: BotModule = {
             });
           return;
         }
-        await respond(i, { content: 'This control is no longer active.' });
+        await respond(i, { content: CoreText.controlExpired() });
       },
     },
   ],

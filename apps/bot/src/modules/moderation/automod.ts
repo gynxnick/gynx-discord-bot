@@ -8,6 +8,7 @@ import { on, type BotRuntime, type EventListener } from '../../framework/types';
 const CONFIG_TTL_MS = 30_000;
 const NOTICE_COOLDOWN_MS = 30_000;
 const NOTICE_TTL_MS = 8_000;
+const T = moderation.ModerationText;
 
 /**
  * Gateway automod. Keeps a bounded per-user sliding window in memory (max 20
@@ -85,7 +86,7 @@ export function automodListener(): EventListener {
           {
             type: decision.action,
             targetId: member.id,
-            reason: `Automod: ${hit.reason}`.slice(0, 512),
+            reason: T.automodActionReason({ reason: hit.reason }).slice(0, 512),
             duration: decision.durationMs ? `${Math.round(decision.durationMs / 60_000)}m` : undefined,
             automodEventId: event.id,
           },
@@ -105,7 +106,7 @@ export function automodListener(): EventListener {
             await member.timeout(plan.durationMs, plan.reason);
           } catch (err) {
             applied = false;
-            error = err instanceof Error ? err.message.slice(0, 300) : 'timeout failed';
+            error = err instanceof Error ? err.message.slice(0, 300) : T.automodTimeoutFailed();
           }
         }
         await moderation.recordAction(ctx, plan, { applied, error, dmSent: false });
@@ -120,13 +121,13 @@ export function automodListener(): EventListener {
     if (!deleted && outcome === 'DELETE') outcome = 'ALERT';
     if (outcome !== decision.action) await moderation.setAutomodEventOutcome(ctx, event.id, outcome);
 
-    const base = deleted ? 'your message was removed' : 'your message was flagged';
+    const base = deleted ? T.noticeRemoved() : T.noticeFlagged();
     const text =
       outcome === 'TIMEOUT'
-        ? `${base} and you have been timed out for ${formatDuration(decision.durationMs ?? 0)}. ${hit.reason}`
+        ? T.noticeTimeout({ base, duration: formatDuration(decision.durationMs ?? 0), reason: hit.reason })
         : outcome === 'WARN'
-          ? `${base} and you received a warning. ${hit.reason}`
-          : `${base}. ${hit.reason}`;
+          ? T.noticeWarn({ base, reason: hit.reason })
+          : T.noticeDelete({ base, reason: hit.reason });
     await notice(message, text);
   }
 
