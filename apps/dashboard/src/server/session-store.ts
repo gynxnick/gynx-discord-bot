@@ -118,7 +118,21 @@ export interface MemberAuthorization {
   roleIds: string[];
   guildName: string;
 }
-export type AuthorizationFailure = { ok: false; reason: 'not_member' | 'no_access' | 'unavailable' };
+/**
+ * `unavailable` means the dashboard itself can't check right now. It never revokes
+ * an existing session; `detail` explains why so admins see an actionable message.
+ */
+export type AuthorizationFailure =
+  | { ok: false; reason: 'not_member' | 'no_access' }
+  | { ok: false; reason: 'unavailable'; detail?: 'bot_missing' | 'bot_token' };
+
+const httpStatusOf = (e: unknown): number | undefined =>
+  typeof e === 'object' &&
+  e !== null &&
+  'status' in e &&
+  typeof (e as { status: unknown }).status === 'number'
+    ? (e as { status: number }).status
+    : undefined;
 
 /**
  * Decide whether a Discord user may use the dashboard: they must be a member of
@@ -138,10 +152,14 @@ export async function authorizeMember(
       deps.discord.getGuild(guildId),
       deps.discord.getMember(guildId, userId),
     ]);
-  } catch {
+  } catch (err) {
+    const status = httpStatusOf(err);
+    // 401: the bot token is invalid. 403 Missing Access: the bot isn't in the guild.
+    if (status === 401) return { ok: false, reason: 'unavailable', detail: 'bot_token' };
+    if (status === 403) return { ok: false, reason: 'unavailable', detail: 'bot_missing' };
     return { ok: false, reason: 'unavailable' };
   }
-  if (!guild) return { ok: false, reason: 'unavailable' };
+  if (!guild) return { ok: false, reason: 'unavailable', detail: 'bot_missing' };
   if (!member) return { ok: false, reason: 'not_member' };
   const roleIds = member.roles.filter((r) => r !== guildId);
   const actor = await resolveActor(deps.db, guildId, {

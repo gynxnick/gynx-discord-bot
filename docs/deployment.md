@@ -36,7 +36,7 @@ For one dedicated server (Ubuntu 22.04/24.04 or Debian 12, 2 GB RAM, 20 GB disk)
    cd /opt/gynx
    sudo ./infrastructure/deployment/install.sh
    ```
-   It asks for the Discord application ID, bot token, OAuth client ID/secret, server ID, dashboard domain and a Let's Encrypt email. It generates the database password, session secret and encryption key, and stores everything in `/etc/gynx/gynx.env` (root-only). Re-running it keeps existing secrets.
+   It asks for the Discord application ID, bot token, OAuth client ID/secret, server ID, dashboard domain and a Let's Encrypt email, then checks them live with Discord before building: the token and OAuth secret must be valid, both privileged intents enabled, and the bot already in your server (it pauses with the invite link until it is). It generates the database password, session secret and encryption key, and stores everything in `/etc/gynx/gynx.env` (root-only). Re-running it keeps existing secrets.
 4. Follow the printed steps: add the OAuth redirect, enable the two privileged intents, and invite the bot using the printed link (exact permissions, no Administrator).
 
 It also enables the `ufw` firewall (SSH, 80, 443 only; pass `--no-firewall` to skip), adds a 2 GB swap file on servers under 3 GB RAM, installs nightly database backups to `/var/backups/gynx` (kept 14 days), and installs the `gynx` command:
@@ -48,6 +48,7 @@ It also enables the `ufw` firewall (SSH, 80, 443 only; pass `--no-firewall` to s
 | `gynx update`                  | `git pull`, backup, rebuild, migrate, restart, re-register commands |
 | `gynx backup` / `gynx restore` | Database dump / restore (restore takes a safety backup first)       |
 | `gynx config` → `gynx restart` | Edit settings in `/etc/gynx/gynx.env` and apply them                |
+| `gynx set DISCORD_BOT_TOKEN`   | Change one setting (secrets hidden) and apply it immediately        |
 | `gynx register-commands`       | Re-register slash commands                                          |
 | `gynx psql`                    | Database shell                                                      |
 

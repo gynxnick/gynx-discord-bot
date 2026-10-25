@@ -82,7 +82,7 @@ export async function GET(req: Request): Promise<Response> {
         metadata: { reason: auth.reason },
       });
     }
-    return fail(auth.reason);
+    return fail(auth.reason === 'unavailable' ? (auth.detail ?? 'unavailable') : auth.reason);
   }
 
   await ensureGuild(deps.db, guildId, auth.guildName);

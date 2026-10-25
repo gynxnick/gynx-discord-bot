@@ -79,6 +79,31 @@ cmd_restore() {
   cmd_up
 }
 
+cmd_set() {
+  local key=$1 val tmp
+  [[ $key =~ ^[A-Z][A-Z0-9_]*$ ]] || die "usage: gynx set KEY   (e.g. gynx set DISCORD_BOT_TOKEN)"
+  case $key in
+    POSTGRES_PASSWORD | ENCRYPTION_KEY)
+      die "$key can't be changed this way: it would lock you out of existing data (see docs/security.md)"
+      ;;
+  esac
+  if [[ $key =~ TOKEN|SECRET|PASSWORD|KEY ]]; then
+    read -r -s -p "New value for $key (hidden): " val
+    echo
+  else
+    read -r -p "New value for $key: " val
+  fi
+  [[ -n $val ]] || die "empty value, nothing changed"
+  [[ $val != *$'\n'* ]] || die "value must be a single line"
+  tmp=$(mktemp "$(dirname "$ENV_FILE")/.gynx.env.XXXXXX")
+  chmod 600 "$tmp"
+  grep -v "^${key}=" "$ENV_FILE" >"$tmp" || true
+  printf '%s=%s\n' "$key" "$val" >>"$tmp"
+  mv "$tmp" "$ENV_FILE"
+  echo "Saved $key. Applying…"
+  dc up -d --force-recreate --no-deps bot worker dashboard
+}
+
 cmd_update() {
   if [[ -d "$APP_DIR/.git" ]]; then
     info "Pulling latest code"
@@ -108,7 +133,13 @@ cmd_status() {
 case "${1:-help}" in
   status) cmd_status ;;
   logs) shift; dc logs -f --tail=200 "$@" ;;
-  restart) shift; dc restart "$@" ;;
+  # Recreate (not just restart) so changes in /etc/gynx/gynx.env are picked up.
+  restart)
+    shift
+    (($#)) || set -- bot worker dashboard
+    dc up -d --force-recreate --no-deps "$@"
+    ;;
+  set) shift; cmd_set "${1:-}" ;;
   start | up) cmd_up ;;
   stop | down) dc stop ;;
   build) cmd_build ;;
@@ -125,7 +156,8 @@ Usage: gynx <command>
 
   status              Show service state and the dashboard URL
   logs [service]      Follow logs (bot, worker, dashboard, postgres, caddy, ...)
-  restart [service]   Restart everything, or one service
+  restart [service]   Restart bot, worker and dashboard (or one service), applying config changes
+  set <KEY>           Change one setting, e.g. gynx set DISCORD_BOT_TOKEN (secrets are hidden)
   start | stop        Start or stop the whole stack
   update              Pull code, back up, rebuild, migrate, restart, re-register commands
   backup              Dump the database to /var/backups/gynx (also runs nightly)

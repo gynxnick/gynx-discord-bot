@@ -70,7 +70,7 @@ echo "  Server        : ${PRETTY_NAME:-$ID}, ${mem_mb} MB RAM, ${disk_gb} GB fre
 step "Installing system packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq ca-certificates curl gnupg openssl git cron ufw dnsutils >/dev/null
+apt-get install -y -qq ca-certificates curl gnupg openssl git cron ufw dnsutils jq >/dev/null
 
 if ! command -v docker >/dev/null || ! docker compose version >/dev/null 2>&1; then
   step "Installing Docker Engine (official repository)"
@@ -134,7 +134,9 @@ gen() { # gen KEY command...
 SNOWFLAKE='^[0-9]{17,20}$'
 echo "  Discord values: https://discord.com/developers/applications → your application."
 ask DISCORD_APPLICATION_ID "Application ID (General Information)" "$SNOWFLAKE"
-ask DISCORD_BOT_TOKEN "Bot token (Bot → Reset Token; hidden)" '^[A-Za-z0-9._-]{50,}$' secret
+# Bot tokens have three dot-separated parts (the Public Key, a hex string, does not).
+TOKEN_RE='^[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{20,}$'
+ask DISCORD_BOT_TOKEN "Bot token (Bot → Reset Token, NOT the Public Key; hidden)" "$TOKEN_RE" secret
 ask DISCORD_OAUTH_CLIENT_ID "OAuth2 Client ID" "$SNOWFLAKE" '' "${CFG[DISCORD_APPLICATION_ID]}"
 ask DISCORD_OAUTH_CLIENT_SECRET "OAuth2 Client Secret (hidden)" '^.{16,}$' secret
 ask DISCORD_GUILD_ID "Your Discord server ID (right-click server → Copy Server ID)" "$SNOWFLAKE"
@@ -149,6 +151,89 @@ while [[ ${CFG[DEFAULT_TIMEZONE]} != UTC && ! -f /usr/share/zoneinfo/${CFG[DEFAU
   ask DEFAULT_TIMEZONE "Default time zone (e.g. America/New_York, Europe/London)" '^(UTC|[A-Z][A-Za-z_]+/[A-Za-z0-9_+/-]+)$' '' UTC
 done
 ask PORTCHECK_ALLOWED_SUFFIXES "Domains /portcheck may test (comma list, e.g. gynx.gg; blank = disabled)" '.*' '' ''
+
+# ─── Verify the Discord application before building anything ──────────────
+API=https://discord.com/api/v10
+# Secrets go to curl on stdin (-K -), never on the command line where `ps` could see them.
+discord_get() { # discord_get PATH → prints "STATUS BODY"
+  printf 'header = "Authorization: Bot %s"\n' "${CFG[DISCORD_BOT_TOKEN]}" |
+    curl -sS --max-time 15 -K - -w '\n%{http_code}' "$API$1" 2>/dev/null || echo $'\n000'
+}
+status_of() { tail -n1 <<<"$1"; }
+body_of() { sed '$d' <<<"$1"; }
+pause() {
+  ((ASSUME_YES)) && die "$1"
+  read -r -p "  $1 Press Enter to check again (Ctrl+C to quit)… " _
+}
+
+step "Checking your Discord application"
+while :; do
+  r=$(discord_get /users/@me)
+  case $(status_of "$r") in
+    200)
+      bot_name=$(body_of "$r" | jq -r '.username // "bot"' 2>/dev/null || echo bot)
+      app_id=$(body_of "$(discord_get /applications/@me)" | jq -r '.id // empty' 2>/dev/null || true)
+      if [[ -n $app_id && $app_id != "${CFG[DISCORD_APPLICATION_ID]}" ]]; then
+        warn "That token belongs to application $app_id, not ${CFG[DISCORD_APPLICATION_ID]}."
+        ((ASSUME_YES)) && die "token and application ID don't match"
+        CFG[DISCORD_BOT_TOKEN]=''
+        ask DISCORD_BOT_TOKEN "Bot token for application ${CFG[DISCORD_APPLICATION_ID]} (hidden)" "$TOKEN_RE" secret
+        continue
+      fi
+      echo "  Bot token OK: $bot_name (application ${app_id:-${CFG[DISCORD_APPLICATION_ID]}})"
+      break
+      ;;
+    401)
+      warn "Discord rejected the bot token. Use Bot → Reset Token (not the Public Key)."
+      ((ASSUME_YES)) && die "invalid bot token"
+      CFG[DISCORD_BOT_TOKEN]=''
+      ask DISCORD_BOT_TOKEN "Bot token (hidden)" "$TOKEN_RE" secret
+      ;;
+    *) pause "Couldn't reach Discord to check the token." ;;
+  esac
+done
+
+# OAuth client secret: a client_credentials request succeeds only with a valid id/secret pair.
+while :; do
+  code=$(printf 'user = "%s:%s"\n' "${CFG[DISCORD_OAUTH_CLIENT_ID]}" "${CFG[DISCORD_OAUTH_CLIENT_SECRET]}" |
+    curl -sS --max-time 15 -K - -o /dev/null -w '%{http_code}' \
+      -d grant_type=client_credentials -d scope=identify "$API/oauth2/token" 2>/dev/null || echo 000)
+  case $code in
+    200) echo "  OAuth2 client secret OK"; break ;;
+    400 | 401)
+      warn "Discord rejected the OAuth2 client ID/secret. Copy it again from OAuth2 → Client Secret (Reset Secret if needed)."
+      ((ASSUME_YES)) && die "invalid OAuth2 client secret"
+      CFG[DISCORD_OAUTH_CLIENT_SECRET]=''
+      ask DISCORD_OAUTH_CLIENT_SECRET "OAuth2 Client Secret (hidden)" '^.{16,}$' secret
+      ;;
+    *) pause "Couldn't reach Discord to check the OAuth2 secret." ;;
+  esac
+done
+
+# Privileged intents: GUILD_MEMBERS (1<<14 or limited 1<<15), MESSAGE_CONTENT (1<<18 or limited 1<<19).
+while :; do
+  r=$(discord_get /applications/@me)
+  flags=$(body_of "$r" | jq -r '.flags // 0' 2>/dev/null || echo 0)
+  [[ $flags =~ ^[0-9]+$ ]] || flags=0
+  missing=()
+  ((flags & (1 << 14 | 1 << 15))) || missing+=("Server Members Intent")
+  ((flags & (1 << 18 | 1 << 19))) || missing+=("Message Content Intent")
+  ((${#missing[@]} == 0)) && { echo "  Privileged intents OK"; break; }
+  echo "  Turn on in Developer Portal → Bot: ${missing[*]} (then Save Changes)."
+  pause "Privileged intents are not enabled."
+done
+
+while :; do
+  r=$(discord_get "/guilds/${CFG[DISCORD_GUILD_ID]}")
+  [[ $(status_of "$r") == 200 ]] && { echo "  Bot is in the server"; break; }
+  echo "  The bot isn't in server ${CFG[DISCORD_GUILD_ID]} yet. Invite it (exact permissions, no Administrator):"
+  echo "    https://discord.com/oauth2/authorize?client_id=${CFG[DISCORD_APPLICATION_ID]}&scope=bot%20applications.commands&permissions=1099780189223"
+  pause "Bot not in the server yet."
+done
+
+echo "  Also add this OAuth2 redirect (Developer Portal → OAuth2 → Redirects → Save):"
+echo "    https://${CFG[DASHBOARD_DOMAIN]}/api/auth/callback"
+((ASSUME_YES)) || read -r -p "  Press Enter once the redirect is saved… " _
 
 # Generated once, never rotated by re-runs.
 gen POSTGRES_PASSWORD openssl rand -hex 24
@@ -224,16 +309,11 @@ cat <<EOF
 
 Dashboard:  ${CFG[DASHBOARD_URL]}
 
-Finish in the Discord Developer Portal:
-  1. OAuth2 → Redirects → add exactly:
-       ${CFG[DASHBOARD_URL]}/api/auth/callback
-  2. Bot → enable "Server Members Intent" and "Message Content Intent".
-  3. Invite the bot with exactly the permissions it needs (no Administrator):
-       https://discord.com/oauth2/authorize?client_id=${CFG[DISCORD_APPLICATION_ID]}&scope=bot%20applications.commands&permissions=1099780189223
-     Then in Server Settings → Roles, drag the bot's role above member/self-roles and below staff roles.
-
-Then sign in to the dashboard as the server owner and follow docs/release-checklist.md
-(permissions, channels, support URL, monitored services).
+Next:
+  1. In Discord → Server Settings → Roles, drag the bot's role above member/self-roles
+     and below staff roles.
+  2. Sign in to the dashboard as the server owner and follow docs/release-checklist.md
+     (permissions, channels, support URL, monitored services).
 
 Day-to-day:  gynx status | gynx logs bot | gynx update | gynx backup | gynx help
 EOF

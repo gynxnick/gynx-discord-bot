@@ -141,6 +141,10 @@ export const LOGIN_ERRORS = {
   no_access:
     'Your account does not have dashboard access. Ask an administrator if you believe this is a mistake.',
   unavailable: 'The dashboard could not verify your membership right now. Please try again shortly.',
+  bot_missing:
+    'The GYNX bot is not in the configured Discord server yet, so membership cannot be checked. Invite the bot, then sign in again.',
+  bot_token:
+    'Discord rejected the bot token this dashboard uses, so membership cannot be checked. An administrator needs to update DISCORD_BOT_TOKEN (gynx set DISCORD_BOT_TOKEN).',
   rate_limited: 'Too many sign-in attempts. Please wait a minute and try again.',
   expired: 'Your session has ended. Please sign in again.',
 } as const;
