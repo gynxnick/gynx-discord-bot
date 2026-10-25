@@ -39,6 +39,10 @@ step() { echo; bold "==> $*"; }
 warn() { printf '\033[33mWARNING:\033[0m %s\n' "$*" >&2; }
 die() { printf '\033[31mERROR:\033[0m %s\n' "$*" >&2; exit 1; }
 
+# Never exit silently: report the failing line and command.
+# shellcheck disable=SC2154  # rc is assigned inside the trap string
+trap 'rc=$?; echo "ERROR: install stopped at line $LINENO (exit $rc): $BASH_COMMAND" >&2; exit $rc' ERR
+
 # ─── Preflight ──────────────────────────────────────────────────────────────
 [[ $EUID -eq 0 ]] || die "run as root: sudo $0"
 [[ -f "$APP_DIR/infrastructure/deployment/docker-compose.prod.yml" ]] || die "run this from inside the gynx-discord-bot repository"
@@ -136,7 +140,14 @@ ask DISCORD_OAUTH_CLIENT_SECRET "OAuth2 Client Secret (hidden)" '^.{16,}$' secre
 ask DISCORD_GUILD_ID "Your Discord server ID (right-click server → Copy Server ID)" "$SNOWFLAKE"
 ask DASHBOARD_DOMAIN "Dashboard domain (e.g. dash.gynx.gg; DNS must point here)" '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$'
 ask ACME_EMAIL "Email for Let's Encrypt certificate notices" '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'
-ask DEFAULT_TIMEZONE "Default time zone (IANA, e.g. Europe/London)" '^[A-Za-z_]+(/[A-Za-z0-9_+-]+)*$' '' UTC
+# Region/City names only: abbreviations like EST/PST are fixed offsets with no daylight saving.
+ask DEFAULT_TIMEZONE "Default time zone (e.g. America/New_York, Europe/London)" '^(UTC|[A-Z][A-Za-z_]+/[A-Za-z0-9_+/-]+)$' '' UTC
+while [[ ${CFG[DEFAULT_TIMEZONE]} != UTC && ! -f /usr/share/zoneinfo/${CFG[DEFAULT_TIMEZONE]} ]]; do
+  warn "Unknown time zone '${CFG[DEFAULT_TIMEZONE]}'."
+  ((ASSUME_YES)) && die "DEFAULT_TIMEZONE must be a Region/City zone such as America/New_York"
+  CFG[DEFAULT_TIMEZONE]=''
+  ask DEFAULT_TIMEZONE "Default time zone (e.g. America/New_York, Europe/London)" '^(UTC|[A-Z][A-Za-z_]+/[A-Za-z0-9_+/-]+)$' '' UTC
+done
 ask PORTCHECK_ALLOWED_SUFFIXES "Domains /portcheck may test (comma list, e.g. gynx.gg; blank = disabled)" '.*' '' ''
 
 # Generated once, never rotated by re-runs.
@@ -176,7 +187,10 @@ fi
 # ─── Firewall ───────────────────────────────────────────────────────────────
 if ((SETUP_FIREWALL)); then
   step "Firewall (ufw): allowing SSH, HTTP, HTTPS only"
-  ssh_port=$(sshd -T 2>/dev/null | awk '/^port / {print $2; exit}')
+  # `sshd -T` fails on systems using socket activation (no /run/sshd), so fall back to the config file.
+  ssh_port=$({ sshd -T 2>/dev/null || true; } | awk '/^port / {print $2; exit}')
+  [[ -n $ssh_port ]] || ssh_port=$(awk 'tolower($1)=="port" {print $2; exit}' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null || true)
+  [[ $ssh_port =~ ^[0-9]+$ ]] || ssh_port=22
   ufw allow "${ssh_port:-22}/tcp" >/dev/null
   ufw allow 80/tcp >/dev/null
   ufw allow 443 >/dev/null
