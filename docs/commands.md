@@ -33,6 +33,22 @@ _any member · limit 15 per 60s · module `community`_
 Overview of everything the GYNX.GG bot can do  
 _any member · limit 10 per 60s · module `core`_
 
+### `/role-panel`
+
+Post and manage self-role button panels  
+_requires `community.manage` · module `community`_
+
+- **`create`**: Post a panel with one button per self-assignable role
+  - `channel` (channel): Where to post it (members should be able to see it)
+  - `group` (text) _(optional)_: Which roles to show (default: all) — one of: `All roles`, `Games`, `Community`, `Notifications`
+  - `title` (text) _(optional)_: Panel title
+  - `description` (text) _(optional)_: Text above the buttons
+- **`list`**: List role panels
+- **`refresh`**: Re-post or update panels now
+  - `panel` (text (autocomplete)) _(optional)_: One panel (default: all)
+- **`delete`**: Delete a panel and its message
+  - `panel` (text (autocomplete)): Which panel
+
 ### `/roles`
 
 Pick your game and notification roles  
@@ -369,7 +385,7 @@ _requires `settings.manage` · module `core`_
 - **`module disable`**: Disable a module
   - `module` (text): Module — one of: `Status & incidents`, `Onboarding, roles & FAQ`, `Moderation & automod`, `Troubleshooting assistant`, `Game utilities`, `Security & abuse reports`, `Events, polls, suggestions & giveaways`, `Referrals & partners`, `Announcements`, `Analytics & reports`
 - **`channel set`**: Set a channel
-  - `kind` (text): Which channel — one of: `Bot log`, `Moderation log`, `Status board`, `Incident updates`, `Announcements`, `Suggestions`, `Security (private)`, `CEO reports (private)`, `Events`, `Partner review (private)`
+  - `kind` (text): Which channel — one of: `Bot log`, `Moderation log`, `Live status board`, `Status alerts`, `Incident updates`, `Announcements`, `Suggestions`, `Security (private)`, `CEO reports (private)`, `Events`, `Partner review (private)`
   - `channel` (channel): Channel
 - **`role set`**: Set a role
   - `kind` (text): Which role — one of: `Staff ping`, `Escalation`, `Status alerts`, `Partner`

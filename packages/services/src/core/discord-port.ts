@@ -49,6 +49,8 @@ export interface DiscordPort {
   ): Promise<{ code: string }>;
   listInvites(guildId: string): Promise<Array<{ code: string; uses: number; inviterId: string | null }>>;
   deleteChannel(channelId: string, reason: string): Promise<void>;
+  /** Deletes a message; succeeds silently if it is already gone. */
+  deleteMessage(channelId: string, messageId: string): Promise<void>;
 }
 
 /** Safe default: never ping anyone unless a caller explicitly opts in. */
@@ -154,6 +156,13 @@ export function createRestDiscordPort(token: string): DiscordPort {
     async deleteChannel(channelId, reason) {
       try {
         await rest.delete(Routes.channel(channelId), { reason });
+      } catch (e) {
+        if (!isStatus(e, 404)) throw e; // already gone
+      }
+    },
+    async deleteMessage(channelId, messageId) {
+      try {
+        await rest.delete(Routes.channelMessage(channelId, messageId));
       } catch (e) {
         if (!isStatus(e, 404)) throw e; // already gone
       }

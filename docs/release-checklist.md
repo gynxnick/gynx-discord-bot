@@ -26,6 +26,7 @@ The installer covers most of this list: see [deployment.md → Single-VPS instal
 - [ ] Status → **Services**: add public services. Set `PORTCHECK_ALLOWED_SUFFIXES` (e.g. `gynx.gg`) to enable `/playercount`, `/minecraft` and `/portcheck`.
 - [ ] Troubleshooting → **Load default GYNX content**, then review the articles.
 - [ ] Community: welcome message, rules, verification role (gate channels on it in Discord), self-roles.
+- [ ] Post a role panel in a read-only `#roles` channel (Community → Self-roles → **Post a panel**, or `/role-panel create`). It updates itself when you change the self-role list.
 - [ ] Confirm the weekly report schedule (Analytics → Weekly reports → Schedules).
 
 ### Verification

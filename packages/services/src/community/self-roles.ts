@@ -1,3 +1,4 @@
+import { requestRolePanelSync } from './role-panels';
 import { z } from 'zod';
 import { isUniqueViolation, type Db, type SelfAssignableRole } from '@gynx/database';
 import { conflict, forbidden, notFound, validation } from '@gynx/shared';
@@ -103,7 +104,7 @@ export async function createSelfRole(
   const input = selfRoleCreateSchema.parse(raw);
   await assertRoleAssignable(ctx, input.roleId, live);
   try {
-    return await ctx.db.$transaction(async (tx) => {
+    const created = await ctx.db.$transaction(async (tx) => {
       const row = await tx.selfAssignableRole.create({
         data: {
           ...input,
@@ -124,6 +125,8 @@ export async function createSelfRole(
       );
       return row;
     });
+    await requestRolePanelSync(ctx.db, ctx.guildId, ctx.now());
+    return created;
   } catch (e) {
     if (isUniqueViolation(e)) throw conflict('That role is already in the self-assignable list.');
     throw e;
@@ -145,7 +148,7 @@ export async function updateSelfRole(
     if (!live) throw validation('Role details are required to re-enable a role.');
     await assertRoleAssignable(ctx, row.roleId, live);
   }
-  return ctx.db.$transaction(async (tx) => {
+  const result = await ctx.db.$transaction(async (tx) => {
     const updated = await tx.selfAssignableRole.update({ where: { id }, data: input });
     await audit(
       ctx,
@@ -159,6 +162,8 @@ export async function updateSelfRole(
     );
     return updated;
   });
+  await requestRolePanelSync(ctx.db, ctx.guildId, ctx.now());
+  return result;
 }
 
 export async function deleteSelfRole(ctx: Ctx, id: string): Promise<void> {
@@ -178,6 +183,7 @@ export async function deleteSelfRole(ctx: Ctx, id: string): Promise<void> {
       tx,
     );
   });
+  await requestRolePanelSync(ctx.db, ctx.guildId, ctx.now());
 }
 
 export interface RoleChange {

@@ -108,6 +108,7 @@ Legend: Own = OWNER, Adm = ADMINISTRATOR, Snr = SENIOR_STAFF, Sup = SUPPORT_STAF
 | `/portcheck`             | any member*             | everyone                   | 3 / 300s              |
 | `/referral`              | any member*             | everyone                   | 5 / 60s               |
 | `/report-abuse`          | any member*             | everyone                   | 3 / 3600s             |
+| `/role-panel`            | `community.manage`      | ManageGuild                | —                     |
 | `/roles`                 | any member*             | everyone                   | 10 / 60s              |
 | `/rules`                 | any member*             | everyone                   | 10 / 60s              |
 | `/schedule-announcement` | `announcements.publish` | ManageGuild                | —                     |

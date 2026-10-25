@@ -22,6 +22,7 @@ export const COMMAND_POLICIES: Record<string, CommandPolicy> = {
   guides: { permission: null, rateLimit: [15, 60] },
   rules: { permission: null, rateLimit: [10, 60] },
   roles: { permission: null, rateLimit: [10, 60] },
+  'role-panel': { permission: 'community.manage', discordDefault: 'ManageGuild' },
   // Status
   status: { permission: null, rateLimit: [10, 60] },
   uptime: { permission: null, rateLimit: [10, 60] },

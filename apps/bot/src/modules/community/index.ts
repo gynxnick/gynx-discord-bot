@@ -6,6 +6,7 @@ import type { BotModule, BotRuntime, ComponentHandler, SlashCommand } from '../.
 import { applyRoleChange, liveRoleContext, liveRolesContext } from './discord-roles';
 import { helpEmbed } from './help';
 import { communityListeners } from './listeners';
+import { rolePanelCommand } from './role-panels';
 
 const GUIDE_PAGE_SIZE = 5;
 const CUID = /^c[a-z0-9]{20,32}$/;
@@ -82,6 +83,7 @@ async function interestsPrompt(ctx: Ctx, current: readonly string[]) {
 // ── commands ─────────────────────────────────────────────────────────────────
 
 const commands: SlashCommand[] = [
+  rolePanelCommand,
   {
     module: 'core',
     data: new SlashCommandBuilder()
@@ -357,6 +359,25 @@ const components: ComponentHandler[] = [
     module: 'community',
     async handle(i, args, h) {
       const member = requireMember(i);
+
+      // Role panel button: toggle exactly one role. The service re-checks the allowlist
+      // and role safety, so the role ID in the customId is never trusted.
+      if (args[0] === 'btn' && i.isButton()) {
+        await i.deferReply({ flags: 64 });
+        let line: string;
+        try {
+          const roleId = args[1] ?? '';
+          const live = await liveRoleContext(member.guild, roleId);
+          const change = await community.toggleSelfRole(h.ctx, roleId, live);
+          [line = 'No changes.'] = await applyChanges(h.rt, member, [change], 'Self-assigned role (panel)');
+        } catch (err) {
+          if (!isAppError(err)) throw err;
+          line = `⚠️ ${err.message}`;
+        }
+        await respond(i, { embeds: [brandEmbed({ title: 'Your roles', description: line })] });
+        return;
+      }
+
       if (args[0] !== 'toggle' || !i.isStringSelectMenu()) {
         await respond(i, { content: 'This control is no longer active.' });
         return;

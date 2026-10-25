@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import { community } from '@gynx/services';
 import { ModuleNotice } from '@/components/community/ModuleNotice';
-import { load, loadRoles } from '@/components/community/server/data';
+import { load, loadChannels, loadRoles } from '@/components/community/server/data';
+import { RolePanelsManager } from '@/components/community/RolePanelsManager';
 import { SelfRolesManager } from '@/components/community/SelfRolesManager';
 import { Alert, PermissionDenied } from '@/components/ui/Feedback';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -16,7 +17,11 @@ export default async function SelfRolesPage() {
 
   const list = await load(() => community.listSelfRoles(ctx));
   if (!list.ok) return <ModuleNotice title="Self-roles" message={list.message} />;
-  const roles = await loadRoles(ctx);
+  const [roles, channels, panels] = await Promise.all([
+    loadRoles(ctx),
+    loadChannels(ctx),
+    load(() => community.listRolePanels(ctx)),
+  ]);
 
   return (
     <>
@@ -43,6 +48,19 @@ export default async function SelfRolesPage() {
           sortOrder: r.sortOrder,
         }))}
         roles={roles.roles}
+      />
+      <RolePanelsManager
+        rows={(panels.ok ? panels.data : []).map((p) => ({
+          id: p.id,
+          channelId: p.channelId,
+          title: p.title,
+          description: p.description,
+          groups: p.groups,
+          messageId: p.messageId,
+          syncedAt: p.syncedAt ? p.syncedAt.toISOString() : null,
+        }))}
+        channels={channels.error ? null : channels.channels}
+        enabledRoleCount={list.data.filter((r) => r.enabled).length}
       />
     </>
   );
