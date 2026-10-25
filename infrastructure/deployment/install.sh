@@ -118,6 +118,7 @@ ask() { # ask KEY "Prompt" validator-regex [secret] [default]
     ((ASSUME_YES)) && die "$key is missing or invalid (set it in the environment for --yes)"
     if [[ $secret == secret ]]; then
       read -r -s -p "  $prompt: " val; echo
+      val=$(printf '%s' "$val" | tr -d '\r\n\t ')  # pasted values may carry a stray CR or spaces
     else
       read -r -p "  $prompt${def:+ [$def]}: " val
       val=${val:-$def}

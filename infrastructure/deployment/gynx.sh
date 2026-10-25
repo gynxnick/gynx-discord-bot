@@ -93,6 +93,7 @@ cmd_set() {
   else
     read -r -p "New value for $key: " val
   fi
+  val=$(printf '%s' "$val" | tr -d '\r\n\t ')  # strip stray CR/whitespace from pasted values
   [[ -n $val ]] || die "empty value, nothing changed"
   [[ $val != *$'\n'* ]] || die "value must be a single line"
   tmp=$(mktemp "$(dirname "$ENV_FILE")/.gynx.env.XXXXXX")
