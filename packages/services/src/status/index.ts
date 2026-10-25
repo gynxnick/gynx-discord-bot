@@ -8,3 +8,4 @@ export * from './maintenance';
 export * from './subscriptions';
 export * from './monitor';
 export * from './render';
+export * from './board';

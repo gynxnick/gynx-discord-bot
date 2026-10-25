@@ -259,6 +259,15 @@ export function createStatusJobs(opts: StatusJobsOptions = {}): WorkerModule {
     },
     periodic: [
       {
+        // Live status board: cheap when nothing changed (one DB read, no Discord call).
+        name: 'status.board',
+        intervalMs: 30_000,
+        async run(w, now) {
+          const result = await status.syncStatusBoard(w.deps, w.env.DISCORD_GUILD_ID, now);
+          if (result !== 'unchanged' && result !== 'disabled') w.log.info({ result }, 'status board synced');
+        },
+      },
+      {
         name: 'status.checks',
         intervalMs: (w) => Math.max(15, w.env.STATUS_CHECK_INTERVAL_SECONDS ?? 60) * 1000,
         async run(w, now) {

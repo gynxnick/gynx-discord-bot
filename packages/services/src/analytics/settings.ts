@@ -20,6 +20,7 @@ import { changedKeys, diffMetadata } from './service';
 export const CHANNEL_KINDS = {
   log: 'logChannelId',
   modLog: 'modLogChannelId',
+  statusBoard: 'statusBoardChannelId',
   status: 'statusChannelId',
   incident: 'incidentChannelId',
   announcement: 'announcementChannelId',
@@ -33,7 +34,8 @@ export type ChannelKind = keyof typeof CHANNEL_KINDS;
 export const CHANNEL_KIND_LABELS: Record<ChannelKind, string> = {
   log: 'Bot log',
   modLog: 'Moderation log',
-  status: 'Status board',
+  statusBoard: 'Live status board',
+  status: 'Status alerts',
   incident: 'Incident updates',
   announcement: 'Announcements',
   suggestion: 'Suggestions',
@@ -45,7 +47,14 @@ export const CHANNEL_KIND_LABELS: Record<ChannelKind, string> = {
 
 /** Staff-only channels must never be the same as a public-facing channel. */
 const PRIVATE_CHANNELS: readonly ChannelKind[] = ['log', 'modLog', 'security', 'report', 'partnerReview'];
-const PUBLIC_CHANNELS: readonly ChannelKind[] = ['status', 'incident', 'announcement', 'suggestion', 'event'];
+const PUBLIC_CHANNELS: readonly ChannelKind[] = [
+  'statusBoard',
+  'status',
+  'incident',
+  'announcement',
+  'suggestion',
+  'event',
+];
 
 export const ROLE_KINDS = {
   staffPing: 'staffPingRoleId',

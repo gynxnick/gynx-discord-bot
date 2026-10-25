@@ -21,7 +21,8 @@ The installer covers most of this list: see [deployment.md → Single-VPS instal
 - [ ] `pnpm commands:register` with production credentials.
 - [ ] Invite the bot with the permissions in [security.md](security.md#discord-configuration-least-privilege). Place its role **below** staff roles and **above** self-assignable, verified and partner roles.
 - [ ] As server owner: Dashboard → Settings → **Permissions**: map staff roles to presets.
-- [ ] Dashboard → Settings → **General**: time zone, channels (status, incidents, security, moderation log, reports, announcements, suggestions, events, partner review), roles (status alerts, partner, escalation), **support URL**.
+- [ ] Dashboard → Settings → **General**: time zone, channels (live status board, status alerts, incidents, security, moderation log, reports, announcements, suggestions, events, partner review), roles (status alerts, partner, escalation), **support URL**.
+- [ ] Create a read-only `#status` channel (members can view, only the bot can post) and set it as the **Live status board**. The bot posts one message there and keeps it updated automatically.
 - [ ] Status → **Services**: add public services. Set `PORTCHECK_ALLOWED_SUFFIXES` (e.g. `gynx.gg`) to enable `/playercount`, `/minecraft` and `/portcheck`.
 - [ ] Troubleshooting → **Load default GYNX content**, then review the articles.
 - [ ] Community: welcome message, rules, verification role (gate channels on it in Discord), self-roles.

@@ -81,8 +81,15 @@ model GuildConfig {
   // Channels
   logChannelId          String?
   modLogChannelId       String?
-  statusChannelId       String?
+  statusChannelId       String? // status alerts (state changes)
   incidentChannelId     String?
+  /// Live status board: one message the worker keeps edited in place.
+  statusBoardChannelId  String?
+  /// "<channelId>:<messageId>" of the posted board (so a channel change can retire the old one)
+  statusBoardMessage    String?
+  /// Fingerprint of the last rendered content; unchanged content is not re-sent to Discord.
+  statusBoardHash       String?
+  statusBoardUpdatedAt  DateTime?
   announcementChannelId String?
   suggestionChannelId   String?
   securityChannelId     String? // private staff channel for abuse/security notifications

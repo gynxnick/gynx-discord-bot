@@ -468,8 +468,8 @@ describe('status worker: registration', () => {
         'status.subscribers.notify',
       ].sort(),
     );
-    expect(runner.periodicNames).toEqual(['status.checks', 'status.retention']);
-    const interval = statusJobs.periodic![0]!.intervalMs;
+    expect(runner.periodicNames).toEqual(['status.board', 'status.checks', 'status.retention']);
+    const interval = statusJobs.periodic!.find((p) => p.name === 'status.checks')!.intervalMs;
     expect(typeof interval === 'function' ? interval(t.w) : interval).toBe(60_000);
   });
 
