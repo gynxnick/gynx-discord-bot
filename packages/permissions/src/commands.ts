@@ -64,5 +64,6 @@ export const COMMAND_POLICIES: Record<string, CommandPolicy> = {
   'staff-stats': { permission: 'analytics.view', discordDefault: 'ManageGuild' },
   // Administration
   config: { permission: 'settings.manage', discordDefault: 'ManageGuild' },
+  setup: { permission: 'setup.manage', discordDefault: 'ManageGuild', rateLimit: [10, 60] },
   'audit-log': { permission: 'audit.view', discordDefault: 'ManageGuild' },
 };

@@ -43,6 +43,7 @@ export const PERMISSIONS = {
 
   'settings.manage': 'Change module, channel and integration settings',
   'permissions.manage': 'Change staff permissions',
+  'setup.manage': 'Run the Discord server setup wizard (create roles, channels and permissions)',
 } as const;
 
 export type PermissionKey = keyof typeof PERMISSIONS;
@@ -63,4 +64,5 @@ export const PRIVILEGED_PERMISSIONS: readonly PermissionKey[] = [
   'audit.view',
   'security.reports.manage',
   'announcements.mass_mention',
+  'setup.manage',
 ];

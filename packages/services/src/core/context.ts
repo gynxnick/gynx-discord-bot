@@ -2,6 +2,7 @@ import type { Logger } from '@gynx/config';
 import type { PrismaClient } from '@gynx/database';
 import { ALL_PERMISSIONS, type PermissionKey } from '@gynx/permissions';
 import { MemoryRateLimiter, type RateLimiter } from '@gynx/shared';
+import type { DiscordAdminPort } from '../setup/port';
 import type { DiscordPort } from './discord-port';
 
 /**
@@ -25,6 +26,8 @@ export interface ServiceDeps {
   rateLimiter: RateLimiter;
   /** Optional: only processes that talk to Discord provide it. */
   discord?: DiscordPort;
+  /** Optional: guild administration (server setup wizard). Bot, worker and dashboard provide it. */
+  discordAdmin?: DiscordAdminPort;
   /** 64-hex AES key for integration secrets. */
   encryptionKey?: string;
   /** Public dashboard base URL, used for authenticated links (transcripts, reports). */

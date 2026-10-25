@@ -39,6 +39,9 @@ model Guild {
   textOverrides   TextOverride[]
   dutyProfiles    DutyProfile[]
   dutySessions    DutySession[]
+  setup           GuildSetup?
+  setupOperations SetupOperation[]
+  setupResources  SetupResource[]
   faqCategories   FaqCategory[]
   faqEntries      FaqEntry[]
   guides          Guide[]
@@ -121,6 +124,13 @@ model GuildConfig {
   supportStatusChangedAt DateTime?
   /// Duty sessions end automatically after this many hours
   dutyMaxHours           Int       @default(12)
+
+  // Staff duty-control panel (private; Go On/Off Duty buttons)
+  dutyPanelChannelId     String?
+  /// "<channelId>:<messageId>" of the posted duty panel
+  dutyPanelMessage       String?
+  /// Private channel for administrative setup change summaries
+  setupLogChannelId      String?
 
   // Status
   statusCheckIntervalSeconds Int @default(60)
@@ -273,6 +283,147 @@ model DutySession {
 
   @@index([guildId, endedAt])
   @@index([guildId, userId, endedAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Discord server setup wizard (provisioning from the GYNX blueprint)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum SetupStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  PARTIAL
+  COMPLETE
+  FAILED
+}
+
+/// One per guild: current setup state and the admin's blueprint customisation.
+model GuildSetup {
+  id               String      @id @default(cuid())
+  guildId          String      @unique
+  guild            Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  blueprintVersion Int
+  status           SetupStatus @default(NOT_STARTED)
+  startedByUserId  String?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  lastVerifiedAt   DateTime?
+  /// Validated SetupConfig (role names/colours, selected components, slow mode, …)
+  configuration    Json        @default("{}")
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+}
+
+enum SetupOperationType {
+  START
+  REPAIR
+  UPDATE
+  ROLLBACK
+}
+
+enum SetupOperationStatus {
+  PREVIEWED
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  PARTIAL
+  FAILED
+  CANCELLED
+}
+
+/// A previewed/confirmed/executed provisioning run. `preview` is the plan shown to the admin;
+/// `planHash` guards against applying a plan that no longer matches the server.
+model SetupOperation {
+  id                String               @id @default(cuid())
+  guildId           String
+  guild             Guild                @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  initiatedByUserId String
+  operationType     SetupOperationType
+  status            SetupOperationStatus @default(PREVIEWED)
+  blueprintVersion  Int
+  /// Component keys the admin selected (empty = everything in the blueprint)
+  selection         String[]
+  /// For ROLLBACK: the operation being reverted
+  targetOperationId String?
+  preview           Json
+  planHash          String
+  result            Json?
+  startedAt         DateTime             @default(now())
+  confirmedAt       DateTime?
+  completedAt       DateTime?
+  changes           SetupChange[]
+
+  @@index([guildId, startedAt])
+  @@index([guildId, status])
+}
+
+enum SetupResourceType {
+  ROLE
+  CATEGORY
+  TEXT_CHANNEL
+  VOICE_CHANNEL
+  MESSAGE
+}
+
+enum SetupOwnership {
+  /// Created by the bot during setup (may be removed by rollback when safe)
+  CREATED
+  /// Pre-existing resource matched unambiguously (never deleted by the bot)
+  ADOPTED
+}
+
+/// Manifest: which Discord resource implements which blueprint key.
+model SetupResource {
+  id                String            @id @default(cuid())
+  guildId           String
+  guild             Guild             @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  /// Last operation that created/adopted/updated this resource
+  setupOperationId  String
+  resourceType      SetupResourceType
+  /// e.g. "role:support", "channel:support-status", "message:welcome"
+  blueprintKey      String
+  discordResourceId String
+  /// For MESSAGE resources: the channel holding the message
+  channelId         String?
+  ownership         SetupOwnership
+  configurationHash String
+  blueprintVersion  Int
+  lastVerifiedAt    DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@unique([guildId, blueprintKey])
+  @@index([guildId, resourceType])
+  @@index([guildId, discordResourceId])
+}
+
+enum SetupChangeStatus {
+  PENDING
+  APPLIED
+  SKIPPED
+  FAILED
+  ROLLED_BACK
+}
+
+/// Per-change checkpoint of an operation: what was done, with before/after state for rollback.
+model SetupChange {
+  id                String            @id @default(cuid())
+  operationId       String
+  operation         SetupOperation    @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  seq               Int
+  kind              String
+  blueprintKey      String
+  discordResourceId String?
+  before            Json?
+  after             Json?
+  status            SetupChangeStatus @default(PENDING)
+  error             String?
+  attempts          Int               @default(0)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@unique([operationId, seq])
+  @@index([operationId, status])
 }
 
 /// Staff-edited wording for a bot text key (see packages/services/src/core/text.ts). Absent = default text.
