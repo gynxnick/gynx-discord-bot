@@ -138,6 +138,7 @@ export const NAV: readonly NavSection[] = [
     children: [
       { label: 'General', href: '/settings', anyOf: ['settings.manage'] },
       { label: 'Permissions', href: '/settings/permissions', anyOf: ['settings.manage'] },
+      { label: 'Bot text', href: '/settings/text', anyOf: ['settings.manage'] },
       { label: 'Jobs', href: '/settings/jobs', anyOf: ['settings.manage'] },
     ],
   },

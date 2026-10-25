@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Interaction } from 'discord.js';
 import { COMMAND_POLICIES } from '@gynx/permissions';
-import { audit, isModuleEnabled, type Ctx } from '@gynx/services';
+import { CoreText, audit, isModuleEnabled, withGuildText, type Ctx } from '@gynx/services';
 import { AppError, forbidden, isAppError, moduleDisabled, rateLimited } from '@gynx/shared';
 import { ctxForInteraction } from './actor';
 import { replyError } from './reply';
@@ -35,18 +35,19 @@ export class InteractionRouter {
     return [...this.commands.values()];
   }
 
+  /** Every interaction runs with the server's custom bot text (Settings → Bot text) in scope. */
   async handle(i: Interaction): Promise<void> {
+    await withGuildText(this.rt.deps.db, this.rt.env.DISCORD_GUILD_ID, () => this.dispatch(i));
+  }
+
+  private async dispatch(i: Interaction): Promise<void> {
     const correlationId = randomUUID().slice(0, 8);
     const log = this.rt.log.child({ correlationId, userId: i.user.id, interaction: i.type });
 
     // Only the configured guild; no DMs. Keeps dev/prod isolated and prevents use elsewhere.
     if (!i.inCachedGuild() || i.guildId !== this.rt.env.DISCORD_GUILD_ID) {
       if (i.isRepliable())
-        await replyError(
-          i,
-          new AppError('FORBIDDEN', 'This bot only works inside the GYNX.GG server.'),
-          correlationId,
-        );
+        await replyError(i, new AppError('FORBIDDEN', CoreText.guildOnly()), correlationId);
       return;
     }
 
@@ -61,7 +62,7 @@ export class InteractionRouter {
 
       if (i.isChatInputCommand() || i.isAutocomplete()) {
         const cmd = this.commands.get(i.commandName);
-        if (!cmd) throw new AppError('NOT_FOUND', 'Unknown command.');
+        if (!cmd) throw new AppError('NOT_FOUND', CoreText.unknownCommand());
         if (i.isAutocomplete()) {
           if (cmd.autocomplete) await cmd.autocomplete(i, h);
           return;
@@ -75,7 +76,7 @@ export class InteractionRouter {
       if (i.isButton() || i.isAnySelectMenu() || i.isModalSubmit()) {
         const [prefix, ...args] = i.customId.split(':');
         const handler = prefix ? this.components.get(prefix) : undefined;
-        if (!handler) throw new AppError('NOT_FOUND', 'This control is no longer active.');
+        if (!handler) throw new AppError('NOT_FOUND', CoreText.controlExpired());
         if (handler.module !== 'core' && !(await isModuleEnabled(ctx.db, ctx.guildId, handler.module))) {
           throw moduleDisabled(handler.module);
         }

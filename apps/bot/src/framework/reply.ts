@@ -1,6 +1,6 @@
 import { MessageFlags, type InteractionReplyOptions, type RepliableInteraction } from 'discord.js';
-import { errorEmbed, infoEmbed, successEmbed } from '@gynx/services';
-import { isAppError, toSafeMessage } from '@gynx/shared';
+import { CoreText, errorEmbed, infoEmbed, successEmbed } from '@gynx/services';
+import { DEFAULT_FORBIDDEN_MESSAGE, isAppError } from '@gynx/shared';
 
 const NO_PINGS = { parse: [] as never[] };
 
@@ -35,13 +35,26 @@ export const replySuccess = (
 export const replyInfo = (i: RepliableInteraction, title: string, description?: string, ephemeral = true) =>
   respond(i, { embeds: [infoEmbed(title, description)], ephemeral });
 
+/** The member-facing wording for an error, using the server's custom bot text where one applies. */
+export function userFacingError(err: unknown, correlationId: string): string {
+  if (!isAppError(err) || err.code === 'INTERNAL') return CoreText.genericError({ reference: correlationId });
+  const d = err.details ?? {};
+  if (err.code === 'RATE_LIMITED')
+    return CoreText.rateLimited({ seconds: String(d.retryAfterSeconds ?? '') });
+  if (err.code === 'MODULE_DISABLED' && typeof d.module === 'string') {
+    return CoreText.moduleDisabled({ module: d.module });
+  }
+  if (err.code === 'FORBIDDEN' && err.message === DEFAULT_FORBIDDEN_MESSAGE) return CoreText.forbidden();
+  return err.message;
+}
+
 /** Safe error reply: AppError messages are user-facing; anything else becomes a generic message + reference. */
 export async function replyError(
   i: RepliableInteraction,
   err: unknown,
   correlationId: string,
 ): Promise<void> {
-  const msg = isAppError(err) ? err.message : `${toSafeMessage(err)}\nReference: \`${correlationId}\``;
+  const msg = userFacingError(err, correlationId);
   try {
     await respond(i, { embeds: [errorEmbed(msg)], ephemeral: true });
   } catch {

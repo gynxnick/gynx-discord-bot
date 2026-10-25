@@ -1,4 +1,4 @@
-import { claimJobs, completeJob, enqueueJob, failJob } from '@gynx/services';
+import { claimJobs, completeJob, enqueueJob, failJob, withGuildText } from '@gynx/services';
 import { isAppError } from '@gynx/shared';
 import type { JobHandler, PeriodicTask, WorkerCtx, WorkerModule } from './types';
 
@@ -88,16 +88,19 @@ export class JobRunner {
     for (const job of jobs) {
       const log = this.w.log.child({ jobId: job.id, type: job.type, attempt: job.attempts });
       try {
-        if (job.type.startsWith('periodic:')) {
-          const name = job.type.slice('periodic:'.length);
-          const task = this.periodic.get(name);
-          if (!task) throw new Error(`unknown periodic task ${name}`);
-          await task.run(this.w, now);
-        } else {
-          const handler = this.handlers.get(job.type);
-          if (!handler) throw new Error(`no handler for job type ${job.type}`);
-          await handler(job, this.w);
-        }
+        // Jobs render with the server's custom bot text (Settings → Bot text) in scope.
+        await withGuildText(db, job.guildId ?? this.w.env.DISCORD_GUILD_ID, async () => {
+          if (job.type.startsWith('periodic:')) {
+            const name = job.type.slice('periodic:'.length);
+            const task = this.periodic.get(name);
+            if (!task) throw new Error(`unknown periodic task ${name}`);
+            await task.run(this.w, now);
+          } else {
+            const handler = this.handlers.get(job.type);
+            if (!handler) throw new Error(`no handler for job type ${job.type}`);
+            await handler(job, this.w);
+          }
+        });
         await completeJob(db, job.id, this.w.deps.now());
         log.debug('job done');
       } catch (err) {

@@ -36,6 +36,7 @@ model Guild {
   statusSubs      StatusSubscription[]
   selfRoles       SelfAssignableRole[]
   rolePanels      RolePanel[]
+  textOverrides   TextOverride[]
   faqCategories   FaqCategory[]
   faqEntries      FaqEntry[]
   guides          Guide[]
@@ -218,6 +219,18 @@ enum JobStatus {
 
 /// Durable, idempotent job queue. `dedupeKey` guarantees a logical job is enqueued once;
 /// workers claim with FOR UPDATE SKIP LOCKED so multiple instances never double-run.
+/// Staff-edited wording for a bot text key (see packages/services/src/core/text.ts). Absent = default text.
+model TextOverride {
+  guildId     String
+  guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  key         String
+  value       String   @db.Text
+  updatedById String
+  updatedAt   DateTime @updatedAt
+
+  @@id([guildId, key])
+}
+
 model ScheduledJob {
   id          String    @id @default(cuid())
   guildId     String?

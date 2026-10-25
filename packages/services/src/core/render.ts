@@ -1,5 +1,6 @@
 import type { APIEmbed, APIEmbedField } from 'discord-api-types/v10';
-import { BRAND, EMBED_COLORS, truncate } from '@gynx/shared';
+import { EMBED_COLORS, truncate } from '@gynx/shared';
+import { CoreText } from './texts';
 
 /**
  * Branded embed builder producing plain Discord API JSON, usable from the bot
@@ -30,7 +31,7 @@ export function brandEmbed(input: BrandEmbedInput): APIEmbed {
     color: input.color ?? EMBED_COLORS.primary,
     url: input.url,
     fields: fields.length ? fields : undefined,
-    footer: { text: truncate(input.footer ?? BRAND.name, 2048) },
+    footer: { text: truncate(input.footer ?? CoreText.embedFooter(), 2048) },
     timestamp: (input.timestamp ?? new Date()).toISOString(),
     image: input.imageUrl ? { url: input.imageUrl } : undefined,
     thumbnail: input.thumbnailUrl ? { url: input.thumbnailUrl } : undefined,
@@ -38,7 +39,7 @@ export function brandEmbed(input: BrandEmbedInput): APIEmbed {
 }
 
 export const errorEmbed = (message: string): APIEmbed =>
-  brandEmbed({ title: 'Something went wrong', description: message, color: EMBED_COLORS.danger });
+  brandEmbed({ title: CoreText.errorTitle(), description: message, color: EMBED_COLORS.danger });
 
 export const successEmbed = (title: string, description?: string): APIEmbed =>
   brandEmbed({ title, description, color: EMBED_COLORS.success });

@@ -54,13 +54,14 @@ export class AppError extends Error {
 export const isAppError = (e: unknown): e is AppError => e instanceof AppError;
 
 export const notFound = (what: string) => new AppError('NOT_FOUND', `${what} was not found.`);
-export const forbidden = (msg = 'You do not have permission to do that.') => new AppError('FORBIDDEN', msg);
+export const DEFAULT_FORBIDDEN_MESSAGE = 'You do not have permission to do that.';
+export const forbidden = (msg = DEFAULT_FORBIDDEN_MESSAGE) => new AppError('FORBIDDEN', msg);
 export const invalidState = (msg: string) => new AppError('INVALID_STATE', msg);
 export const conflict = (msg: string) => new AppError('CONFLICT', msg);
 export const validation = (msg: string, details?: Record<string, unknown>) =>
   new AppError('VALIDATION', msg, details);
 export const moduleDisabled = (module: string) =>
-  new AppError('MODULE_DISABLED', `The ${module} module is disabled on this server.`);
+  new AppError('MODULE_DISABLED', `The ${module} module is disabled on this server.`, { module });
 export const rateLimited = (retryAfterSeconds: number) =>
   new AppError('RATE_LIMITED', `You're doing that too often. Try again in ${retryAfterSeconds}s.`, {
     retryAfterSeconds,

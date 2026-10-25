@@ -8,6 +8,7 @@ import {
   defaultRateLimiter,
   startHealthServer,
   type ServiceDeps,
+  withGuildText,
 } from '@gynx/services';
 import { InteractionRouter } from './framework/router';
 import type { BotRuntime } from './framework/types';
@@ -63,7 +64,7 @@ async function main(): Promise<void> {
       // Typed per-listener via on(); the emitter here is used generically.
       (client as unknown as NodeJS.EventEmitter).on(l.event, (...args: unknown[]) => {
         // Only the configured guild; listener failures never crash the process.
-        l.run(rt, ...args).catch((err: unknown) =>
+        withGuildText(db, env.DISCORD_GUILD_ID, () => l.run(rt, ...args)).catch((err: unknown) =>
           log.error({ err, module: m.name, event: l.event }, 'event handler failed'),
         );
       });
