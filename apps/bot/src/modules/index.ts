@@ -7,6 +7,7 @@ import { gamesModule } from './games';
 import { marketingModule } from './marketing';
 import { moderationModule } from './moderation';
 import { securityModule } from './security';
+import { setupModule } from './setup';
 import { statusModule } from './status';
 import { supportModule } from './support';
 import { troubleshootingModule } from './troubleshooting';
@@ -24,4 +25,5 @@ export const modules: BotModule[] = [
   marketingModule,
   analyticsModule,
   supportModule,
+  setupModule,
 ];

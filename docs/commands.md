@@ -421,3 +421,18 @@ _requires `support.duty` · limit 10 per 60s · module `support`_
 - **`profile remove`**: Stop a staff member from going on duty
   - `user` (user): Staff member
 - **`profile list`**: List approved public names
+
+## Setup
+
+### `/setup`
+
+Set up the server from the GYNX blueprint (administrators)  
+_requires `setup.manage` · limit 10 per 60s · module `core`_
+
+- **`start`**: Preview and apply the server setup
+- **`preview`**: Show what setup would change, without changing anything
+- **`status`**: Setup progress and anything that needs attention
+- **`repair`**: Restore missing or renamed setup resources
+- **`update`**: Apply a newer version of the blueprint
+- **`rollback`**: Undo a setup operation (default: the most recent one)
+  - `operation` (text (autocomplete)) _(optional)_: Operation to undo

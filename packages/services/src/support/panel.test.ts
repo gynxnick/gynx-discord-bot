@@ -40,6 +40,12 @@ describe('support status panel', () => {
     expect(e.description).toContain('**1 staff member on duty**');
   });
 
+  it('hides the name list when staff names are turned off, but keeps the count', () => {
+    const e = renderSupportPanel(base({ onDuty: [entry('Alex')], showNames: false })).embeds![0]!;
+    expect(json(e)).not.toContain('Alex');
+    expect(Object.fromEntries((e.fields ?? []).map((f) => [f.name, f.value]))['Staff on duty']).toBe('1');
+  });
+
   it('offline: offline headline and text, no team list', () => {
     const e = renderSupportPanel(base()).embeds![0]!;
     expect(e.description).toContain('⚫ **Support is currently offline**');

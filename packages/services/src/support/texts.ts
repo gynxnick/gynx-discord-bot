@@ -127,4 +127,64 @@ export const SupportText = defineTexts('support', {
     help: 'One line of /duty status.',
     vars: ['name', 'since', 'ends'],
   },
+
+  // ── Staff duty-control panel (private staff channel) ──
+  dutyPanelTitle: {
+    default: 'Staff duty',
+    help: 'Title of the private staff duty-control panel.',
+    kind: 'title',
+  },
+  dutyPanelBody: {
+    default:
+      'Use the buttons below to go on or off support duty. While you are on duty, your approved public name is shown on the customer support status panel. Sessions end automatically after the maximum duty length.',
+    help: 'Explanation at the top of the staff duty-control panel.',
+  },
+  dutyPanelCountField: {
+    default: 'Staff on duty',
+    help: 'Label of the on-duty count on the duty-control panel.',
+    kind: 'title',
+  },
+  dutyPanelTeamField: {
+    default: 'On-duty team',
+    help: 'Heading above the on-duty names on the duty-control panel.',
+    kind: 'title',
+  },
+  dutyPanelMember: {
+    default: '🟢 {name} · since {since}',
+    help: 'One line of the on-duty list on the duty-control panel.',
+    vars: ['name', 'since'],
+    kind: 'short',
+  },
+  dutyPanelNone: {
+    default: 'Nobody is on duty right now.',
+    help: 'Duty-control panel when nobody is on duty.',
+    kind: 'short',
+  },
+  dutyPanelOnButton: {
+    default: 'Go On Duty',
+    help: 'Duty-control panel button that starts a duty session.',
+    kind: 'label',
+  },
+  dutyPanelOffButton: {
+    default: 'Go Off Duty',
+    help: 'Duty-control panel button that ends your duty session.',
+    kind: 'label',
+  },
+  dutyPanelMeButton: {
+    default: 'My Status',
+    help: 'Duty-control panel button that shows your own duty status.',
+    kind: 'label',
+  },
+  dutyPanelTeamButton: {
+    default: 'View On-Duty Team',
+    help: 'Duty-control panel button that lists who is on duty.',
+    kind: 'label',
+  },
+  myStatusTitle: { default: 'Your duty status', help: 'Title of the My Status reply.', kind: 'title' },
+  myStatusOn: {
+    default: 'You are on duty as **{name}** since {since} (ends {ends}).',
+    help: 'My Status reply while on duty.',
+    vars: ['name', 'since', 'ends'],
+  },
+  myStatusOff: { default: 'You are off duty.', help: 'My Status reply while off duty.' },
 });

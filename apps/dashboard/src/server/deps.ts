@@ -2,7 +2,13 @@ import 'server-only';
 import { Redis } from 'ioredis';
 import { createLogger, type Logger } from '@gynx/config';
 import { getDb } from '@gynx/database';
-import { RedisRateLimiter, createRestDiscordPort, type DiscordPort, type ServiceDeps } from '@gynx/services';
+import {
+  RedisRateLimiter,
+  createRestDiscordPort,
+  setup,
+  type DiscordPort,
+  type ServiceDeps,
+} from '@gynx/services';
 import { MemoryRateLimiter, type RateLimiter } from '@gynx/shared';
 import { getEnv } from './env';
 
@@ -39,6 +45,7 @@ export function getDeps(): DashboardDeps {
       now: () => new Date(),
       rateLimiter: createRateLimiter(env.REDIS_URL, log),
       discord: createRestDiscordPort(env.DISCORD_BOT_TOKEN),
+      discordAdmin: setup.createRestDiscordAdminPort(env.DISCORD_BOT_TOKEN),
       encryptionKey: env.ENCRYPTION_KEY,
       dashboardUrl: env.DASHBOARD_URL,
       linkSigningSecret: env.SESSION_SECRET,

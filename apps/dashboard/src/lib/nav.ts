@@ -132,6 +132,18 @@ export const NAV: readonly NavSection[] = [
     ],
   },
   {
+    // Reuses the settings glyph: AppShell's icon map is keyed by NavIcon.
+    label: 'Server setup',
+    href: '/setup',
+    icon: 'settings',
+    anyOf: ['setup.manage'],
+    children: [
+      { label: 'Overview', href: '/setup', anyOf: ['setup.manage'] },
+      { label: 'Configuration', href: '/setup/config', anyOf: ['setup.manage'] },
+      { label: 'History', href: '/setup/history', anyOf: ['setup.manage'] },
+    ],
+  },
+  {
     label: 'Settings',
     href: '/settings',
     icon: 'settings',

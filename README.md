@@ -44,6 +44,8 @@ pnpm dev:dashboard                     # terminal 3 → http://localhost:3000
 
 Then in Discord, as the server owner:
 
+> **New server?** Run `/setup preview`, then `/setup start`, to create the GYNX roles, channels, permissions, embeds and panels in one guided flow (or use **Server setup** in the dashboard). It previews every change first and never deletes existing channels, roles or content. See [docs/setup.md](docs/setup.md). The wizard sets the channels in step 1 for you.
+
 1. Run `/config view`, then set channels with `/config channel set`: for example kind _Status board_ → `#status`, _Security (private)_ → `#staff-security`, _CEO reports (private)_ → `#leadership`.
 2. Run `/config support-url set url:https://…` to point at your support system.
 3. In the dashboard, open **Settings → Permissions** and map your staff roles to presets (`SUPPORT_STAFF`, `MODERATOR`, …).

@@ -1,7 +1,7 @@
 import { support } from '@gynx/services';
 import type { WorkerModule } from '../framework/types';
 
-/** Support status panel: availability only (no tickets). */
+/** Support status panel (public, availability only, no tickets) and the private staff duty panel. */
 export const supportJobs: WorkerModule = {
   name: 'support',
   handlers: {
@@ -10,6 +10,8 @@ export const supportJobs: WorkerModule = {
       const guildId = job.guildId ?? w.env.DISCORD_GUILD_ID;
       const result = await support.syncSupportPanel(w.deps, guildId, w.deps.now());
       if (result !== 'unchanged' && result !== 'disabled') w.log.info({ result }, 'support panel synced');
+      const duty = await support.syncDutyControlPanel(w.deps, guildId, w.deps.now());
+      if (duty !== 'unchanged' && duty !== 'disabled') w.log.info({ result: duty }, 'duty panel synced');
     },
   },
   periodic: [
@@ -23,6 +25,7 @@ export const supportJobs: WorkerModule = {
         const expired = await support.expireDutySessions(w.deps.db, guildId, now);
         if (expired) w.log.info({ expired }, 'duty sessions expired');
         await support.syncSupportPanel(w.deps, guildId, now);
+        await support.syncDutyControlPanel(w.deps, guildId, now);
       },
     },
   ],

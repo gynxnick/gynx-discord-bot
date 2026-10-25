@@ -1,7 +1,7 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { brandEmbed, support } from '@gynx/services';
-import { discordTimestamp } from '@gynx/shared';
-import { respond, replySuccess } from '../../framework/reply';
+import { CoreText, brandEmbed, support } from '@gynx/services';
+import { AppError, discordTimestamp } from '@gynx/shared';
+import { replyInfo, respond, replySuccess } from '../../framework/reply';
 import { on, type BotModule } from '../../framework/types';
 
 /**
@@ -9,6 +9,23 @@ import { on, type BotModule } from '../../framework/types';
  * Availability only: this module never creates or manages tickets.
  */
 const T = support.SupportText;
+
+/** /duty status and the duty panel's "View On-Duty Team": approved names only. */
+function onDutyEmbed(list: readonly support.OnDutyEntry[]) {
+  return brandEmbed({
+    title: T.statusTitle(),
+    description:
+      list
+        .map((e) =>
+          T.statusLine({
+            name: e.publicName,
+            since: discordTimestamp(e.startedAt, 'R'),
+            ends: discordTimestamp(e.expiresAt, 't'),
+          }),
+        )
+        .join('\n') || T.statusNone(),
+  });
+}
 
 const duty = new SlashCommandBuilder()
   .setName('duty')
@@ -104,23 +121,47 @@ export const supportModule: BotModule = {
 
         // status
         const list = await support.listOnDuty(h.ctx.db, h.ctx.guildId, h.ctx.now());
-        await respond(i, {
-          embeds: [
-            brandEmbed({
-              title: T.statusTitle(),
-              description:
-                list
-                  .map((e) =>
-                    T.statusLine({
-                      name: e.publicName,
-                      since: discordTimestamp(e.startedAt, 'R'),
-                      ends: discordTimestamp(e.expiresAt, 't'),
-                    }),
-                  )
-                  .join('\n') || T.statusNone(),
-            }),
-          ],
-        });
+        await respond(i, { embeds: [onDutyEmbed(list)] });
+      },
+    },
+  ],
+  components: [
+    {
+      // Staff duty-control panel buttons. The service enforces `support.duty`; replies are ephemeral.
+      prefix: support.DUTY_PANEL_PREFIX,
+      module: 'support',
+      async handle(i, args, h) {
+        const action = args[0];
+        if (i.isButton() && action === 'on') {
+          const r = await support.startDuty(h.ctx);
+          await replySuccess(i, T.dutyStarted({ name: r.publicName, hours: r.hours }));
+          return;
+        }
+        if (i.isButton() && action === 'off') {
+          await support.endDuty(h.ctx);
+          await replySuccess(i, T.dutyEnded());
+          return;
+        }
+        if (i.isButton() && action === 'me') {
+          const me = await support.getMyDutyStatus(h.ctx);
+          await replyInfo(
+            i,
+            T.myStatusTitle(),
+            me.onDuty
+              ? T.myStatusOn({
+                  name: me.publicName,
+                  since: discordTimestamp(me.startedAt, 'R'),
+                  ends: discordTimestamp(me.expiresAt, 't'),
+                })
+              : T.myStatusOff(),
+          );
+          return;
+        }
+        if (i.isButton() && action === 'team') {
+          await respond(i, { embeds: [onDutyEmbed(await support.viewOnDutyTeam(h.ctx))] });
+          return;
+        }
+        throw new AppError('NOT_FOUND', CoreText.controlExpired());
       },
     },
   ],

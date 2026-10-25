@@ -37,6 +37,8 @@ export interface PanelInput {
   timeZone: string;
   websiteUrl: string | null;
   now: Date;
+  /** List approved staff names (setup option `showStaffNames`); counts are always shown. */
+  showNames?: boolean;
 }
 
 export function renderSupportPanel(p: PanelInput): MessageBody {
@@ -45,7 +47,7 @@ export function renderSupportPanel(p: PanelInput): MessageBody {
   const updated = formatLastUpdated(p.lastUpdated, p.timeZone, p.now);
 
   const fields: NonNullable<APIEmbed['fields']> = [];
-  if (online) {
+  if (online && p.showNames !== false) {
     const shown = p.onDuty.slice(0, PANEL_MAX_NAMES).map((e) => T.onDutyMember({ name: e.publicName }));
     if (count > PANEL_MAX_NAMES) shown.push(T.onDutyMore({ count: count - PANEL_MAX_NAMES }));
     fields.push({ name: T.onDutyTeamField(), value: shown.join('\n'), inline: false });
@@ -109,12 +111,15 @@ export async function syncSupportPanel(
 
   const onDuty = await listOnDuty(deps.db, guildId, now);
   const lastUpdated = cfg.supportStatusChangedAt ?? now;
+  const setup = await deps.db.guildSetup.findUnique({ where: { guildId }, select: { configuration: true } });
+  const showNames = (setup?.configuration as { showStaffNames?: unknown } | null)?.showStaffNames !== false;
   const body = renderSupportPanel({
     onDuty,
     lastUpdated,
     timeZone: cfg.timezone,
     websiteUrl: cfg.websiteUrl,
     now,
+    showNames,
   });
   const hash = sha256(JSON.stringify(body));
   const existing = parseRef(cfg.supportStatusMessage);

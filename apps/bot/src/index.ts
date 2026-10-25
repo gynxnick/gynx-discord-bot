@@ -6,6 +6,7 @@ import {
   RedisRateLimiter,
   createRestDiscordPort,
   defaultRateLimiter,
+  setup,
   startHealthServer,
   type ServiceDeps,
   withGuildText,
@@ -34,6 +35,7 @@ async function main(): Promise<void> {
     now: () => new Date(),
     rateLimiter: redis ? new RedisRateLimiter(redis) : defaultRateLimiter(),
     discord: createRestDiscordPort(env.DISCORD_BOT_TOKEN),
+    discordAdmin: setup.createRestDiscordAdminPort(env.DISCORD_BOT_TOKEN),
     encryptionKey: env.ENCRYPTION_KEY,
     dashboardUrl: env.DASHBOARD_URL,
   };
