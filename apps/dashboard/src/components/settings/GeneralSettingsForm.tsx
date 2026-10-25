@@ -196,6 +196,24 @@ export function GeneralSettingsForm({
               )}
             </Field>
             <Field
+              id="set-website"
+              label="Website URL"
+              help="Official GYNX website. When set, the support status panel shows a Visit GYNX Website button. Must use https://."
+              error={errors.websiteUrl}
+            >
+              {(p) => (
+                <Input
+                  {...p}
+                  type="url"
+                  inputMode="url"
+                  placeholder="https://gynx.gg"
+                  value={form.websiteUrl}
+                  onChange={(e) => set('websiteUrl', e.target.value)}
+                  maxLength={500}
+                />
+              )}
+            </Field>
+            <Field
               id="set-footer"
               label="Embed footer"
               help="Shown under bot embeds. 1–100 characters."
@@ -300,6 +318,7 @@ export function GeneralSettingsForm({
             {numberField('status.failureThreshold')}
             {numberField('status.recoveryThreshold')}
             {numberField('status.alertCooldownMinutes')}
+            {numberField('dutyMaxHours')}
           </CardBody>
         </Card>
 

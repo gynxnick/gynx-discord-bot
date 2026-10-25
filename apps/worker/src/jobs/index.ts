@@ -7,6 +7,7 @@ import { marketingJobs } from './marketing';
 import { moderationJobs } from './moderation';
 import { securityJobs } from './security';
 import { statusJobs } from './status';
+import { supportJobs } from './support';
 import { troubleshootingJobs } from './troubleshooting';
 
 export const workerModules: WorkerModule[] = [
@@ -19,4 +20,5 @@ export const workerModules: WorkerModule[] = [
   engagementJobs,
   marketingJobs,
   analyticsJobs,
+  supportJobs,
 ];

@@ -10,6 +10,8 @@ export interface SettingsView {
   channels: Record<string, string | null>;
   roles: Record<string, string | null>;
   supportUrl: string | null;
+  websiteUrl: string | null;
+  dutyMaxHours: number;
   status: {
     checkIntervalSeconds: number;
     failureThreshold: number;
@@ -41,6 +43,7 @@ export const NUMBER_LIMITS = {
   'retention.healthCheckDays': { min: 7, max: 365, label: 'Health checks', unit: 'days' },
   'retention.activityDays': { min: 30, max: 730, label: 'Activity data', unit: 'days' },
   activeMemberMinMessages: { min: 1, max: 1000, label: 'Active member threshold', unit: 'messages' },
+  dutyMaxHours: { min: 1, max: 48, label: 'Duty sessions end after', unit: 'hours' },
 } as const;
 export type NumberPath = keyof typeof NUMBER_LIMITS;
 
@@ -50,14 +53,20 @@ export interface SettingsForm {
   channels: Record<string, string | null>;
   roles: Record<string, string | null>;
   supportUrl: string;
+  websiteUrl: string;
   numbers: Record<NumberPath, string>;
   reportNotifyReporter: boolean;
   suggestionThreads: boolean;
   embedFooter: string;
 }
 
+/** Top-level numeric settings (no group prefix). */
+const TOP_LEVEL = ['activeMemberMinMessages', 'dutyMaxHours'] as const;
+type TopLevelPath = (typeof TOP_LEVEL)[number];
+const isTopLevel = (p: NumberPath): p is TopLevelPath => (TOP_LEVEL as readonly string[]).includes(p);
+
 function readNumber(v: SettingsView, path: NumberPath): number {
-  if (path === 'activeMemberMinMessages') return v.activeMemberMinMessages;
+  if (isTopLevel(path)) return v[path];
   const [group, key] = path.split('.') as ['status' | 'retention', string];
   return (v[group] as Record<string, number>)[key]!;
 }
@@ -72,6 +81,7 @@ export function toForm(v: SettingsView): SettingsForm {
     channels: { ...v.channels },
     roles: { ...v.roles },
     supportUrl: v.supportUrl ?? '',
+    websiteUrl: v.websiteUrl ?? '',
     numbers,
     reportNotifyReporter: v.reportNotifyReporter,
     suggestionThreads: v.suggestionThreads,
@@ -85,6 +95,8 @@ export type SettingsPatchOut = Partial<{
   channels: Record<string, string | null>;
   roles: Record<string, string | null>;
   supportUrl: string | null;
+  websiteUrl: string | null;
+  dutyMaxHours: number;
   status: Partial<SettingsView['status']>;
   retention: Partial<SettingsView['retention']>;
   activeMemberMinMessages: number;
@@ -128,6 +140,13 @@ export function buildPatch(
     if (Object.keys(out).length) patch[group] = out;
   }
 
+  const site = form.websiteUrl.trim() || null;
+  if (site !== initial.websiteUrl) {
+    if (site && !/^https:\/\/[^\s]+$/i.test(site))
+      errors.websiteUrl = 'The website URL must start with https://';
+    else patch.websiteUrl = site;
+  }
+
   const url = form.supportUrl.trim() || null;
   if (url !== initial.supportUrl) {
     if (url && !/^https:\/\/[^\s]+$/i.test(url))
@@ -148,7 +167,7 @@ export function buildPatch(
       continue;
     }
     if (n === readNumber(initial, path)) continue;
-    if (path === 'activeMemberMinMessages') patch.activeMemberMinMessages = n;
+    if (isTopLevel(path)) patch[path] = n;
     else {
       const [group, key] = path.split('.') as ['status' | 'retention', string];
       patch[group] = { ...(patch[group] ?? {}), [key]: n };

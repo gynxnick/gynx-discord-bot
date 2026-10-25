@@ -22,6 +22,7 @@ export const CHANNEL_KINDS = {
   log: 'logChannelId',
   modLog: 'modLogChannelId',
   statusBoard: 'statusBoardChannelId',
+  supportStatus: 'supportStatusChannelId',
   status: 'statusChannelId',
   incident: 'incidentChannelId',
   announcement: 'announcementChannelId',
@@ -36,6 +37,7 @@ export const CHANNEL_KIND_LABELS: Record<ChannelKind, string> = {
   log: 'Bot log',
   modLog: 'Moderation log',
   statusBoard: 'Live status board',
+  supportStatus: 'Support status panel',
   status: 'Status alerts',
   incident: 'Incident updates',
   announcement: 'Announcements',
@@ -50,6 +52,7 @@ export const CHANNEL_KIND_LABELS: Record<ChannelKind, string> = {
 const PRIVATE_CHANNELS: readonly ChannelKind[] = ['log', 'modLog', 'security', 'report', 'partnerReview'];
 const PUBLIC_CHANNELS: readonly ChannelKind[] = [
   'statusBoard',
+  'supportStatus',
   'status',
   'incident',
   'announcement',
@@ -103,6 +106,8 @@ export const settingsPatchSchema = z
       )
       .strict(),
     supportUrl: httpsUrl.nullable(),
+    websiteUrl: httpsUrl.nullable(),
+    dutyMaxHours: int(1, 48),
     status: z
       .object({
         checkIntervalSeconds: int(15, 3600),
@@ -144,6 +149,8 @@ export interface GuildSettings {
   channels: Record<ChannelKind, string | null>;
   roles: Record<RoleKind, string | null>;
   supportUrl: string | null;
+  websiteUrl: string | null;
+  dutyMaxHours: number;
   status: {
     checkIntervalSeconds: number;
     failureThreshold: number;
@@ -194,6 +201,8 @@ function toView(
       string | null
     >,
     supportUrl: cfg.supportUrl,
+    websiteUrl: cfg.websiteUrl,
+    dutyMaxHours: cfg.dutyMaxHours,
     status: {
       checkIntervalSeconds: cfg.statusCheckIntervalSeconds,
       failureThreshold: cfg.statusFailureThreshold,
@@ -245,6 +254,8 @@ function toColumns(p: z.output<typeof settingsPatchSchema>): ConfigColumns {
   for (const [k, v] of Object.entries(p.roles ?? {}))
     if (v !== undefined) (c as Record<string, unknown>)[ROLE_KINDS[k as RoleKind]] = v;
   if (p.supportUrl !== undefined) c.supportUrl = p.supportUrl;
+  if (p.websiteUrl !== undefined) c.websiteUrl = p.websiteUrl;
+  if (p.dutyMaxHours !== undefined) c.dutyMaxHours = p.dutyMaxHours;
   const s = p.status ?? {};
   if (s.checkIntervalSeconds !== undefined) c.statusCheckIntervalSeconds = s.checkIntervalSeconds;
   if (s.failureThreshold !== undefined) c.statusFailureThreshold = s.failureThreshold;

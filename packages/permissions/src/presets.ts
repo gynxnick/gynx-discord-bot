@@ -11,7 +11,12 @@ export const ROLE_PRESETS = [
 ] as const;
 export type RolePreset = (typeof ROLE_PRESETS)[number];
 
-const SUPPORT: PermissionKey[] = ['dashboard.access', 'incidents.view', 'troubleshooting.manage'];
+const SUPPORT: PermissionKey[] = [
+  'dashboard.access',
+  'support.duty',
+  'incidents.view',
+  'troubleshooting.manage',
+];
 
 const MODERATOR: PermissionKey[] = [
   'dashboard.access',
@@ -39,6 +44,7 @@ const ANALYST: PermissionKey[] = ['dashboard.access', 'analytics.view', 'analyti
 const SENIOR: PermissionKey[] = [
   ...SUPPORT,
   ...MODERATOR,
+  'support.duty.manage',
   'incidents.manage',
   'security.reports.manage',
   'moderation.ban',

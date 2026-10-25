@@ -32,6 +32,8 @@ export default async function SettingsPage() {
     channels: settings.channels,
     roles: settings.roles,
     supportUrl: settings.supportUrl,
+    websiteUrl: settings.websiteUrl,
+    dutyMaxHours: settings.dutyMaxHours,
     status: settings.status,
     retention: settings.retention,
     activeMemberMinMessages: settings.activeMemberMinMessages,

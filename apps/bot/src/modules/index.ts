@@ -8,6 +8,7 @@ import { marketingModule } from './marketing';
 import { moderationModule } from './moderation';
 import { securityModule } from './security';
 import { statusModule } from './status';
+import { supportModule } from './support';
 import { troubleshootingModule } from './troubleshooting';
 
 /** Every feature module. Each folder owns its commands, components and gateway listeners. */
@@ -22,4 +23,5 @@ export const modules: BotModule[] = [
   engagementModule,
   marketingModule,
   analyticsModule,
+  supportModule,
 ];

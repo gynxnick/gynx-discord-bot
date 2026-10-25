@@ -6,6 +6,9 @@
 export const PERMISSIONS = {
   'dashboard.access': 'Sign in to the web dashboard',
 
+  'support.duty': 'Go on and off support duty (shown on the public support status panel)',
+  'support.duty.manage': 'Approve public duty names and end other staff duty sessions',
+
   'incidents.view': 'View incidents and monitoring internals',
   'incidents.manage': 'Create and update incidents and maintenance windows',
   'status.manage': 'Configure monitored services, endpoints and thresholds',

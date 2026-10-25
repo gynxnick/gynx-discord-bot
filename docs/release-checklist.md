@@ -28,6 +28,7 @@ The installer covers most of this list: see [deployment.md → Single-VPS instal
 - [ ] Community: welcome message, rules, verification role (gate channels on it in Discord), self-roles.
 - [ ] Post a role panel in a read-only `#roles` channel (Community → Self-roles → **Post a panel**, or `/role-panel create`). It updates itself when you change the self-role list.
 - [ ] Make a `#suggestions` channel and set it with `/config channel set` → **Suggestions**. Members just type there; each message becomes a voting card with a discussion thread. Give the bot **Manage Messages** and **Create Public Threads** there. A slowmode (e.g. 30 s) helps.
+- [ ] Support status panel: make a read-only `#support-status` channel and set it with `/config channel set` → **Support status panel**; set **Website URL** in Settings → General for the "Visit GYNX Website" button. Approve each support agent's public name (`/duty profile set` or Status → Support duty); agents then use `/duty on` / `/duty off`. The panel only shows availability; tickets stay in the GYNX web ticketer.
 - [ ] Optional: reword anything the bot says in **Settings → Bot text**.
 - [ ] Confirm the weekly report schedule (Analytics → Weekly reports → Schedules).
 

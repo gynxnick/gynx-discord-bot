@@ -381,11 +381,11 @@ _requires `settings.manage` · module `core`_
 - **`timezone`**: Set the server time zone used for schedules and reports
   - `zone` (text): IANA time zone, e.g. Europe/London
 - **`module enable`**: Enable a module
-  - `module` (text): Module — one of: `Status & incidents`, `Onboarding, roles & FAQ`, `Moderation & automod`, `Troubleshooting assistant`, `Game utilities`, `Security & abuse reports`, `Events, polls, suggestions & giveaways`, `Referrals & partners`, `Announcements`, `Analytics & reports`
+  - `module` (text): Module — one of: `Status & incidents`, `Onboarding, roles & FAQ`, `Moderation & automod`, `Troubleshooting assistant`, `Game utilities`, `Security & abuse reports`, `Events, polls, suggestions & giveaways`, `Referrals & partners`, `Announcements`, `Analytics & reports`, `Support status panel`
 - **`module disable`**: Disable a module
-  - `module` (text): Module — one of: `Status & incidents`, `Onboarding, roles & FAQ`, `Moderation & automod`, `Troubleshooting assistant`, `Game utilities`, `Security & abuse reports`, `Events, polls, suggestions & giveaways`, `Referrals & partners`, `Announcements`, `Analytics & reports`
+  - `module` (text): Module — one of: `Status & incidents`, `Onboarding, roles & FAQ`, `Moderation & automod`, `Troubleshooting assistant`, `Game utilities`, `Security & abuse reports`, `Events, polls, suggestions & giveaways`, `Referrals & partners`, `Announcements`, `Analytics & reports`, `Support status panel`
 - **`channel set`**: Set a channel
-  - `kind` (text): Which channel — one of: `Bot log`, `Moderation log`, `Live status board`, `Status alerts`, `Incident updates`, `Announcements`, `Suggestions`, `Security (private)`, `CEO reports (private)`, `Events`, `Partner review (private)`
+  - `kind` (text): Which channel — one of: `Bot log`, `Moderation log`, `Live status board`, `Support status panel`, `Status alerts`, `Incident updates`, `Announcements`, `Suggestions`, `Security (private)`, `CEO reports (private)`, `Events`, `Partner review (private)`
   - `channel` (channel): Channel
 - **`role set`**: Set a role
   - `kind` (text): Which role — one of: `Staff ping`, `Escalation`, `Status alerts`, `Partner`
@@ -402,3 +402,22 @@ Per-staff activity counts (moderation, reports, incidents, partner reviews)
 _requires `analytics.view` · module `analytics`_
 
 - `period` (text) _(optional)_: Time range (default 7 days) — one of: `Last 7 days`, `Last 30 days`, `Last 90 days`
+
+## Support
+
+### `/duty`
+
+Go on or off support duty (shown on the public support status panel)  
+_requires `support.duty` · limit 10 per 60s · module `support`_
+
+- **`on`**: Go on duty
+- **`off`**: Go off duty
+- **`status`**: Who is on duty right now
+- **`end`**: End another staff member's duty session (support leads)
+  - `user` (user): Staff member
+- **`profile set`**: Approve or rename the public name shown on the panel
+  - `user` (user): Staff member
+  - `name` (text): Public name, e.g. Alex
+- **`profile remove`**: Stop a staff member from going on duty
+  - `user` (user): Staff member
+- **`profile list`**: List approved public names

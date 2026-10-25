@@ -37,6 +37,8 @@ model Guild {
   selfRoles       SelfAssignableRole[]
   rolePanels      RolePanel[]
   textOverrides   TextOverride[]
+  dutyProfiles    DutyProfile[]
+  dutySessions    DutySession[]
   faqCategories   FaqCategory[]
   faqEntries      FaqEntry[]
   guides          Guide[]
@@ -78,7 +80,7 @@ model GuildConfig {
   guild    Guild  @relation(fields: [guildId], references: [id], onDelete: Cascade)
   timezone String @default("UTC")
 
-  enabledModules String[] @default(["status", "community", "moderation", "troubleshooting", "games", "security", "engagement", "referrals", "announcements", "analytics"])
+  enabledModules String[] @default(["status", "community", "moderation", "troubleshooting", "games", "security", "engagement", "referrals", "announcements", "analytics", "support"])
 
   // Channels
   logChannelId          String?
@@ -107,6 +109,18 @@ model GuildConfig {
 
   // External support system (tickets are handled outside this bot)
   supportUrl String?
+  /// Official website (optional "Visit GYNX Website" button on the support status panel)
+  websiteUrl String?
+
+  // Support status panel (customer-facing duty availability; no ticket controls)
+  supportStatusChannelId String?
+  /// "<channelId>:<messageId>" of the posted panel
+  supportStatusMessage   String?
+  supportStatusHash      String?
+  /// When on-duty availability last changed (shown as "Last updated")
+  supportStatusChangedAt DateTime?
+  /// Duty sessions end automatically after this many hours
+  dutyMaxHours           Int       @default(12)
 
   // Status
   statusCheckIntervalSeconds Int @default(60)
@@ -222,6 +236,45 @@ enum JobStatus {
 
 /// Durable, idempotent job queue. `dedupeKey` guarantees a logical job is enqueued once;
 /// workers claim with FOR UPDATE SKIP LOCKED so multiple instances never double-run.
+/// A staff member approved to appear on the public support status panel, under an approved public name.
+model DutyProfile {
+  guildId      String
+  guild        Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  userId       String
+  /// The only name customers ever see (never the Discord username or ID)
+  publicName   String
+  enabled      Boolean  @default(true)
+  approvedById String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@id([guildId, userId])
+}
+
+enum DutyEndReason {
+  MANUAL
+  EXPIRED
+  LEFT_SERVER
+  ENDED_BY_ADMIN
+  PROFILE_REMOVED
+}
+
+/// One on-duty period. Open while endedAt is null and expiresAt is in the future.
+model DutySession {
+  id        String         @id @default(cuid())
+  guildId   String
+  guild     Guild          @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  userId    String
+  startedAt DateTime       @default(now())
+  expiresAt DateTime
+  endedAt   DateTime?
+  endReason DutyEndReason?
+  endedById String?
+
+  @@index([guildId, endedAt])
+  @@index([guildId, userId, endedAt])
+}
+
 /// Staff-edited wording for a bot text key (see packages/services/src/core/text.ts). Absent = default text.
 model TextOverride {
   guildId     String

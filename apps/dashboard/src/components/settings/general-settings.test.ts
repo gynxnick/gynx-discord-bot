@@ -7,6 +7,8 @@ const base: SettingsView = {
   channels: { log: null, status: '123456789012345678' },
   roles: { staffPing: null },
   supportUrl: null,
+  websiteUrl: null,
+  dutyMaxHours: 12,
   status: { checkIntervalSeconds: 60, failureThreshold: 3, recoveryThreshold: 2, alertCooldownMinutes: 15 },
   retention: { diagnosticHours: 24, reportDays: 365, auditDays: 365, healthCheckDays: 30, activityDays: 90 },
   activeMemberMinMessages: 1,

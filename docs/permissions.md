@@ -48,35 +48,37 @@ Regenerate with `pnpm docs:permissions` after changing keys, presets or command 
 
 ### Permission keys by preset
 
-| Key                             | Description                                             | Own | Adm | Snr | Sup | Mod | Mkt | Ana |
-| ------------------------------- | ------------------------------------------------------- | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
-| `dashboard.access`              | Sign in to the web dashboard                            |  ✓  |  ✓  |  ✓  |  ✓  |  ✓  |  ✓  |  ✓  |
-| `incidents.view`                | View incidents and monitoring internals                 |  ✓  |  ✓  |  ✓  |  ✓  |     |     |     |
-| `incidents.manage`              | Create and update incidents and maintenance windows     |  ✓  |  ✓  |  ✓  |     |     |     |     |
-| `status.manage`                 | Configure monitored services, endpoints and thresholds  |  ✓  |  ✓  |     |     |     |     |     |
-| `moderation.execute`            | Warn, timeout and kick members                          |  ✓  |  ✓  |  ✓  |     |  ✓  |     |     |
-| `moderation.ban` 🔒             | Ban and unban members                                   |  ✓  |  ✓  |  ✓  |     |     |     |     |
-| `moderation.audit.view`         | View moderation records and moderator notes             |  ✓  |  ✓  |  ✓  |     |  ✓  |     |     |
-| `automod.manage`                | Configure automod thresholds, blocked terms and domains |  ✓  |  ✓  |     |     |     |     |     |
-| `security.reports.view`         | View abuse and security reports                         |  ✓  |  ✓  |  ✓  |     |  ✓  |     |     |
-| `security.reports.manage` 🔒    | Triage, investigate and resolve reports                 |  ✓  |  ✓  |  ✓  |     |     |     |     |
-| `audit.view` 🔒                 | View the security audit log                             |  ✓  |  ✓  |  ✓  |     |     |     |     |
-| `community.manage`              | Edit welcome flow, self-roles, FAQs and guides          |  ✓  |  ✓  |     |     |     |     |     |
-| `suggestions.manage`            | Respond to and moderate suggestions                     |  ✓  |  ✓  |  ✓  |     |  ✓  |     |     |
-| `troubleshooting.manage`        | Edit knowledge base and troubleshooting flows           |  ✓  |  ✓  |  ✓  |  ✓  |     |     |     |
-| `events.manage`                 | Create and manage events                                |  ✓  |  ✓  |     |     |     |  ✓  |     |
-| `polls.manage`                  | Create and close polls                                  |  ✓  |  ✓  |     |     |     |  ✓  |     |
-| `giveaways.manage`              | Create, end and reroll giveaways                        |  ✓  |  ✓  |     |     |     |  ✓  |     |
-| `announcements.create`          | Draft announcements                                     |  ✓  |  ✓  |     |     |     |  ✓  |     |
-| `announcements.publish`         | Publish and schedule announcements                      |  ✓  |  ✓  |     |     |     |  ✓  |     |
-| `announcements.mass_mention` 🔒 | Use @everyone/@here and role mentions in announcements  |  ✓  |  ✓  |     |     |     |     |     |
-| `referrals.view`                | View referral analytics                                 |  ✓  |  ✓  |     |     |     |  ✓  |  ✓  |
-| `referrals.manage`              | Create tracked invites and review attribution disputes  |  ✓  |  ✓  |     |     |     |  ✓  |     |
-| `partners.review`               | Review partner applications and campaigns               |  ✓  |  ✓  |     |     |     |  ✓  |     |
-| `analytics.view`                | View analytics dashboards and weekly reports            |  ✓  |  ✓  |  ✓  |     |     |  ✓  |  ✓  |
-| `analytics.export`              | Export analytics reports                                |  ✓  |  ✓  |     |     |     |     |  ✓  |
-| `settings.manage` 🔒            | Change module, channel and integration settings         |  ✓  |  ✓  |     |     |     |     |     |
-| `permissions.manage` 🔒         | Change staff permissions                                |  ✓  |  ✓  |     |     |     |     |     |
+| Key                             | Description                                                           | Own | Adm | Snr | Sup | Mod | Mkt | Ana |
+| ------------------------------- | --------------------------------------------------------------------- | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| `dashboard.access`              | Sign in to the web dashboard                                          |  ✓  |  ✓  |  ✓  |  ✓  |  ✓  |  ✓  |  ✓  |
+| `support.duty`                  | Go on and off support duty (shown on the public support status panel) |  ✓  |  ✓  |  ✓  |  ✓  |     |     |     |
+| `support.duty.manage`           | Approve public duty names and end other staff duty sessions           |  ✓  |  ✓  |  ✓  |     |     |     |     |
+| `incidents.view`                | View incidents and monitoring internals                               |  ✓  |  ✓  |  ✓  |  ✓  |     |     |     |
+| `incidents.manage`              | Create and update incidents and maintenance windows                   |  ✓  |  ✓  |  ✓  |     |     |     |     |
+| `status.manage`                 | Configure monitored services, endpoints and thresholds                |  ✓  |  ✓  |     |     |     |     |     |
+| `moderation.execute`            | Warn, timeout and kick members                                        |  ✓  |  ✓  |  ✓  |     |  ✓  |     |     |
+| `moderation.ban` 🔒             | Ban and unban members                                                 |  ✓  |  ✓  |  ✓  |     |     |     |     |
+| `moderation.audit.view`         | View moderation records and moderator notes                           |  ✓  |  ✓  |  ✓  |     |  ✓  |     |     |
+| `automod.manage`                | Configure automod thresholds, blocked terms and domains               |  ✓  |  ✓  |     |     |     |     |     |
+| `security.reports.view`         | View abuse and security reports                                       |  ✓  |  ✓  |  ✓  |     |  ✓  |     |     |
+| `security.reports.manage` 🔒    | Triage, investigate and resolve reports                               |  ✓  |  ✓  |  ✓  |     |     |     |     |
+| `audit.view` 🔒                 | View the security audit log                                           |  ✓  |  ✓  |  ✓  |     |     |     |     |
+| `community.manage`              | Edit welcome flow, self-roles, FAQs and guides                        |  ✓  |  ✓  |     |     |     |     |     |
+| `suggestions.manage`            | Respond to and moderate suggestions                                   |  ✓  |  ✓  |  ✓  |     |  ✓  |     |     |
+| `troubleshooting.manage`        | Edit knowledge base and troubleshooting flows                         |  ✓  |  ✓  |  ✓  |  ✓  |     |     |     |
+| `events.manage`                 | Create and manage events                                              |  ✓  |  ✓  |     |     |     |  ✓  |     |
+| `polls.manage`                  | Create and close polls                                                |  ✓  |  ✓  |     |     |     |  ✓  |     |
+| `giveaways.manage`              | Create, end and reroll giveaways                                      |  ✓  |  ✓  |     |     |     |  ✓  |     |
+| `announcements.create`          | Draft announcements                                                   |  ✓  |  ✓  |     |     |     |  ✓  |     |
+| `announcements.publish`         | Publish and schedule announcements                                    |  ✓  |  ✓  |     |     |     |  ✓  |     |
+| `announcements.mass_mention` 🔒 | Use @everyone/@here and role mentions in announcements                |  ✓  |  ✓  |     |     |     |     |     |
+| `referrals.view`                | View referral analytics                                               |  ✓  |  ✓  |     |     |     |  ✓  |  ✓  |
+| `referrals.manage`              | Create tracked invites and review attribution disputes                |  ✓  |  ✓  |     |     |     |  ✓  |     |
+| `partners.review`               | Review partner applications and campaigns                             |  ✓  |  ✓  |     |     |     |  ✓  |     |
+| `analytics.view`                | View analytics dashboards and weekly reports                          |  ✓  |  ✓  |  ✓  |     |     |  ✓  |  ✓  |
+| `analytics.export`              | Export analytics reports                                              |  ✓  |  ✓  |     |     |     |     |  ✓  |
+| `settings.manage` 🔒            | Change module, channel and integration settings                       |  ✓  |  ✓  |     |     |     |     |     |
+| `permissions.manage` 🔒         | Change staff permissions                                              |  ✓  |  ✓  |     |     |     |     |     |
 
 Legend: Own = OWNER, Adm = ADMINISTRATOR, Snr = SENIOR_STAFF, Sup = SUPPORT_STAFF, Mod = MODERATOR, Mkt = MARKETING_STAFF, Ana = ANALYST. 🔒 = privileged (never grantable to the partner role).
 
@@ -92,6 +94,7 @@ Legend: Own = OWNER, Adm = ADMINISTRATOR, Snr = SENIOR_STAFF, Sup = SUPPORT_STAF
 | `/ban`                   | `moderation.ban`        | BanMembers                 | —                     |
 | `/config`                | `settings.manage`       | ManageGuild                | —                     |
 | `/diagnose`              | any member*             | everyone                   | 3 / 300s              |
+| `/duty`                  | `support.duty`          | ManageMessages             | 10 / 60s              |
 | `/event`                 | any member*             | everyone                   | 10 / 60s              |
 | `/faq`                   | any member*             | everyone                   | 15 / 60s              |
 | `/gameinfo`              | any member*             | everyone                   | 10 / 60s              |
