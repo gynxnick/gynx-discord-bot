@@ -31,6 +31,8 @@ export const CHANNEL_KINDS = {
   report: 'reportChannelId',
   event: 'eventChannelId',
   partnerReview: 'partnerReviewChannelId',
+  updates: 'updatesChannelId',
+  updatesStaff: 'updatesStaffChannelId',
 } as const satisfies Record<string, keyof GuildConfig>;
 export type ChannelKind = keyof typeof CHANNEL_KINDS;
 export const CHANNEL_KIND_LABELS: Record<ChannelKind, string> = {
@@ -46,10 +48,19 @@ export const CHANNEL_KIND_LABELS: Record<ChannelKind, string> = {
   report: 'CEO reports (private)',
   event: 'Events',
   partnerReview: 'Partner review (private)',
+  updates: 'Update feed',
+  updatesStaff: 'Update feed (staff, private)',
 };
 
 /** Staff-only channels must never be the same as a public-facing channel. */
-const PRIVATE_CHANNELS: readonly ChannelKind[] = ['log', 'modLog', 'security', 'report', 'partnerReview'];
+const PRIVATE_CHANNELS: readonly ChannelKind[] = [
+  'log',
+  'modLog',
+  'security',
+  'report',
+  'partnerReview',
+  'updatesStaff',
+];
 const PUBLIC_CHANNELS: readonly ChannelKind[] = [
   'statusBoard',
   'supportStatus',
@@ -58,6 +69,7 @@ const PUBLIC_CHANNELS: readonly ChannelKind[] = [
   'announcement',
   'suggestion',
   'event',
+  'updates',
 ];
 
 export const ROLE_KINDS = {

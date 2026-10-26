@@ -57,6 +57,12 @@ export const dashboardEnvSchema = baseSchema.extend({
   DASHBOARD_URL: z.string().url(),
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 characters'),
   SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(720).default(12),
+  /** Optional: enables POST /api/webhooks/github (update feed). Unset → the endpoint returns 503. */
+  GITHUB_WEBHOOK_SECRET: z
+    .string()
+    .min(16, 'GITHUB_WEBHOOK_SECRET must be at least 16 characters (openssl rand -hex 32)')
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
 });
 
 export type BotEnv = z.infer<typeof botEnvSchema>;

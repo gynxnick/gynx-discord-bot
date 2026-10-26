@@ -240,6 +240,8 @@ echo "    https://${CFG[DASHBOARD_DOMAIN]}/api/auth/callback"
 gen POSTGRES_PASSWORD openssl rand -hex 24
 gen SESSION_SECRET openssl rand -base64 48
 gen ENCRYPTION_KEY openssl rand -hex 32
+# Update feed: GitHub signs webhook deliveries with this (shown at the end of the install).
+gen GITHUB_WEBHOOK_SECRET openssl rand -hex 32
 CFG[DASHBOARD_URL]="https://${CFG[DASHBOARD_DOMAIN]}"
 CFG[NODE_ENV]=production
 CFG[LOG_LEVEL]="${CFG[LOG_LEVEL]:-info}"
@@ -315,6 +317,15 @@ Next:
      and below staff roles.
   2. Sign in to the dashboard as the server owner and follow docs/release-checklist.md
      (permissions, channels, support URL, monitored services).
+
+GitHub update feed (optional): add a webhook to each repository to post pushes/releases.
+  GitHub → repository → Settings → Webhooks → Add webhook
+    Payload URL   ${CFG[DASHBOARD_URL]}/api/webhooks/github
+    Content type  application/json
+    Secret        ${CFG[GITHUB_WEBHOOK_SECRET]}
+    Events        Let me select individual events → Pushes, Releases
+  Then add the repository in the dashboard (Status & incidents → Update feed) and set
+  the "Update feed" channels in Settings. Show these again any time: gynx github-webhook
 
 Day-to-day:  gynx status | gynx logs bot | gynx update | gynx backup | gynx help
 EOF

@@ -19,6 +19,7 @@ The community, status, security and analytics platform for the **GYNX.GG** Disco
 | Engagement           | Events with RSVP, capacity and waitlists; polls (single/multi, anonymous); suggestions board; giveaways with cryptographically secure, auditable draws                                                                                          | `/event` `/poll` `/suggest` `/giveaway`                                  |
 | Announcements        | Drafts, templates, previews, scheduled publishing in the guild time zone, at-most-once delivery, mass-mention confirmation, tracked links                                                                                                       | `/announce` `/schedule-announcement`                                     |
 | Referrals & partners | Tracked invites with honest attribution (confirmed / ambiguous / unknown), abuse flags, leaderboards, partner applications and campaigns                                                                                                        | `/referral` `/partners`                                                  |
+| Update feed          | GitHub pushes posted to a private staff channel; releases and `[public]`-tagged commits posted publicly (signed webhooks, secret redaction)                                                                                                     | Dashboard → Status → Update feed                                         |
 | Analytics            | Observed activity, growth, moderation, infrastructure and marketing metrics with period comparisons; automated weekly CEO report                                                                                                                | `/analytics` `/staff-stats`                                              |
 | Administration       | Per-guild configuration, module toggles, channels, roles, retention                                                                                                                                                                             | `/config`                                                                |
 
@@ -87,6 +88,7 @@ tests             Integration tests and helpers
 - [Deployment](docs/deployment.md): Discord setup, production topology, releases, migrations, backups
 - [Development](docs/development.md): conventions, adding features, testing
 - [Release checklist](docs/release-checklist.md): first-release setup and known limitations
+- [Update feed](docs/updates.md): GitHub webhook setup, the `[public]` tag, security notes
 
 ## License
 

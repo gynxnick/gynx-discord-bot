@@ -39,6 +39,8 @@ model Guild {
   textOverrides   TextOverride[]
   dutyProfiles    DutyProfile[]
   dutySessions    DutySession[]
+  updateRepos     UpdateFeedRepo[]
+  updateEvents    UpdateFeedEvent[]
   setup           GuildSetup?
   setupOperations SetupOperation[]
   setupResources  SetupResource[]
@@ -83,7 +85,7 @@ model GuildConfig {
   guild    Guild  @relation(fields: [guildId], references: [id], onDelete: Cascade)
   timezone String @default("UTC")
 
-  enabledModules String[] @default(["status", "community", "moderation", "troubleshooting", "games", "security", "engagement", "referrals", "announcements", "analytics", "support"])
+  enabledModules String[] @default(["status", "community", "moderation", "troubleshooting", "games", "security", "engagement", "referrals", "announcements", "analytics", "support", "updates"])
 
   // Channels
   logChannelId          String?
@@ -131,6 +133,12 @@ model GuildConfig {
   dutyPanelMessage       String?
   /// Private channel for administrative setup change summaries
   setupLogChannelId      String?
+
+  // Update feed (GitHub pushes and releases)
+  /// Public channel: releases and commits tagged [public] only
+  updatesChannelId       String?
+  /// Private staff channel: every push to a tracked branch
+  updatesStaffChannelId  String?
 
   // Status
   statusCheckIntervalSeconds Int @default(60)
@@ -283,6 +291,57 @@ model DutySession {
 
   @@index([guildId, endedAt])
   @@index([guildId, userId, endedAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Update feed (GitHub webhooks → staff and public update posts)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A GitHub repository whose pushes/releases are posted to Discord.
+model UpdateFeedRepo {
+  id            String            @id @default(cuid())
+  guildId       String
+  guild         Guild             @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  /// "owner/repo", lower-cased (GitHub names are case-insensitive)
+  fullName      String
+  /// Friendly name shown in posts, e.g. "Website"
+  displayName   String
+  /// Embed colour, "#RRGGBB"
+  color         String
+  /// Tracked branch; null = the repository's default branch
+  branch        String?
+  enabled       Boolean           @default(true)
+  /// Post releases and [public]-tagged commits to the public updates channel
+  publicEnabled Boolean           @default(true)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  events        UpdateFeedEvent[]
+
+  @@unique([guildId, fullName])
+}
+
+/// One accepted webhook delivery (idempotent by GitHub's X-GitHub-Delivery id).
+model UpdateFeedEvent {
+  id              String         @id @default(cuid())
+  guildId         String
+  guild           Guild          @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  repoId          String
+  repo            UpdateFeedRepo @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  deliveryId      String         @unique
+  /// "push" | "release"
+  kind            String
+  /// Branch name for pushes, tag name for releases
+  ref             String
+  /// Normalised, trimmed payload (commits, compareUrl, pusher, release)
+  data            Json
+  staffMessageId  String?
+  publicMessageId String?
+  /// PENDING | POSTED | SKIPPED (no channel set) | NO_ACCESS (bot cannot post)
+  status          String         @default("PENDING")
+  createdAt       DateTime       @default(now())
+
+  @@index([guildId, createdAt])
+  @@index([repoId])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

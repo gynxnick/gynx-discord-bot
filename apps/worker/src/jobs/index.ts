@@ -10,6 +10,7 @@ import { setupJobs } from './setup';
 import { statusJobs } from './status';
 import { supportJobs } from './support';
 import { troubleshootingJobs } from './troubleshooting';
+import { updatesJobs } from './updates';
 
 export const workerModules: WorkerModule[] = [
   coreJobs,
@@ -22,5 +23,6 @@ export const workerModules: WorkerModule[] = [
   marketingJobs,
   analyticsJobs,
   supportJobs,
+  updatesJobs,
   setupJobs,
 ];

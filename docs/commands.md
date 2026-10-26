@@ -381,11 +381,11 @@ _requires `settings.manage` · module `core`_
 - **`timezone`**: Set the server time zone used for schedules and reports
   - `zone` (text): IANA time zone, e.g. Europe/London
 - **`module enable`**: Enable a module
-  - `module` (text): Module — one of: `Status & incidents`, `Onboarding, roles & FAQ`, `Moderation & automod`, `Troubleshooting assistant`, `Game utilities`, `Security & abuse reports`, `Events, polls, suggestions & giveaways`, `Referrals & partners`, `Announcements`, `Analytics & reports`, `Support status panel`
+  - `module` (text): Module — one of: `Status & incidents`, `Onboarding, roles & FAQ`, `Moderation & automod`, `Troubleshooting assistant`, `Game utilities`, `Security & abuse reports`, `Events, polls, suggestions & giveaways`, `Referrals & partners`, `Announcements`, `Analytics & reports`, `Support status panel`, `Update feed (GitHub)`
 - **`module disable`**: Disable a module
-  - `module` (text): Module — one of: `Status & incidents`, `Onboarding, roles & FAQ`, `Moderation & automod`, `Troubleshooting assistant`, `Game utilities`, `Security & abuse reports`, `Events, polls, suggestions & giveaways`, `Referrals & partners`, `Announcements`, `Analytics & reports`, `Support status panel`
+  - `module` (text): Module — one of: `Status & incidents`, `Onboarding, roles & FAQ`, `Moderation & automod`, `Troubleshooting assistant`, `Game utilities`, `Security & abuse reports`, `Events, polls, suggestions & giveaways`, `Referrals & partners`, `Announcements`, `Analytics & reports`, `Support status panel`, `Update feed (GitHub)`
 - **`channel set`**: Set a channel
-  - `kind` (text): Which channel — one of: `Bot log`, `Moderation log`, `Live status board`, `Support status panel`, `Status alerts`, `Incident updates`, `Announcements`, `Suggestions`, `Security (private)`, `CEO reports (private)`, `Events`, `Partner review (private)`
+  - `kind` (text): Which channel — one of: `Bot log`, `Moderation log`, `Live status board`, `Support status panel`, `Status alerts`, `Incident updates`, `Announcements`, `Suggestions`, `Security (private)`, `CEO reports (private)`, `Events`, `Partner review (private)`, `Update feed`, `Update feed (staff, private)`
   - `channel` (channel): Channel
 - **`role set`**: Set a role
   - `kind` (text): Which role — one of: `Staff ping`, `Escalation`, `Status alerts`, `Partner`

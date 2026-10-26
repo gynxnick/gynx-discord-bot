@@ -11,4 +11,5 @@ export * as engagement from './engagement';
 export * as marketing from './marketing';
 export * as analytics from './analytics';
 export * as support from './support';
+export * as updates from './updates';
 export * as setup from './setup';

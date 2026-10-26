@@ -12,7 +12,7 @@ import { requirePagePermission } from '@/server/session';
 
 export const metadata: Metadata = { title: 'Settings' };
 
-const PRIVATE_CHANNELS = new Set(['log', 'modLog', 'security', 'report', 'partnerReview']);
+const PRIVATE_CHANNELS = new Set(['log', 'modLog', 'security', 'report', 'partnerReview', 'updatesStaff']);
 
 export default async function SettingsPage() {
   const page = await requirePagePermission('settings.manage', 'settings.general');

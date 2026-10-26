@@ -31,12 +31,13 @@ export const NAV: readonly NavSection[] = [
     label: 'Status & incidents',
     href: '/status',
     icon: 'status',
-    anyOf: ['incidents.view', 'incidents.manage', 'status.manage', 'support.duty.manage'],
+    anyOf: ['incidents.view', 'incidents.manage', 'status.manage', 'support.duty.manage', 'updates.manage'],
     children: [
       { label: 'Services', href: '/status', anyOf: ['incidents.view', 'incidents.manage', 'status.manage'] },
       { label: 'Incidents', href: '/status/incidents', anyOf: ['incidents.view', 'incidents.manage'] },
       { label: 'Maintenance', href: '/status/maintenance', anyOf: ['incidents.view', 'incidents.manage'] },
       { label: 'Support duty', href: '/status/duty', anyOf: ['support.duty.manage'] },
+      { label: 'Update feed', href: '/status/updates', anyOf: ['updates.manage'] },
     ],
   },
   {

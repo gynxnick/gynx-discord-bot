@@ -22,7 +22,8 @@ export function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     {
-      source: '/((?!_next/static|_next/image|favicon.ico|robots.txt).*)',
+      // api/webhooks/*: server-to-server (GitHub), authenticated by signature; no CSP/nonce needed.
+      source: '/((?!_next/static|_next/image|favicon.ico|robots.txt|api/webhooks/).*)',
       missing: [
         { type: 'header', key: 'next-router-prefetch' },
         { type: 'header', key: 'purpose', value: 'prefetch' },

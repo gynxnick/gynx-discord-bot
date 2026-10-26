@@ -105,6 +105,32 @@ cmd_set() {
   dc up -d --force-recreate --no-deps bot worker dashboard
 }
 
+# Print the GitHub webhook settings for the update feed; creates the secret on first use.
+cmd_github_webhook() {
+  local secret url tmp
+  secret=$(grep -E '^GITHUB_WEBHOOK_SECRET=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
+  if [[ -z $secret ]]; then
+    secret=$(openssl rand -hex 32)
+    tmp=$(mktemp "$(dirname "$ENV_FILE")/.gynx.env.XXXXXX")
+    chmod 600 "$tmp"
+    grep -v '^GITHUB_WEBHOOK_SECRET=' "$ENV_FILE" >"$tmp" || true
+    printf 'GITHUB_WEBHOOK_SECRET=%s\n' "$secret" >>"$tmp"
+    mv "$tmp" "$ENV_FILE"
+    info "Generated GITHUB_WEBHOOK_SECRET; restarting the dashboard"
+    dc up -d --force-recreate --no-deps dashboard
+  fi
+  url=$(grep -E '^DASHBOARD_URL=' "$ENV_FILE" | cut -d= -f2-)
+  cat <<EOF
+GitHub → repository → Settings → Webhooks → Add webhook:
+  Payload URL   ${url%/}/api/webhooks/github
+  Content type  application/json
+  Secret        $secret
+  Events        Let me select individual events → Pushes, Releases
+Then add the repository in the dashboard: Status & incidents → Update feed.
+Keep the secret private. To rotate it: gynx set GITHUB_WEBHOOK_SECRET (then update every webhook).
+EOF
+}
+
 cmd_update() {
   if [[ -d "$APP_DIR/.git" ]]; then
     info "Pulling latest code"
@@ -148,6 +174,7 @@ case "${1:-help}" in
   backup) cmd_backup ;;
   restore) shift; cmd_restore "${1:-}" ;;
   register-commands) cmd_register_commands ;;
+  github-webhook) cmd_github_webhook ;;
   migrate) dc run --rm migrate ;;
   psql) dc exec postgres psql -U gynx -d gynx ;;
   config) "${EDITOR:-nano}" "$ENV_FILE"; echo "Run 'gynx restart' to apply changes." ;;
@@ -164,6 +191,7 @@ Usage: gynx <command>
   backup              Dump the database to /var/backups/gynx (also runs nightly)
   restore <file>      Restore a backup (takes a safety backup first)
   register-commands   Re-register slash commands with Discord
+  github-webhook      Show the GitHub webhook settings for the update feed (creates the secret)
   migrate             Apply database migrations
   psql                Open a database shell
   config              Edit /etc/gynx/gynx.env (then: gynx restart)

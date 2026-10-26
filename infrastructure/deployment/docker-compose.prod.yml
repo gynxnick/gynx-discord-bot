@@ -110,6 +110,8 @@ services:
     environment:
       <<: *app-env
       PORT: '3000'
+      # Update feed: verifies GitHub webhook signatures. Empty = /api/webhooks/github answers 503.
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
     depends_on: *after-migrate
     healthcheck:
       test:

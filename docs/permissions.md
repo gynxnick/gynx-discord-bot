@@ -56,6 +56,7 @@ Regenerate with `pnpm docs:permissions` after changing keys, presets or command 
 | `incidents.view`                | View incidents and monitoring internals                                      |  ✓  |  ✓  |  ✓  |  ✓  |     |     |     |
 | `incidents.manage`              | Create and update incidents and maintenance windows                          |  ✓  |  ✓  |  ✓  |     |     |     |     |
 | `status.manage`                 | Configure monitored services, endpoints and thresholds                       |  ✓  |  ✓  |     |     |     |     |     |
+| `updates.manage`                | Configure the GitHub update feed (tracked repositories, webhook deliveries)  |  ✓  |  ✓  |     |     |     |     |     |
 | `moderation.execute`            | Warn, timeout and kick members                                               |  ✓  |  ✓  |  ✓  |     |  ✓  |     |     |
 | `moderation.ban` 🔒             | Ban and unban members                                                        |  ✓  |  ✓  |  ✓  |     |     |     |     |
 | `moderation.audit.view`         | View moderation records and moderator notes                                  |  ✓  |  ✓  |  ✓  |     |  ✓  |     |     |

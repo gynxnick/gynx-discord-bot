@@ -14,6 +14,7 @@ export const MODULES = [
   'announcements',
   'analytics',
   'support',
+  'updates',
 ] as const;
 export type ModuleKey = (typeof MODULES)[number];
 
@@ -29,6 +30,7 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
   announcements: 'Announcements',
   analytics: 'Analytics & reports',
   support: 'Support status panel',
+  updates: 'Update feed (GitHub)',
 };
 
 export async function getGuildConfig(db: Db, guildId: string): Promise<GuildConfig> {
